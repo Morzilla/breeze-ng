@@ -1991,6 +1991,7 @@ bool Style::eventFilterComboBoxContainer(QWidget *widget, QEvent *event)
 bool Style::eventFilterNgMenu(QMenu *menu, QEvent *event)
 {
     static const char joinedProperty[] = "_breeze_ng_joined";
+    static const bool debug = qEnvironmentVariableIsSet("BREEZE_NG_DEBUG");
     if (event->type() == QEvent::Show) {
         if (menu->property(PropertyNames::menuSeamlessEdges).isValid()) {
             return false; // the application decided the edges itself
@@ -2012,12 +2013,20 @@ bool Style::eventFilterNgMenu(QMenu *menu, QEvent *event)
             menuEdge = Qt::BottomEdge;
             buttonSide = QStringLiteral("top");
         }
+        if (debug) {
+            const QWidget *at = QApplication::widgetAt(topLeft + QPoint(6, -3));
+            qWarning("breeze-ng: menu shown at %d,%d size %dx%d; widget above: %s (%s); button: %s", topLeft.x(), topLeft.y(), menu->width(), menu->height(),
+                     at ? at->metaObject()->className() : "none", at ? qPrintable(at->objectName()) : "", button ? button->metaObject()->className() : "none");
+        }
         if (!button) {
             return false;
         }
         // the menu must really sit against the button, within a couple of pixels
         const QRect buttonRect(button->mapToGlobal(QPoint(0, 0)), button->size());
         const int gap = menuEdge == Qt::TopEdge ? topLeft.y() - buttonRect.bottom() : buttonRect.top() - (topLeft.y() + menu->height());
+        if (debug) {
+            qWarning("breeze-ng: button rect %d,%d %dx%d, gap %d", buttonRect.x(), buttonRect.y(), buttonRect.width(), buttonRect.height(), gap);
+        }
         if (gap < -2 || gap > 4) {
             return false;
         }
@@ -4857,6 +4866,9 @@ bool Style::drawPanelMenuPrimitive(const QStyleOption *option, QPainter *painter
     const bool hasAlpha(_helper->hasAlphaChannel(widget));
     const auto seamlessEdges = _helper->menuSeamlessEdges(widget);
     const QRect joinSpan = widget ? widget->property("_breeze_ng_join_span").toRect() : QRect(); // Breeze NG: where the button sits
+    if (qEnvironmentVariableIsSet("BREEZE_NG_DEBUG")) {
+        qWarning("breeze-ng: menu panel paint, alpha %d, span %d,%d %dx%d", hasAlpha, joinSpan.x(), joinSpan.y(), joinSpan.width(), joinSpan.height());
+    }
     QColor outline;
     const QColor background = _helper->menuSheet(palette, hasAlpha, &outline, joinSpan.isValid()); // Breeze NG
 
