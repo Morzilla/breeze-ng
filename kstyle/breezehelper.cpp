@@ -1812,14 +1812,13 @@ void Helper::renderTabBarTab(QPainter *painter,
         const qreal overlap = devicePixelRatio(painter) * devicePixelRatio(painter);
         frameRect.adjust(east ? -overlap : 0, south ? -overlap : 0, west ? overlap : 0, north ? overlap : 0);
 
-        if (documentMode && !isQtQuickControl && !hasAlteredBackground) {
-            bgBrush = palette.color(QPalette::Window);
-        } else {
-            bgBrush = frameBackgroundColor(palette);
-        }
-        QColor penBrush = KColorUtils::mix(bgBrush, palette.color(QPalette::WindowText), frameIntensityBias());
+        // Breeze NG Soft: the current tab is a tongue lifted a little from the bar, no outline
+        Q_UNUSED(documentMode)
+        Q_UNUSED(isQtQuickControl)
+        Q_UNUSED(hasAlteredBackground)
+        bgBrush = KColorUtils::mix(palette.color(QPalette::Window), ink(palette), isDark(palette) ? 0.08 : 0.05);
         painter->setBrush(bgBrush);
-        painter->setPen(QPen(penBrush, PenWidth::Frame));
+        painter->setPen(Qt::NoPen);
         QRectF highlightRect = frameRect;
         if (north || south) {
             highlightRect.setHeight(Metrics::TabBar_ActiveEffectSize);
@@ -1841,14 +1840,17 @@ void Helper::renderTabBarTab(QPainter *painter,
         const qreal overlap = PenWidth::Frame;
         frameRect.adjust(east ? overlap : 0, south ? overlap : 0, west ? -overlap : 0, north ? -overlap : 0);
 
-        const auto windowColor = palette.color(QPalette::Window);
-        bgBrush = isDark(palette) ? windowColor.darker(112) : windowColor.darker(104); // Breeze NG Soft: a shade, not a step
-        const auto hover = alphaColor(ink(palette), 0.08);
+        // Breeze NG Soft: a tab at rest is only its label; under the pointer a faint veil fades in
+        qreal veil = 0.0;
         if (animated) {
-            bgBrush = KColorUtils::mix(bgBrush, hover, animation);
+            veil = 0.07 * animation;
         } else if (enabled && hovered && !selected) {
-            bgBrush = hover;
+            veil = 0.07;
         }
+        if (veil <= 0.0) {
+            return;
+        }
+        bgBrush = alphaColor(ink(palette), veil);
         painter->setBrush(bgBrush);
         painter->setPen(Qt::NoPen);
         QPainterPath path = roundedPath(frameRect, corners, Metrics::Frame_FrameRadius);
