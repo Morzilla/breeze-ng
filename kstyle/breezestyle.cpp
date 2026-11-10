@@ -5129,17 +5129,8 @@ bool Style::drawIndicatorButtonDropDownPrimitive(const QStyleOption *option, QPa
 
     QRectF frameRect = _helper->strokedRect(_helper->shadowedRect(baseRect));
 
-    // also render separator
-    if (!flat || activeFocus || hovered || down || checked || penAnimation != AnimationData::OpacityInvalid) {
-        painter->setBrush(Qt::NoBrush);
-        if (option->direction == Qt::RightToLeft) {
-            QRectF separatorRect = frameRect.adjusted(0, 0, -Metrics::Frame_FrameRadius - PenWidth::Shadow, 0);
-            painter->drawLine(separatorRect.topRight(), separatorRect.bottomRight());
-        } else {
-            QRectF separatorRect = frameRect.adjusted(Metrics::Frame_FrameRadius + PenWidth::Shadow, 0, 0, 0);
-            painter->drawLine(separatorRect.topLeft(), separatorRect.bottomLeft());
-        }
-    }
+    // Breeze NG: no separator between a button and its menu arrow
+    Q_UNUSED(frameRect)
 
     if (painter->hasClipping()) {
         painter->setClipping(false);
