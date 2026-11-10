@@ -2023,13 +2023,19 @@ bool Style::eventFilterNgMenu(QMenu *menu, QEvent *event)
         }
         menu->setProperty("_breeze_ng_joins", QVariant::fromValue(QPointer<QWidget>(button)));
         menu->setProperty(PropertyNames::menuSeamlessEdges, QVariant::fromValue(Qt::Edges(menuEdge)));
+        QColor outline;
+        const QColor sheet = _helper->menuSheet(menu->palette(), _helper->hasAlphaChannel(menu), &outline);
         button->setProperty(joinedProperty, buttonSide);
+        button->setProperty("_breeze_ng_joined_bg", sheet);
+        button->setProperty("_breeze_ng_joined_edge", outline);
         button->update();
     } else if (event->type() == QEvent::Hide) {
         const QVariant joins = menu->property("_breeze_ng_joins");
         if (joins.isValid()) {
             if (QWidget *button = joins.value<QPointer<QWidget>>()) {
                 button->setProperty(joinedProperty, QVariant());
+                button->setProperty("_breeze_ng_joined_bg", QVariant());
+                button->setProperty("_breeze_ng_joined_edge", QVariant());
                 button->update();
             }
             menu->setProperty("_breeze_ng_joins", QVariant());
@@ -4847,20 +4853,12 @@ bool Style::drawPanelMenuPrimitive(const QStyleOption *option, QPainter *painter
     const auto &palette(option->palette);
     const bool hasAlpha(_helper->hasAlphaChannel(widget));
     const auto seamlessEdges = _helper->menuSeamlessEdges(widget);
-    auto background(_helper->frameBackgroundColor(palette));
-    auto outline(_helper->frameOutlineColor(palette));
+    QColor outline;
+    const QColor background = _helper->menuSheet(palette, hasAlpha, &outline); // Breeze NG
 
     painter->save();
-
-    const int menuOpacity = (_helper->isGlass() && StyleConfigData::menuOpacity() >= 100) ? 78 : StyleConfigData::menuOpacity(); // Breeze NG
-    if (menuOpacity < 100 && hasAlpha) {
-        if (widget && widget->isWindow()) {
-            painter->setCompositionMode(QPainter::CompositionMode_Source);
-        }
-        background.setAlphaF(menuOpacity / 100.0);
-        outline = _helper->alphaColor(_helper->ink(palette), _helper->isGlass() ? 0.16 : 0.12);
-    } else if (_helper->isSoft()) {
-        outline = _helper->alphaColor(_helper->ink(palette), 0.10);
+    if (background.alpha() < 255 && widget && widget->isWindow()) {
+        painter->setCompositionMode(QPainter::CompositionMode_Source);
     }
 
     _helper->renderMenuFrame(painter, option->rect, background, outline, hasAlpha, seamlessEdges);

@@ -122,6 +122,8 @@ public:
     static bool isDark(const QPalette &palette);
     //* Breeze NG: background of text fields
     QColor inputBackground(const QPalette &palette) const;
+    //* Breeze NG: background and outline of a menu panel (`alpha`: the menu window has an alpha channel)
+    QColor menuSheet(const QPalette &palette, bool alpha, QColor *outline) const;
     //* Breeze NG: a neon glow just inside the edge of `rect`, `strength` 0-1 (the animation engine fades it)
     void renderNgGlow(QPainter *painter, const QRectF &rect, const QColor &color, qreal strength, qreal radius = -1) const;
     //* Breeze NG Glass: the sheet colour of a translucent window (invalid if the painter's widget is not in one)

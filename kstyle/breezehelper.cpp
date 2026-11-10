@@ -164,6 +164,23 @@ QColor Helper::ink(const QPalette &palette)
     return isDark(palette) ? QColor(255, 255, 255) : QColor(0, 0, 0);
 }
 
+QColor Helper::menuSheet(const QPalette &palette, bool alpha, QColor *outline) const
+{
+    QColor background = frameBackgroundColor(palette);
+    const int menuOpacity = (isGlass() && StyleConfigData::menuOpacity() >= 100) ? 78 : StyleConfigData::menuOpacity();
+    QColor edge = frameOutlineColor(palette);
+    if (menuOpacity < 100 && alpha) {
+        background.setAlphaF(menuOpacity / 100.0);
+        edge = alphaColor(ink(palette), isGlass() ? 0.16 : 0.12);
+    } else if (isSoft()) {
+        edge = alphaColor(ink(palette), 0.10);
+    }
+    if (outline) {
+        *outline = edge;
+    }
+    return background;
+}
+
 void Helper::renderNgGlow(QPainter *painter, const QRectF &rect, const QColor &color, qreal strength, qreal radius) const
 {
     if (strength <= 0.0 || !color.isValid()) {
@@ -908,25 +925,28 @@ void Helper::renderNgButtonFrame(QPainter *painter,
     QPainterPath path;
     // joined to an open menu (see Style::eventFilterNgMenu): one shape with it
     QString joined;
+    QColor joinedBg;
+    QColor joinedEdge;
     if (painter->device() && painter->device()->devType() == QInternal::Widget) {
-        joined = static_cast<const QWidget *>(painter->device())->property("_breeze_ng_joined").toString();
+        const QWidget *device = static_cast<const QWidget *>(painter->device());
+        joined = device->property("_breeze_ng_joined").toString();
+        joinedBg = device->property("_breeze_ng_joined_bg").value<QColor>();
+        joinedEdge = device->property("_breeze_ng_joined_edge").value<QColor>();
     }
-    if (joined == QLatin1String("bottom")) {
-        frameRect.adjust(0, 0, 0, 3); // past the bottom: the widget clips it, no edge is drawn there
-        path = roundedPath(frameRect, CornersTop, radius);
-        bg = frameBackgroundColor(palette);
-        if (glass) {
-            bg.setAlphaF(0.78);
+    if (joined == QLatin1String("bottom") || joined == QLatin1String("top")) {
+        // the menu's own sheet and outline; the path runs past the joined side, which the widget clips away
+        if (joined == QLatin1String("bottom")) {
+            frameRect.adjust(0, 0, 0, radius + 3);
+            path = roundedPath(frameRect, CornersTop, radius);
+        } else {
+            frameRect.adjust(0, -radius - 3, 0, 0);
+            path = roundedPath(frameRect, CornersBottom, radius);
         }
-        edge = QColor(0, 0, 0, 0);
-    } else if (joined == QLatin1String("top")) {
-        frameRect.adjust(0, -3, 0, 0);
-        path = roundedPath(frameRect, CornersBottom, radius);
-        bg = frameBackgroundColor(palette);
-        if (glass) {
-            bg.setAlphaF(0.78);
+        bg = joinedBg.isValid() ? joinedBg : frameBackgroundColor(palette);
+        edge = joinedEdge.isValid() ? joinedEdge : QColor(0, 0, 0, 0);
+        if (bg.alpha() < 255) {
+            painter->setCompositionMode(QPainter::CompositionMode_Source);
         }
-        edge = QColor(0, 0, 0, 0);
     } else {
         path.addRoundedRect(frameRect, radius, radius);
     }
