@@ -4753,7 +4753,7 @@ bool Style::drawPanelMenuPrimitive(const QStyleOption *option, QPainter *painter
 
     painter->save();
 
-    const int menuOpacity = (_helper->isGlass() && StyleConfigData::menuOpacity() >= 100) ? 84 : StyleConfigData::menuOpacity(); // Breeze NG
+    const int menuOpacity = (_helper->isGlass() && StyleConfigData::menuOpacity() >= 100) ? 78 : StyleConfigData::menuOpacity(); // Breeze NG
     if (menuOpacity < 100 && hasAlpha) {
         if (widget && widget->isWindow()) {
             painter->setCompositionMode(QPainter::CompositionMode_Source);

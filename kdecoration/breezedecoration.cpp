@@ -586,7 +586,7 @@ void Decoration::paint(QPainter *painter, const QRectF &repaintRegion)
         painter->setPen(Qt::NoPen);
         QColor frameColor = window()->color(window()->isActive() ? ColorGroup::Active : ColorGroup::Inactive, ColorRole::Frame);
         if (m_internalSettings->variant() == InternalSettings::Glass) {
-            frameColor.setAlphaF(0.80); // Breeze NG
+            frameColor.setAlphaF(0.70); // Breeze NG
             painter->setCompositionMode(QPainter::CompositionMode_Source);
         }
         painter->setBrush(frameColor);
@@ -644,7 +644,7 @@ void Decoration::paintTitleBar(QPainter *painter, const QRectF &repaintRegion)
     const bool glass = m_internalSettings->variant() == InternalSettings::Glass;
     QColor sheet = titleBarColor();
     if (glass) {
-        sheet.setAlphaF(0.80);
+        sheet.setAlphaF(0.70);
         painter->setCompositionMode(QPainter::CompositionMode_Source);
     }
     backBrush = sheet;

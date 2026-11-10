@@ -46,7 +46,7 @@
     </entry>
     <!-- Breeze NG: opacity (0-100) of the windows in the Glass variant -->
     <entry name="WindowOpacity" type="Int">
-      <default>84</default>
+      <default>70</default>
     </entry>
 
   </group>

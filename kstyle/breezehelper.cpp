@@ -951,6 +951,36 @@ void Helper::renderCheckBoxBackground(QPainter *painter,
                                       bool sunken,
                                       qreal animation) const
 {
+    // Breeze NG: Soft fills the box with a tone (the accent when checked); Glass with a sheet of ink and an edge
+    {
+        const bool glass = isGlass();
+        const QColor inkColor = ink(palette);
+        const qreal on = (state == CheckOn || state == CheckPartial) ? 1.0 : (state == CheckAnimated ? animation : 0.0);
+        const QColor off = alphaColor(inkColor, glass ? 0.09 : 0.11);
+        const QColor onColor = glass ? alphaColor(inkColor, 0.28) : palette.color(QPalette::Highlight);
+        QColor fill = KColorUtils::mix(off, onColor, on);
+        QColor edge = glass ? alphaColor(inkColor, 0.22 + 0.18 * on) : QColor(0, 0, 0, 0);
+        if (neutalHighlight) {
+            edge = neutralText(palette);
+        }
+        if (sunken) {
+            fill = fill.darker(110);
+        }
+        painter->save();
+        painter->setRenderHint(QPainter::Antialiasing, true);
+        QRectF frameRect(rect.adjusted(2, 2, -2, -2));
+        painter->setBrush(fill);
+        if (edge.alpha() > 0) {
+            painter->setPen(QPen(edge, PenWidth::Frame));
+            frameRect = strokedRect(frameRect);
+        } else {
+            painter->setPen(Qt::NoPen);
+        }
+        painter->drawRoundedRect(frameRect, Metrics::CheckBox_Radius, Metrics::CheckBox_Radius);
+        painter->restore();
+        return;
+    }
+
     // setup painter
     painter->setRenderHint(QPainter::Antialiasing, true);
 
@@ -1103,6 +1133,36 @@ void Helper::renderRadioButtonBackground(QPainter *painter,
                                          bool sunken,
                                          qreal animation) const
 {
+    // Breeze NG: as the check box, round
+    {
+        const bool glass = isGlass();
+        const QColor inkColor = ink(palette);
+        const qreal on = state == RadioOn ? 1.0 : (state == RadioAnimated ? animation : 0.0);
+        const QColor off = alphaColor(inkColor, glass ? 0.09 : 0.11);
+        const QColor onColor = glass ? alphaColor(inkColor, 0.28) : palette.color(QPalette::Highlight);
+        QColor fill = KColorUtils::mix(off, onColor, on);
+        QColor edge = glass ? alphaColor(inkColor, 0.22 + 0.18 * on) : QColor(0, 0, 0, 0);
+        if (neutalHighlight) {
+            edge = neutralText(palette);
+        }
+        if (sunken) {
+            fill = fill.darker(110);
+        }
+        painter->save();
+        painter->setRenderHint(QPainter::Antialiasing, true);
+        QRectF frameRect(rect.adjusted(2, 2, -2, -2));
+        painter->setBrush(fill);
+        if (edge.alpha() > 0) {
+            painter->setPen(QPen(edge, PenWidth::Frame));
+            frameRect = strokedRect(frameRect);
+        } else {
+            painter->setPen(Qt::NoPen);
+        }
+        painter->drawEllipse(frameRect);
+        painter->restore();
+        return;
+    }
+
     // setup painter
     painter->setRenderHint(QPainter::Antialiasing, true);
 
