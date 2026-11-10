@@ -1958,6 +1958,16 @@ bool Style::eventFilterComboBoxContainer(QWidget *widget, QEvent *event)
 //____________________________________________________________________________
 bool Style::eventFilterDockWidget(QDockWidget *dockWidget, QEvent *event)
 {
+    // Breeze NG Glass: inside a translucent window the dock area is not cleared before its children repaint, so
+    // translucent paints would pile up (a 16 % selection turning white). Lay a fresh sheet under it every time.
+    if (event->type() == QEvent::Paint && !dockWidget->isFloating() && dockWidget->window() && dockWidget->window()->property("_breeze_ng_glass").toBool()) {
+        QPainter painter(dockWidget);
+        painter.setClipRegion(static_cast<QPaintEvent *>(event)->region());
+        painter.setCompositionMode(QPainter::CompositionMode_Source);
+        painter.fillRect(dockWidget->rect(), _helper->alphaColor(dockWidget->palette().color(QPalette::Window), qBound(20, StyleConfigData::windowOpacity(), 100) / 100.0));
+        return false;
+    }
+
     if (event->type() == QEvent::Paint && dockWidget->isFloating()) {
         // create painter and clip
         QPainter painter(dockWidget);
