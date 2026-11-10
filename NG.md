@@ -1,5 +1,7 @@
 # Breeze NG
 
+<img src="ng/logo.png" width="96" align="right" alt="Breeze NG logo">
+
 A fork of KDE's [Breeze](https://invent.kde.org/plasma/breeze) widget style and window decoration with two looks
 that go further than the original: **Soft** and **Glass**. It installs next to the stock Breeze, under its own
 names, and leaves it untouched.
@@ -14,6 +16,8 @@ names, and leaves it untouched.
 Both looks share: no separator lines anywhere, menus with padded rounded panels and a solid accent block on the
 current item, tabs that are one sheet with their panel, a neon glow inside fields and buttons that have the focus,
 and a menu opened from a button that joins it into one shape.
+
+![Dolphin NG and the controls in Breeze NG Soft](ng/screenshots/01-desktop.png)
 
 ## Parts
 
