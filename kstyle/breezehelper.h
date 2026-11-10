@@ -107,6 +107,20 @@ public:
         return _contrastBias;
     }
 
+    //* Breeze NG: the variant in use
+    bool isGlass() const;
+    bool isSoft() const
+    {
+        return !isGlass();
+    }
+    //* Breeze NG: white on a dark palette, black on a light one, for translucent sheets and edges
+    static QColor ink(const QPalette &palette);
+    static bool isDark(const QPalette &palette);
+    //* Breeze NG: background of text fields
+    QColor inputBackground(const QPalette &palette) const;
+    //* Breeze NG: the frame of buttons and tool buttons of both variants
+    void renderNgButtonFrame(QPainter *painter, const QRectF &rect, const QPalette &palette, const QHash<QByteArray, bool> &stateProperties, qreal bgAnimation, qreal penAnimation) const;
+
     //* frame outline color, using animations
     QColor frameOutlineColor(const QPalette &,
                              bool mouseOver = false,

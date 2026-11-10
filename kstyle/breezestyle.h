@@ -86,6 +86,7 @@ public:
 
     //* application polishing
     void polish(QApplication *) override;
+    void polish(QPalette &) override; // Breeze NG: Glass keeps the text colour on its translucent selection
 
     //* application unpolishing
     void unpolish(QApplication *) override;

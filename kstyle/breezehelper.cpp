@@ -5,6 +5,7 @@
  */
 
 #include "breezehelper.h"
+#include "breezestyleconfigdata.h"
 
 #include "breeze.h"
 #include "breezepropertynames.h"
@@ -139,9 +140,31 @@ QColor transparentize(const QColor &color, qreal amount)
 }
 
 //____________________________________________________________________
+bool Helper::isGlass() const
+{
+    return StyleConfigData::variant() == StyleConfigData::Glass;
+}
+
+bool Helper::isDark(const QPalette &palette)
+{
+    return palette.color(QPalette::Window).lightnessF() < 0.5;
+}
+
+QColor Helper::ink(const QPalette &palette)
+{
+    return isDark(palette) ? QColor(255, 255, 255) : QColor(0, 0, 0);
+}
+
+QColor Helper::inputBackground(const QPalette &palette) const
+{
+    const QColor base = palette.color(QPalette::Base);
+    return isGlass() ? alphaColor(base, 0.62) : base;
+}
+
 QColor Helper::frameOutlineColor(const QPalette &palette, bool mouseOver, bool hasFocus, qreal opacity, AnimationMode mode) const
 {
-    QColor outline(KColorUtils::mix(palette.color(QPalette::Window), palette.color(QPalette::WindowText), frameIntensityBias()));
+    // Breeze NG: Soft has no outline at rest; Glass has a faint edge of the ink colour
+    QColor outline = isGlass() ? alphaColor(ink(palette), 0.13) : QColor(0, 0, 0, 0);
 
     // focus takes precedence over hover
     if (mode == AnimationFocus) {
@@ -328,6 +351,9 @@ QColor Helper::checkBoxIndicatorColor(const QPalette &palette, bool mouseOver, b
 //______________________________________________________________________________
 QColor Helper::separatorColor(const QPalette &palette) const
 {
+    // Breeze NG: lines are whispers in both variants
+    return alphaColor(ink(palette), isGlass() ? 0.09 : 0.07);
+
     return KColorUtils::mix(palette.color(QPalette::Window), palette.color(QPalette::WindowText), frameIntensityBias());
 }
 
@@ -667,6 +693,11 @@ void Helper::renderButtonFrame(QPainter *painter,
         return;
     }
 
+    renderNgButtonFrame(painter, rect, palette, stateProperties, bgAnimation, penAnimation); // Breeze NG
+    if (true) {
+        return;
+    }
+
     QRectF shadowedRect = this->shadowedRect(rect);
     QRectF frameRect = strokedRect(shadowedRect);
     // setting color group to work around KColorScheme feature
@@ -737,6 +768,90 @@ void Helper::renderButtonFrame(QPainter *painter,
     painter->setPen(QPen(penBrush, PenWidth::Frame));
     const qreal radius = roundButton ? roundRadius : frameRadius(PenWidth::Frame);
     painter->drawRoundedRect(frameRect, radius, radius);
+}
+
+//______________________________________________________________________________
+void Helper::renderNgButtonFrame(QPainter *painter,
+                                 const QRectF &rect,
+                                 const QPalette &palette,
+                                 const QHash<QByteArray, bool> &stateProperties,
+                                 qreal bgAnimation,
+                                 qreal penAnimation) const
+{
+    const bool enabled = stateProperties.value("enabled", true);
+    const bool visualFocus = stateProperties.value("visualFocus");
+    const bool hovered = stateProperties.value("hovered") && enabled;
+    const bool down = stateProperties.value("down") && enabled;
+    const bool checked = stateProperties.value("checked");
+    const bool flat = stateProperties.value("flat");
+    const bool defaultButton = stateProperties.value("defaultButton") && stateProperties.value("isActiveWindow");
+    const bool hasNeutralHighlight = stateProperties.value("hasNeutralHighlight");
+    const bool roundButton = stateProperties.value("roundButton");
+    const bool glass = isGlass();
+    const bool dark = isDark(palette);
+    const QColor inkColor = ink(palette);
+    const QColor highlight = palette.color(enabled ? QPalette::Active : QPalette::Disabled, QPalette::Highlight);
+
+    // how much ink the sheet holds
+    qreal fill = flat ? 0.0 : (glass ? (dark ? 0.09 : 0.06) : (dark ? 0.08 : 0.07));
+    if (checked) {
+        fill = glass ? 0.18 : 0.16;
+    }
+    if (hovered) {
+        fill += 0.06;
+    }
+    if (down) {
+        fill += 0.08;
+    }
+    if (bgAnimation != AnimationData::OpacityInvalid) {
+        fill += 0.08 * bgAnimation; // the press animation
+    }
+    QColor bg = alphaColor(inkColor, qMin(fill, 0.4));
+    if (defaultButton && !checked) {
+        // the primary action: tinted with the highlight, still readable with the normal button text
+        bg = glass ? KColorUtils::mix(alphaColor(inkColor, 0.16), highlight, 0.25) : KColorUtils::mix(palette.color(QPalette::Button), highlight, 0.35);
+    } else if (hasNeutralHighlight) {
+        bg = alphaColor(neutralText(palette), 0.25);
+    }
+
+    QColor edge(0, 0, 0, 0);
+    if (glass && (!flat || checked || hovered || down)) {
+        edge = alphaColor(inkColor, checked ? 0.26 : (hovered ? 0.22 : 0.14));
+    }
+    if (visualFocus) {
+        edge = focusColor(palette);
+    } else if (penAnimation != AnimationData::OpacityInvalid && glass) {
+        edge = KColorUtils::mix(edge, alphaColor(inkColor, 0.22), penAnimation);
+    }
+
+    if (bg.alpha() == 0 && edge.alpha() == 0) {
+        return;
+    }
+
+    painter->save();
+    painter->setRenderHint(QPainter::Antialiasing, true);
+    const qreal radius = roundButton ? std::max(rect.width(), rect.height()) / 2 : frameRadius(PenWidth::Frame);
+    const QRectF frameRect = strokedRect(rect);
+    QPainterPath path;
+    path.addRoundedRect(frameRect, radius, radius);
+    if (glass && !flat) {
+        // a sheet of glass: lighter towards the top
+        QLinearGradient sheet(frameRect.topLeft(), frameRect.bottomLeft());
+        sheet.setColorAt(0.0, alphaColor(inkColor, qMin(bg.alphaF() + 0.06, 0.5)));
+        sheet.setColorAt(1.0, bg);
+        painter->setBrush(sheet);
+    } else {
+        painter->setBrush(bg);
+    }
+    painter->setPen(edge.alpha() > 0 ? QPen(edge, PenWidth::Frame) : QPen(Qt::NoPen));
+    painter->drawPath(path);
+    if (glass && !flat && !down) {
+        // the bright hairline on the top edge, as on the panels
+        painter->setClipPath(path);
+        painter->setPen(QPen(alphaColor(inkColor, dark ? 0.16 : 0.5), 1));
+        painter->drawLine(QPointF(frameRect.left() + radius, frameRect.top() + 1.0), QPointF(frameRect.right() - radius, frameRect.top() + 1.0));
+    }
+    painter->restore();
 }
 
 //______________________________________________________________________________
@@ -1279,10 +1394,10 @@ void Helper::renderScrollBarHandle(QPainter *painter, const QRectF &rect, const 
     const QRectF baseRect(rect);
     const qreal radius(0.5 * std::min({baseRect.width(), baseRect.height(), (qreal)Metrics::ScrollBar_SliderWidth}));
 
-    painter->setPen(Qt::NoPen);
-    painter->setPen(QPen(transparentize(fg, frameIntensityBias()), 1.001));
-    painter->setBrush(KColorUtils::overlayColors(bg, alphaColor(fg, 0.5)));
-    painter->drawRoundedRect(strokedRect(baseRect), radius, radius);
+    Q_UNUSED(bg)
+    painter->setPen(Qt::NoPen); // Breeze NG: no outline on the handle
+    painter->setBrush(alphaColor(fg, 0.45));
+    painter->drawRoundedRect(baseRect, radius, radius);
 }
 
 //______________________________________________________________________________
@@ -1325,6 +1440,33 @@ void Helper::renderStaticTabBarTab(QPainter *painter,
     QRectF frameRect = rect;
     QColor bgBrush;
 
+    if (isGlass()) {
+        // Breeze NG Glass: every tab is a pill; the current one is a lit sheet of glass, a hovered one a faint veil
+        Q_UNUSED(documentMode)
+        Q_UNUSED(isQtQuickControl)
+        Q_UNUSED(hasAlteredBackground)
+        const QColor inkColor = ink(palette);
+        qreal alpha = selected ? 0.16 : 0.0;
+        if (animated) {
+            alpha = std::max(alpha, 0.08 * animation);
+        } else if (enabled && hovered && !selected) {
+            alpha = 0.08;
+        }
+        if (alpha <= 0.0) {
+            return;
+        }
+        const QRectF pill = frameRect.adjusted(2, 3, -2, -3);
+        const qreal radius = pill.height() / 2.0;
+        painter->setBrush(alphaColor(inkColor, alpha));
+        painter->setPen(selected ? QPen(alphaColor(inkColor, 0.22), PenWidth::Frame) : QPen(Qt::NoPen));
+        painter->drawRoundedRect(pill, radius, radius);
+        if (selected) {
+            painter->setPen(QPen(alphaColor(inkColor, isDark(palette) ? 0.18 : 0.5), 1));
+            painter->drawLine(QPointF(pill.left() + radius, pill.top() + 1.5), QPointF(pill.right() - radius, pill.top() + 1.5));
+        }
+        return;
+    }
+
     if (selected) {
         // overlap border
         bgBrush = windowColor;
@@ -1340,7 +1482,7 @@ void Helper::renderStaticTabBarTab(QPainter *painter,
         }
         QColor penBrush = KColorUtils::mix(bgBrush, palette.color(QPalette::WindowText), frameIntensityBias());
         painter->setBrush(bgBrush);
-        painter->setPen(QPen(penBrush, PenWidth::Frame));
+        painter->setPen(Qt::NoPen); // Breeze NG Soft: the tab is a tone, not a frame
         QRectF highlightRect = frameRect;
         if (north || south) {
             highlightRect.setHeight(Metrics::TabBar_ActiveEffectSize);
@@ -1481,10 +1623,7 @@ void Helper::renderTabBarTab(QPainter *painter,
         }
         QPainterPath path = roundedPath(strokedRect(frameRect), corners, frameRadius(PenWidth::Frame));
         painter->drawPath(path);
-        QPainterPath highlightPath = roundedPath(highlightRect, corners, Metrics::Frame_FrameRadius);
-        painter->setBrush(palette.color(QPalette::Highlight));
-        painter->setPen(Qt::NoPen);
-        painter->drawPath(highlightPath);
+        Q_UNUSED(highlightRect) // Breeze NG Soft: no accent stripe on the current tab
     } else {
         // don't overlap border
         // Since we don't set the rectangle as strokedRect here, modify only one side of it
@@ -1493,8 +1632,8 @@ void Helper::renderTabBarTab(QPainter *painter,
         frameRect.adjust(east ? overlap : 0, south ? overlap : 0, west ? -overlap : 0, north ? -overlap : 0);
 
         const auto windowColor = palette.color(QPalette::Window);
-        bgBrush = windowColor.darker(120);
-        const auto hover = alphaColor(hoverColor(palette), 0.2);
+        bgBrush = isDark(palette) ? windowColor.darker(112) : windowColor.darker(104); // Breeze NG Soft: a shade, not a step
+        const auto hover = alphaColor(ink(palette), 0.08);
         if (animated) {
             bgBrush = KColorUtils::mix(bgBrush, hover, animation);
         } else if (enabled && hovered && !selected) {

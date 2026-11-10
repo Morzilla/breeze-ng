@@ -346,6 +346,15 @@ void Style::polish(QWidget *widget)
         widget->clearMask();
     }
 
+    // Breeze NG Glass: main windows and dialogs become sheets of frosted glass (the compositor blurs behind them)
+    if (_helper->isGlass() && widget->isWindow() && _helper->compositingActive() && !widget->testAttribute(Qt::WA_X11NetWmWindowTypeDND)
+        && (qobject_cast<QMainWindow *>(widget) || qobject_cast<QDialog *>(widget)) && !widget->testAttribute(Qt::WA_TranslucentBackground)) {
+        setTranslucentBackground(widget);
+        widget->setAttribute(Qt::WA_StyledBackground);
+        widget->setProperty("_breeze_ng_glass", true);
+        _blurHelper->registerWidget(widget);
+    }
+
     // scrollarea polishing is somewhat complex. It is moved to a dedicated method
     polishScrollArea(qobject_cast<QAbstractScrollArea *>(widget));
 
@@ -417,7 +426,7 @@ void Style::polish(QWidget *widget)
     } else if (qobject_cast<QMenu *>(widget)) {
         setTranslucentBackground(widget);
 
-        if (_helper->hasAlphaChannel(widget) && StyleConfigData::menuOpacity() < 100) {
+        if (_helper->hasAlphaChannel(widget) && (StyleConfigData::menuOpacity() < 100 || _helper->isGlass())) {
             _blurHelper->registerWidget(widget->window());
         }
 
@@ -500,6 +509,18 @@ void Style::polish(QWidget *widget)
 
     // base class polishing
     ParentStyleClass::polish(widget);
+}
+
+//______________________________________________________________
+void Style::polish(QPalette &palette)
+{
+    ParentStyleClass::polish(palette);
+    if (_helper->isGlass()) {
+        // the selection is translucent: selected text keeps the normal text colour
+        for (QPalette::ColorGroup group : {QPalette::Active, QPalette::Inactive, QPalette::Disabled}) {
+            palette.setColor(group, QPalette::HighlightedText, palette.color(group, QPalette::Text));
+        }
+    }
 }
 
 //______________________________________________________________
@@ -1321,6 +1342,15 @@ bool Style::drawWidgetPrimitive(const QStyleOption *option, QPainter *painter, c
     Q_UNUSED(option)
     const auto drawBackground = _toolsAreaManager->hasHeaderColors() && _helper->shouldDrawToolsArea(widget);
 
+    // Breeze NG Glass: the window itself is a translucent sheet
+    const bool glassWindow = widget && widget->property("_breeze_ng_glass").toBool();
+    if (glassWindow) {
+        painter->save();
+        painter->setCompositionMode(QPainter::CompositionMode_Source);
+        painter->fillRect(widget->rect(), _helper->alphaColor(widget->palette().color(QPalette::Window), qBound(20, StyleConfigData::windowOpacity(), 100) / 100.0));
+        painter->restore();
+    }
+
     auto mw = qobject_cast<const QMainWindow *>(widget);
     if (mw && mw == mw->window()) {
         painter->save();
@@ -1339,6 +1369,9 @@ bool Style::drawWidgetPrimitive(const QStyleOption *option, QPainter *painter, c
         }
 
         auto color = _toolsAreaManager->palette().brush(mw->isActiveWindow() ? QPalette::Active : QPalette::Inactive, QPalette::Window);
+        if (glassWindow) {
+            color = QBrush(_helper->alphaColor(color.color(), qBound(20, StyleConfigData::windowOpacity(), 100) / 100.0));
+        }
 
         if (drawBackground) {
             painter->setPen(Qt::transparent);
@@ -4051,7 +4084,7 @@ bool Style::drawFrameLineEditPrimitive(const QStyleOption *option, QPainter *pai
 
     // make sure there is enough room to render frame
     if (rect.height() < 2 * Metrics::LineEdit_FrameWidth + option->fontMetrics.height()) {
-        const auto &background = palette.color(QPalette::Base);
+        const auto background = _helper->inputBackground(palette); // Breeze NG
 
         painter->setPen(Qt::NoPen);
         painter->setBrush(background);
@@ -4074,7 +4107,7 @@ bool Style::drawFrameLineEditPrimitive(const QStyleOption *option, QPainter *pai
         const qreal opacity(_animations->inputWidgetEngine().frameOpacity(widget));
 
         // render
-        const auto &background = palette.color(QPalette::Base);
+        const auto background = _helper->inputBackground(palette); // Breeze NG
         const auto outline(hasHighlightNeutral(widget, option, mouseOver, hasFocus) ? _helper->neutralText(palette).lighter(mouseOver || hasFocus ? 150 : 100)
                                                                                     : _helper->frameOutlineColor(palette, mouseOver, hasFocus, opacity, mode));
         _helper->renderFrame(painter, rect, background, outline);
@@ -4710,12 +4743,15 @@ bool Style::drawPanelMenuPrimitive(const QStyleOption *option, QPainter *painter
 
     painter->save();
 
-    if (StyleConfigData::menuOpacity() < 100) {
+    const int menuOpacity = (_helper->isGlass() && StyleConfigData::menuOpacity() >= 100) ? 84 : StyleConfigData::menuOpacity(); // Breeze NG
+    if (menuOpacity < 100 && hasAlpha) {
         if (widget && widget->isWindow()) {
             painter->setCompositionMode(QPainter::CompositionMode_Source);
         }
-        background.setAlphaF(StyleConfigData::menuOpacity() / 100.0);
-        outline = _helper->alphaColor(palette.color(QPalette::WindowText), 0.25);
+        background.setAlphaF(menuOpacity / 100.0);
+        outline = _helper->alphaColor(_helper->ink(palette), _helper->isGlass() ? 0.16 : 0.12);
+    } else if (_helper->isSoft()) {
+        outline = _helper->alphaColor(_helper->ink(palette), 0.10);
     }
 
     _helper->renderMenuFrame(painter, option->rect, background, outline, hasAlpha, seamlessEdges);
@@ -4881,6 +4917,13 @@ bool Style::drawPanelItemViewItemPrimitive(const QStyleOption *option, QPainter 
     QColor focusColor = color;
     if (!hasCustomBackground) {
         focusColor.setAlphaF(selected ? 1.0 : 0.8);
+    }
+
+    // Breeze NG Glass: the selection is a pale sheet with a faint edge, not a block of colour
+    if (_helper->isGlass() && !hasCustomBackground) {
+        const QColor inkColor = _helper->ink(palette);
+        color = _helper->alphaColor(inkColor, selected ? (mouseOver ? 0.21 : 0.16) : 0.07);
+        focusColor = _helper->alphaColor(inkColor, selected ? 0.22 : 0.0);
     }
 
     // render

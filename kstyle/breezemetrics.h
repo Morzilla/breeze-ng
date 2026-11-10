@@ -39,7 +39,7 @@ struct Metrics {
 
     // frames
     static constexpr int Frame_FrameWidth = 2;
-    static constexpr int Frame_FrameRadius = 5;
+    static constexpr int Frame_FrameRadius = 9; // Breeze NG
 
     // layout
     static constexpr int Layout_TopLevelMarginWidth = 10;
@@ -47,14 +47,14 @@ struct Metrics {
     static constexpr int Layout_DefaultSpacing = 6;
 
     // line editors
-    static constexpr int LineEdit_FrameWidth = 6;
+    static constexpr int LineEdit_FrameWidth = 7; // Breeze NG
 
     // menu items
     static constexpr int Menu_FrameWidth = 0;
-    static constexpr int MenuItem_MarginWidth = 4;
+    static constexpr int MenuItem_MarginWidth = 6; // Breeze NG
     static constexpr int MenuItem_HighlightGap = 4;
     static constexpr int MenuItem_ExtraLeftMargin = 4;
-    static constexpr int MenuItem_MarginHeight = 4;
+    static constexpr int MenuItem_MarginHeight = 5; // Breeze NG
     static constexpr int MenuItem_ItemSpacing = 2;
     static constexpr int MenuItem_AcceleratorSpace = 16;
     static constexpr int MenuItem_TextLeftMargin = 8;
@@ -72,7 +72,7 @@ struct Metrics {
 
     // buttons
     static constexpr int Button_MinWidth = 80;
-    static constexpr int Button_MarginWidth = 6;
+    static constexpr int Button_MarginWidth = 7; // Breeze NG
     static constexpr int Button_ItemSpacing = 4;
 
     // tool buttons
@@ -87,15 +87,15 @@ struct Metrics {
     static constexpr int CheckBox_Size = 20;
     static constexpr int CheckBox_FocusMarginWidth = 2;
     static constexpr int CheckBox_ItemSpacing = 4;
-    static constexpr int CheckBox_Radius = Frame_FrameRadius - 1;
+    static constexpr int CheckBox_Radius = 6; // Breeze NG
 
     // menubar items
     static constexpr int MenuBarItem_MarginWidth = 10;
     static constexpr int MenuBarItem_MarginHeight = 6;
 
     // scrollbars
-    static constexpr int ScrollBar_Extend = 21;
-    static constexpr int ScrollBar_SliderWidth = 8;
+    static constexpr int ScrollBar_Extend = 16; // Breeze NG
+    static constexpr int ScrollBar_SliderWidth = 6; // Breeze NG
     static constexpr int ScrollBar_MinSliderHeight = 20;
     static constexpr int ScrollBar_NoButtonHeight = 3;
     static constexpr int ScrollBar_SingleButtonHeight = ScrollBar_Extend;
@@ -127,7 +127,7 @@ struct Metrics {
 
     // tabbar
     static constexpr int TabBar_TabMarginHeight = 4;
-    static constexpr int TabBar_TabMarginWidth = 8;
+    static constexpr int TabBar_TabMarginWidth = 12; // Breeze NG
     static constexpr int TabBar_TabMinWidth = 80;
     static constexpr int TabBar_TabMinHeight = 30;
     static constexpr int TabBar_StaticTabMinHeight = 34;

@@ -3,7 +3,7 @@
       xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
       xsi:schemaLocation="http://www.kde.org/standards/kcfg/1.0
       http://www.kde.org/standards/kcfg/1.0/kcfg.xsd" >
-  <kcfgfile name="breezerc"/>
+  <kcfgfile name="breezengrc"/>
 
   <!-- common options -->
   <group name="Common">
@@ -41,6 +41,15 @@
 
     <entry name="RoundedCorners" type = "Bool">
       <default>true</default>
+    </entry>
+
+    <!-- Breeze NG: Soft (flat, opaque) or Glass (translucent title bar with blur) -->
+    <entry name="Variant" type="Enum">
+      <choices>
+        <choice name="Soft" />
+        <choice name="Glass" />
+      </choices>
+      <default>Soft</default>
     </entry>
   </group>
 

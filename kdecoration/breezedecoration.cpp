@@ -268,6 +268,15 @@ void Decoration::updateTitleBar()
     const qreal x = maximized ? 0 : s->smallSpacing() * Metrics::TitleBar_SideMargin;
     const qreal y = (maximized || isTopEdge()) ? 0 : s->smallSpacing() * Metrics::TitleBar_TopMargin;
     setTitleBar(QRectF(x, y, width, height));
+
+    // Breeze NG Glass: ask the compositor to blur what lies behind the translucent frame
+    if (m_internalSettings && m_internalSettings->variant() == InternalSettings::Glass) {
+        QPainterPath path;
+        path.addRoundedRect(QRectF(QPointF(0, 0), size()), m_scaledCornerRadius, m_scaledCornerRadius);
+        setBlurRegion(QRegion(path.toFillPolygon().toPolygon()));
+    } else {
+        setBlurRegion(QRegion());
+    }
 }
 
 //________________________________________________________________
@@ -575,7 +584,12 @@ void Decoration::paint(QPainter *painter, const QRectF &repaintRegion)
         painter->save();
         painter->setRenderHint(QPainter::Antialiasing);
         painter->setPen(Qt::NoPen);
-        painter->setBrush(window()->color(window()->isActive() ? ColorGroup::Active : ColorGroup::Inactive, ColorRole::Frame));
+        QColor frameColor = window()->color(window()->isActive() ? ColorGroup::Active : ColorGroup::Inactive, ColorRole::Frame);
+        if (m_internalSettings->variant() == InternalSettings::Glass) {
+            frameColor.setAlphaF(0.80); // Breeze NG
+            painter->setCompositionMode(QPainter::CompositionMode_Source);
+        }
+        painter->setBrush(frameColor);
 
         // clip away the top part
         if (!hideTitleBar()) {
@@ -626,19 +640,16 @@ void Decoration::paintTitleBar(QPainter *painter, const QRectF &repaintRegion)
     painter->save();
     painter->setPen(Qt::NoPen);
 
-    // render a linear gradient on title area
-    if (window()->isActive() && m_internalSettings->drawBackgroundGradient()) {
-        QLinearGradient gradient(0, 0, 0, rect.height());
-        gradient.setColorAt(0.0, titleBarColor().lighter(120));
-        gradient.setColorAt(0.8, titleBarColor());
-
-        frontBrush = gradient;
-
-    } else {
-        frontBrush = titleBarColor();
-
-        painter->setBrush(titleBarColor());
+    // Breeze NG: Soft is a flat tone; Glass is a translucent sheet the compositor blurs behind, with a lit top edge
+    const bool glass = m_internalSettings->variant() == InternalSettings::Glass;
+    QColor sheet = titleBarColor();
+    if (glass) {
+        sheet.setAlphaF(0.80);
+        painter->setCompositionMode(QPainter::CompositionMode_Source);
     }
+    backBrush = sheet;
+    frontBrush = sheet;
+    painter->setBrush(sheet);
 
     if (isMaximized() || !settings()->isAlphaChannelSupported()) {
         painter->setBrush(backBrush);
@@ -670,6 +681,14 @@ void Decoration::paintTitleBar(QPainter *painter, const QRectF &repaintRegion)
     }
 
     painter->restore();
+
+    if (glass) {
+        painter->save();
+        painter->setRenderHint(QPainter::Antialiasing);
+        painter->setPen(QPen(QColor(255, 255, 255, window()->isActive() ? 46 : 26), 1));
+        painter->drawLine(QPointF(rect.left() + m_scaledCornerRadius, rect.top() + 1.0), QPointF(rect.right() - m_scaledCornerRadius, rect.top() + 1.0));
+        painter->restore();
+    }
 
     // draw caption
     painter->setFont(settings()->font());

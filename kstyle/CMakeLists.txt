@@ -59,6 +59,7 @@ kconfig_add_kcfg_files(breeze_PART_SRCS breezestyleconfigdata.kcfgc)
 
 
 add_library(breeze${QT_MAJOR_VERSION} MODULE ${breeze_PART_SRCS})
+set_target_properties(breeze${QT_MAJOR_VERSION} PROPERTIES OUTPUT_NAME breezeng${QT_MAJOR_VERSION}) # Breeze NG: lives next to the stock Breeze
 
 ecm_qt_declare_logging_category(breeze${QT_MAJOR_VERSION}
     HEADER

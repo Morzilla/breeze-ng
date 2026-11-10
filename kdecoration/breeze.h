@@ -26,7 +26,7 @@ namespace Metrics
 // kstyle/breezemetrics.h
 // NOTE: this value is multiplied by settings()->smallSpacing()
 // which is always 2 on wayland, but can be something else on X11
-static constexpr qreal Frame_FrameRadius = 2.5;
+static constexpr qreal Frame_FrameRadius = 7.0; // Breeze NG: 14 px at the usual small spacing
 
 //* titlebar metrics, in units of small spacing
 static constexpr int TitleBar_TopMargin = 2;
