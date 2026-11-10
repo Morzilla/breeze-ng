@@ -55,7 +55,10 @@ TEXT = {
     "soft_d": ("The NG list and cards, opaque surfaces told apart by tone", "Lista e card NG, superfici opache distinte dal tono"),
     "glass": ("Glass", "Glass"),
     "glass_d": ("Everything: glass panel, translucent windows, blur", "Tutto: pannello a vetro, finestre traslucide, sfocatura"),
-    "iconset": ("Icons:", "Icone:"),
+    "iconset": ("Icons", "Icone"),
+    "ic_white": ("White places, file types in colour", "Luoghi bianchi, tipi di file a colori"),
+    "ic_colour": ("Everything in the colour of its kind", "Tutto nel colore della sua categoria"),
+    "ic_yellow": ("Yellow places, file types in colour", "Luoghi gialli, tipi di file a colori"),
     "apply": ("Switch my desktop to it when done (style, decoration, colours, icons)", "Passa il mio desktop a questo aspetto al termine (stile, decorazione, colori, icone)"),
     "deps": ("Install the build dependencies (asks for your password)", "Installa le dipendenze di compilazione (chiede la password)"),
     "jobs": ("Parallel compile jobs:", "Processi di compilazione:"),
@@ -263,7 +266,7 @@ class Installer(QWidget):
     def __init__(self):
         super().__init__()
         self.setWindowTitle(t("title"))
-        self.resize(780, 680); self.setMinimumSize(760, 660)
+        self.resize(800, 760); self.setMinimumSize(780, 740)
         self.look = "soft"
         self.proc = None
         self.queue = []
@@ -355,15 +358,23 @@ class Installer(QWidget):
             self.looks[key] = card
             row.addWidget(card)
         v.addLayout(row)
-        r2 = QHBoxLayout(); r2.addWidget(label(t("iconset"), "dim", False))
-        self.iconset = Combo()
-        for name, text in (("NeoLine-White", "NeoLine White"), ("NeoLine", "NeoLine"), ("NeoLine-Yellow", "NeoLine Yellow")):
-            self.iconset.addItem(text, name)
-        r2.addWidget(self.iconset); r2.addStretch(); v.addLayout(r2)
-        self.iconstrip = QLabel(); self.iconstrip.setFixedHeight(46)
-        v.addWidget(self.iconstrip)
-        self.iconset.currentIndexChanged.connect(self.show_icons)
-        self.show_icons()
+        v.addWidget(label(t("iconset"), "h2", False))
+        r2 = QHBoxLayout(); r2.setSpacing(12)
+        self.iconcards = {}
+        for name, title, key in (("NeoLine-White", "NeoLine White", "ic_white"), ("NeoLine", "NeoLine", "ic_colour"), ("NeoLine-Yellow", "NeoLine Yellow", "ic_yellow")):
+            card = Card(); c = QVBoxLayout(card); c.setContentsMargins(14, 12, 14, 12); c.setSpacing(6)
+            strip = QLabel()
+            pix = QPixmap(os.path.join(HERE, "screenshots", "icons-%s.png" % name))
+            if not pix.isNull():
+                strip.setPixmap(pix.scaledToHeight(32, Qt.TransformationMode.SmoothTransformation))
+                c.addWidget(strip, 0, Qt.AlignmentFlag.AlignHCenter)
+            tl = label(title, None, False); f = tl.font(); f.setBold(True); tl.setFont(f); c.addWidget(tl)
+            c.addWidget(label(t(key), "dim"))
+            card.clicked.connect(lambda n=name: self.pick_icons(n))
+            self.iconcards[name] = card
+            r2.addWidget(card)
+        v.addLayout(r2)
+        self.pick_icons("NeoLine-White")
         self.apply = Check(t("apply")); v.addWidget(self.apply)
         v.addStretch(1)
         self.pick("soft")
@@ -385,13 +396,10 @@ class Installer(QWidget):
         v.addWidget(self.launch, 0, Qt.AlignmentFlag.AlignLeft)
         return w
 
-    def show_icons(self):
-        pix = QPixmap(os.path.join(HERE, "screenshots", "icons-%s.png" % self.iconset.currentData()))
-        if pix.isNull():
-            self.iconstrip.hide()
-            return
-        self.iconstrip.setPixmap(pix.scaledToHeight(42, Qt.TransformationMode.SmoothTransformation))
-        self.iconstrip.show()
+    def pick_icons(self, name):
+        self.icons = name
+        for n, card in self.iconcards.items():
+            card.select(n == name)
 
     # ---- navigation
     def pick(self, key):
@@ -439,7 +447,7 @@ class Installer(QWidget):
         chosen = [k for k, b in self.parts.items() if b.isChecked()]
         args = ["bash", script, "--yes", "--no-deps", "--only", ",".join(chosen), "--jobs", str(self.jobs.value()), "--preset", self.look]
         if self.apply.isChecked():
-            args += ["--apply", "glass" if self.look == "glass" else "soft", "--icons", self.iconset.currentData()]
+            args += ["--apply", "glass" if self.look == "glass" else "soft", "--icons", self.icons]
         self.queue = []
         if self.deps.isChecked():
             elevate = shutil.which("pkexec")
