@@ -7579,6 +7579,9 @@ bool Style::drawTabBarTabShapeControl(const QStyleOption *option, QPainter *pain
     stateProperties["isLast"] = isLast;
     stateProperties["isQtQuickControl"] = isQtQuickControl;
     stateProperties["hasAlteredBackground"] = hasAlteredBackground(widget);
+    // Breeze NG: tabs of a document bar (Dolphin, Kate, Konsole: no frame, the page sits right under the tabs)
+    // are pills; the current one is a tongue in the colour of the page it opens on
+    stateProperties["pillBar"] = tabOption->documentMode && !isStatic && !isQtQuickControl;
 
     if (isStatic) {
         _helper->renderStaticTabBarTab(painter, rect, option->palette, stateProperties, corners, animation);

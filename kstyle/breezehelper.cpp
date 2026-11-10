@@ -1735,11 +1735,33 @@ void Helper::renderTabBarTab(QPainter *painter,
     bool animated = animation != AnimationData::OpacityInvalid;
     bool isQtQuickControl = stateProperties.value("isQtQuickControl");
     bool hasAlteredBackground = stateProperties.value("hasAlteredBackground");
+    const bool pillBar = stateProperties.value("pillBar");
 
     // setup painter
     painter->setRenderHint(QPainter::Antialiasing, true);
     QRectF frameRect = rect;
     QColor bgBrush;
+
+    if (pillBar && !selected) {
+        // Breeze NG: a tab at rest is a faint pill, a little brighter under the pointer
+        qreal veil = 0.06;
+        if (animated) {
+            veil += 0.06 * animation;
+        } else if (enabled && hovered) {
+            veil += 0.06;
+        }
+        QRectF pill = frameRect;
+        if (north || south) {
+            pill.adjust(2, 4, -2, -4);
+        } else {
+            pill.adjust(4, 2, -4, -2);
+        }
+        const qreal radius = (north || south) ? pill.height() / 2.0 : pill.width() / 2.0;
+        painter->setPen(Qt::NoPen);
+        painter->setBrush(alphaColor(ink(palette), veil));
+        painter->drawRoundedRect(pill, radius, radius);
+        return;
+    }
 
     if (selected) {
         // overlap border
@@ -1752,7 +1774,8 @@ void Helper::renderTabBarTab(QPainter *painter,
         Q_UNUSED(documentMode)
         Q_UNUSED(isQtQuickControl)
         Q_UNUSED(hasAlteredBackground)
-        bgBrush = tabPanelColor(palette);
+        // in a document bar the tongue takes the colour of the page under it, so that the two are one surface
+        bgBrush = pillBar ? palette.color(QPalette::Base) : tabPanelColor(palette);
         painter->setBrush(bgBrush);
         painter->setPen(Qt::NoPen);
         QRectF highlightRect = frameRect;
