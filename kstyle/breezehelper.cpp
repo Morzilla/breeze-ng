@@ -215,7 +215,41 @@ QColor Helper::glassSheet(const QPainter *painter) const
     if (!window || !window->property("_breeze_ng_glass").toBool() || widget->autoFillBackground()) {
         return QColor();
     }
-    return alphaColor(window->palette().color(QPalette::Window), qBound(20, StyleConfigData::windowOpacity(), 100) / 100.0);
+    QColor sheet = alphaColor(window->palette().color(QPalette::Window), qBound(20, StyleConfigData::windowOpacity(), 100) / 100.0);
+    // a control inside a tab page or a group box sits on that panel, not on the bare window: what lies under it is the
+    // window sheet with the panel's fill over it (clearing to the bare sheet would punch a hole in the panel)
+    auto over = [](const QColor &top, const QColor &bottom) {
+        const qreal ta = top.alphaF(), ba = bottom.alphaF();
+        const qreal a = ta + ba * (1.0 - ta);
+        if (a <= 0.0) {
+            return QColor(0, 0, 0, 0);
+        }
+        QColor result;
+        result.setRgbF((top.redF() * ta + bottom.redF() * ba * (1.0 - ta)) / a,
+                       (top.greenF() * ta + bottom.greenF() * ba * (1.0 - ta)) / a,
+                       (top.blueF() * ta + bottom.blueF() * ba * (1.0 - ta)) / a,
+                       a);
+        return result;
+    };
+    QList<QColor> panels;
+    const QWidget *child = widget;
+    for (const QWidget *parent = widget->parentWidget(); parent && parent != window; child = parent, parent = parent->parentWidget()) {
+        if (parent->autoFillBackground() || parent->inherits("QAbstractScrollArea")) {
+            return QColor(); // an opaque surface of its own
+        }
+        if (parent->inherits("QTabWidget") && child->inherits("QTabBar")) {
+            continue; // the tab bar is beside the panel of its tab widget, not on it
+        }
+        if (parent->inherits("QTabWidget")) {
+            panels.prepend(tabPanelColor(parent->palette()));
+        } else if (parent->inherits("QGroupBox")) {
+            panels.prepend(frameBackgroundColor(parent->palette()));
+        }
+    }
+    for (const QColor &panel : std::as_const(panels)) {
+        sheet = over(panel, sheet);
+    }
+    return sheet;
 }
 
 void Helper::clearUnder(QPainter *painter, const QRectF &rect) const
@@ -1086,7 +1120,7 @@ void Helper::renderCheckBoxBackground(QPainter *painter,
         const bool glass = isGlass();
         const QColor inkColor = ink(palette);
         const qreal on = (state == CheckOn || state == CheckPartial) ? 1.0 : (state == CheckAnimated ? animation : 0.0);
-        const QColor off = alphaColor(inkColor, glass ? 0.09 : 0.11);
+        const QColor off = alphaColor(inkColor, glass ? 0.10 : 0.18); // an empty box must still read as a box
         const QColor onColor = glass ? alphaColor(inkColor, 0.28) : palette.color(QPalette::Highlight);
         QColor fill = KColorUtils::mix(off, onColor, on);
         QColor edge = glass ? alphaColor(inkColor, 0.22 + 0.18 * on) : QColor(0, 0, 0, 0);
@@ -1268,7 +1302,7 @@ void Helper::renderRadioButtonBackground(QPainter *painter,
         const bool glass = isGlass();
         const QColor inkColor = ink(palette);
         const qreal on = state == RadioOn ? 1.0 : (state == RadioAnimated ? animation : 0.0);
-        const QColor off = alphaColor(inkColor, glass ? 0.09 : 0.11);
+        const QColor off = alphaColor(inkColor, glass ? 0.10 : 0.18); // an empty box must still read as a box
         const QColor onColor = glass ? alphaColor(inkColor, 0.28) : palette.color(QPalette::Highlight);
         QColor fill = KColorUtils::mix(off, onColor, on);
         QColor edge = glass ? alphaColor(inkColor, 0.22 + 0.18 * on) : QColor(0, 0, 0, 0);

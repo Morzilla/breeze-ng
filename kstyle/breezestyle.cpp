@@ -451,6 +451,16 @@ void Style::polish(QWidget *widget)
         addEventFilter(widget);
         setTranslucentBackground(widget);
 
+    } else if (qobject_cast<QTabBar *>(widget)) {
+        addEventFilter(widget); // Breeze NG Glass: see eventFilter()
+
+    } else if (widget->objectName() == QLatin1String("qt_calendar_navigationbar")) {
+        // Breeze NG: Qt paints the month bar of a calendar as a block of the highlight colour; make it part of the sheet
+        QPalette calendarPalette = widget->palette();
+        calendarPalette.setColor(QPalette::Highlight, calendarPalette.color(QPalette::Window));
+        calendarPalette.setColor(QPalette::HighlightedText, calendarPalette.color(QPalette::WindowText));
+        widget->setPalette(calendarPalette);
+
     } else if (widget->inherits("QTipLabel")) {
         setTranslucentBackground(widget);
 
@@ -1389,7 +1399,9 @@ bool Style::drawWidgetPrimitive(const QStyleOption *option, QPainter *painter, c
             color = QBrush(_helper->alphaColor(color.color(), qBound(20, StyleConfigData::windowOpacity(), 100) / 100.0));
         }
 
-        if (drawBackground) {
+        // Breeze NG Glass: the window already painted its sheet under the tools area; a second translucent layer
+        // here would make the area more opaque than the rest, and the controls on it (cleared to one sheet) darker boxes
+        if (drawBackground && !glassWindow) {
             painter->setPen(Qt::transparent);
             painter->setBrush(color);
             painter->drawRect(rect);
@@ -1734,6 +1746,16 @@ bool Style::eventFilter(QObject *object, QEvent *event)
 {
     if (qobject_cast<QMenu *>(object) || object->inherits("QComboBoxPrivateContainer")) {
         eventFilterNgPopup(static_cast<QWidget *>(object), event);
+    }
+    if (auto tabBar = qobject_cast<QTabBar *>(object)) {
+        // Breeze NG Glass: a tab bar in a translucent window is not cleared between paints, so the old tongue and
+        // the labels would pile up when the current tab changes. Lay a fresh sheet first.
+        if (event->type() == QEvent::Paint && tabBar->window() && tabBar->window()->property("_breeze_ng_glass").toBool()) {
+            QPainter painter(tabBar);
+            painter.setClipRegion(static_cast<QPaintEvent *>(event)->region());
+            _helper->clearUnder(&painter, tabBar->rect());
+        }
+        return false;
     }
     if (auto menuBar = qobject_cast<QMenuBar *>(object)) {
         static bool repainting = false; // the style filters the bar and the whole application: guard the re-sent event
@@ -7770,8 +7792,22 @@ bool Style::drawToolBoxTabShapeControl(const QStyleOption *option, QPainter *pai
         outline = _helper->frameOutlineColor(palette, mouseOver, false, opacity, isAnimated ? AnimationHover : AnimationNone);
     }
 
-    // render
-    _helper->renderToolBoxFrame(painter, rect, tabRect.width(), outline);
+    // Breeze NG: no frame line across the box. The open section is a soft pill, the others brighten under the pointer.
+    Q_UNUSED(outline)
+    Q_UNUSED(tabRect)
+    qreal veil = selected ? 0.10 : 0.0;
+    if (!selected) {
+        veil = isAnimated ? 0.07 * opacity : (mouseOver ? 0.07 : 0.0);
+    }
+    if (veil > 0.0) {
+        painter->save();
+        painter->setRenderHint(QPainter::Antialiasing, true);
+        painter->setPen(Qt::NoPen);
+        painter->setBrush(_helper->alphaColor(_helper->ink(palette), veil));
+        const QRectF pill = QRectF(rect).adjusted(2, 2, -2, -2);
+        painter->drawRoundedRect(pill, Metrics::Frame_FrameRadius, Metrics::Frame_FrameRadius);
+        painter->restore();
+    }
 
     return true;
 }
@@ -8417,7 +8453,13 @@ bool Style::drawSliderComplexControl(const QStyleOptionComplex *option, QPainter
         const auto shadow(_helper->shadowColor(palette));
 
         // render
+        // Breeze NG: a disabled slider (or dial) dims its handle
+        painter->save();
+        if (!(option->state & State_Enabled)) {
+            painter->setOpacity(0.4);
+        }
         _helper->renderSliderHandle(painter, handleRect, background, outline, shadow, sunken);
+        painter->restore();
     }
 
     return true;
@@ -8491,7 +8533,13 @@ bool Style::drawDialComplexControl(const QStyleOptionComplex *option, QPainter *
         const auto shadow(_helper->shadowColor(palette));
 
         // render
+        // Breeze NG: a disabled slider (or dial) dims its handle
+        painter->save();
+        if (!(option->state & State_Enabled)) {
+            painter->setOpacity(0.4);
+        }
         _helper->renderSliderHandle(painter, handleRect, background, outline, shadow, sunken);
+        painter->restore();
     }
 
     return true;
