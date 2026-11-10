@@ -41,7 +41,9 @@
 #include <QLineEdit>
 #include <QMainWindow>
 #include <QMdiArea>
+#include <QAbstractButton>
 #include <QMenu>
+#include <QPointer>
 #include <QMenuBar>
 #include <QMetaEnum>
 #include <QPainter>
@@ -425,6 +427,7 @@ void Style::polish(QWidget *widget)
 
     } else if (qobject_cast<QMenu *>(widget)) {
         setTranslucentBackground(widget);
+        addEventFilter(widget); // Breeze NG: joins the menu to the button it opens from
 
         if (_helper->hasAlphaChannel(widget) && (StyleConfigData::menuOpacity() < 100 || _helper->isGlass())) {
             _blurHelper->registerWidget(widget->window());
@@ -1726,6 +1729,9 @@ bool Style::event(QEvent *e)
 //_____________________________________________________________________
 bool Style::eventFilter(QObject *object, QEvent *event)
 {
+    if (auto menu = qobject_cast<QMenu *>(object)) {
+        eventFilterNgMenu(menu, event);
+    }
     if (auto dockWidget = qobject_cast<QDockWidget *>(object)) {
         return eventFilterDockWidget(dockWidget, event);
     } else if (auto subWindow = qobject_cast<QMdiSubWindow *>(object)) {
@@ -1975,6 +1981,61 @@ bool Style::eventFilterComboBoxContainer(QWidget *widget, QEvent *event)
         _helper->renderMenuFrame(&painter, rect, background, outline, hasAlpha);
     }
 
+    return false;
+}
+
+//____________________________________________________________________________
+// Breeze NG: when a menu pops up right under (or over) a button, the two become one shape: the menu loses its
+// corners on that side, the button loses its own, and both share the menu's background. Breeze's "seamless edges"
+// property does the menu half; the button half is read by renderNgButtonFrame().
+bool Style::eventFilterNgMenu(QMenu *menu, QEvent *event)
+{
+    static const char joinedProperty[] = "_breeze_ng_joined";
+    if (event->type() == QEvent::Show) {
+        if (menu->property(PropertyNames::menuSeamlessEdges).isValid() && !menu->property("_breeze_ng_joins").isValid()) {
+            return false; // the application decided the edges itself
+        }
+        const QPoint topLeft = menu->pos();
+        auto buttonAt = [menu](const QPoint &globalPos) -> QWidget * {
+            QWidget *widget = QApplication::widgetAt(globalPos);
+            while (widget && widget != menu && !qobject_cast<QAbstractButton *>(widget)) {
+                widget = widget->parentWidget();
+            }
+            return (widget && widget != menu) ? widget : nullptr;
+        };
+        // a button just above the menu, or just below it (a menu that opens upwards)
+        QWidget *button = buttonAt(topLeft + QPoint(6, -3));
+        Qt::Edge menuEdge = Qt::TopEdge;
+        QString buttonSide = QStringLiteral("bottom");
+        if (!button) {
+            button = buttonAt(QPoint(topLeft.x() + 6, topLeft.y() + menu->height() + 3));
+            menuEdge = Qt::BottomEdge;
+            buttonSide = QStringLiteral("top");
+        }
+        if (!button) {
+            return false;
+        }
+        // the menu must really sit against the button, within a couple of pixels
+        const QRect buttonRect(button->mapToGlobal(QPoint(0, 0)), button->size());
+        const int gap = menuEdge == Qt::TopEdge ? topLeft.y() - buttonRect.bottom() : buttonRect.top() - (topLeft.y() + menu->height());
+        if (gap < -2 || gap > 4) {
+            return false;
+        }
+        menu->setProperty("_breeze_ng_joins", QVariant::fromValue(QPointer<QWidget>(button)));
+        menu->setProperty(PropertyNames::menuSeamlessEdges, QVariant::fromValue(Qt::Edges(menuEdge)));
+        button->setProperty(joinedProperty, buttonSide);
+        button->update();
+    } else if (event->type() == QEvent::Hide) {
+        const QVariant joins = menu->property("_breeze_ng_joins");
+        if (joins.isValid()) {
+            if (QWidget *button = joins.value<QPointer<QWidget>>()) {
+                button->setProperty(joinedProperty, QVariant());
+                button->update();
+            }
+            menu->setProperty("_breeze_ng_joins", QVariant());
+            menu->setProperty(PropertyNames::menuSeamlessEdges, QVariant());
+        }
+    }
     return false;
 }
 

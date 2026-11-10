@@ -135,6 +135,7 @@ public:
     bool eventFilterScrollArea(QWidget *, QEvent *);
     bool eventFilterComboBoxContainer(QWidget *, QEvent *);
     bool eventFilterDockWidget(QDockWidget *, QEvent *);
+    bool eventFilterNgMenu(QMenu *, QEvent *); // Breeze NG: a menu opened from a button joins it
     bool eventFilterMdiSubWindow(QMdiSubWindow *, QEvent *);
     bool eventFilterCommandLinkButton(QCommandLinkButton *, QEvent *);
     bool eventFilterDialogButtonBox(QDialogButtonBox *, QEvent *);

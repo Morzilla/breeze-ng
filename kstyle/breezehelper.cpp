@@ -904,9 +904,32 @@ void Helper::renderNgButtonFrame(QPainter *painter,
     painter->save();
     painter->setRenderHint(QPainter::Antialiasing, true);
     const qreal radius = roundButton ? std::max(rect.width(), rect.height()) / 2 : frameRadius(PenWidth::Frame);
-    const QRectF frameRect = strokedRect(rect);
+    QRectF frameRect = strokedRect(rect);
     QPainterPath path;
-    path.addRoundedRect(frameRect, radius, radius);
+    // joined to an open menu (see Style::eventFilterNgMenu): one shape with it
+    QString joined;
+    if (painter->device() && painter->device()->devType() == QInternal::Widget) {
+        joined = static_cast<const QWidget *>(painter->device())->property("_breeze_ng_joined").toString();
+    }
+    if (joined == QLatin1String("bottom")) {
+        frameRect.adjust(0, 0, 0, 3); // past the bottom: the widget clips it, no edge is drawn there
+        path = roundedPath(frameRect, CornersTop, radius);
+        bg = frameBackgroundColor(palette);
+        if (glass) {
+            bg.setAlphaF(0.78);
+        }
+        edge = QColor(0, 0, 0, 0);
+    } else if (joined == QLatin1String("top")) {
+        frameRect.adjust(0, -3, 0, 0);
+        path = roundedPath(frameRect, CornersBottom, radius);
+        bg = frameBackgroundColor(palette);
+        if (glass) {
+            bg.setAlphaF(0.78);
+        }
+        edge = QColor(0, 0, 0, 0);
+    } else {
+        path.addRoundedRect(frameRect, radius, radius);
+    }
     if (glass && !flat) {
         // a sheet of glass: lighter towards the top
         QLinearGradient sheet(frameRect.topLeft(), frameRect.bottomLeft());
