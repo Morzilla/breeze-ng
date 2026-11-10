@@ -350,8 +350,8 @@ void Style::polish(QWidget *widget)
     if (_helper->isGlass() && widget->isWindow() && _helper->compositingActive() && !widget->testAttribute(Qt::WA_X11NetWmWindowTypeDND)
         && (qobject_cast<QMainWindow *>(widget) || qobject_cast<QDialog *>(widget)) && !widget->testAttribute(Qt::WA_TranslucentBackground)) {
         setTranslucentBackground(widget);
-        widget->setAttribute(Qt::WA_StyledBackground);
         widget->setProperty("_breeze_ng_glass", true);
+        addEventFilter(widget); // paints the sheet, see eventFilter()
         _blurHelper->registerWidget(widget);
     }
 
@@ -1731,6 +1731,17 @@ bool Style::eventFilter(QObject *object, QEvent *event)
 
     if (object->isWidgetType()) {
         QWidget *widget = static_cast<QWidget *>(object);
+
+        // Breeze NG Glass: a translucent window never paints its background (WA_TranslucentBackground implies
+        // WA_NoSystemBackground), so nothing would clear the area under the controls between their repaints and
+        // their translucent hover veils would pile up. Lay the sheet here, in Source mode, before the children paint.
+        if (event->type() == QEvent::Paint && widget->property("_breeze_ng_glass").toBool()) {
+            QPainter painter(widget);
+            painter.setClipRegion(static_cast<QPaintEvent *>(event)->region());
+            painter.setCompositionMode(QPainter::CompositionMode_Source);
+            painter.fillRect(widget->rect(), _helper->alphaColor(widget->palette().color(QPalette::Window), qBound(20, StyleConfigData::windowOpacity(), 100) / 100.0));
+            return false;
+        }
 
         if (widget->objectName() == QLatin1String("KPageView::Search") || widget->objectName() == QLatin1String("KPageView::TitleWidget")) {
             return eventFilterPageViewHeader(widget, event);
