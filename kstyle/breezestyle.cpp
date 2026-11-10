@@ -1736,9 +1736,11 @@ bool Style::eventFilter(QObject *object, QEvent *event)
         // WA_NoSystemBackground), so nothing would clear the area under the controls between their repaints and
         // their translucent hover veils would pile up. Lay the sheet here, in Source mode, before the children paint.
         if (event->type() == QEvent::Paint && widget->property("_breeze_ng_glass").toBool()) {
+            // DestinationOver: the sheet goes under whatever a child may already have painted in this pass,
+            // and fills what is still transparent; it never dims the children.
             QPainter painter(widget);
             painter.setClipRegion(static_cast<QPaintEvent *>(event)->region());
-            painter.setCompositionMode(QPainter::CompositionMode_Source);
+            painter.setCompositionMode(QPainter::CompositionMode_DestinationOver);
             painter.fillRect(widget->rect(), _helper->alphaColor(widget->palette().color(QPalette::Window), qBound(20, StyleConfigData::windowOpacity(), 100) / 100.0));
             return false;
         }
