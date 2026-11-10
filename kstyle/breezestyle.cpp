@@ -2101,7 +2101,9 @@ void Style::ngRenderPopupPanel(QPainter *painter, const QRect &rect, const QPale
         painter->setPen(Qt::NoPen);
         painter->setBrush(background);
         const int y = top ? rect.top() : rect.bottom() - 1;
-        painter->drawRect(QRect(joinSpan.left(), y, joinSpan.width(), 2));
+        // the outline stays under the two side lines of the button (one pixel at each end of the span): when the
+        // popup is wider than the button or shifted, its edge then meets the button's sides without a break
+        painter->drawRect(QRect(joinSpan.left() + 1, y, qMax(1, joinSpan.width() - 2), 2));
         // a corner under the button becomes square, and the side outline runs straight up to the button
         const int cornerTop = top ? rect.top() : rect.bottom() - radius;
         const QColor sideLine = KColorUtils::overlayColors(background, outline);
