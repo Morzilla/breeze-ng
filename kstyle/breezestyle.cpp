@@ -6137,12 +6137,8 @@ bool Style::drawMenuBarItemControl(const QStyleOption *option, QPainter *painter
         painter->setPen(QPen(edge, PenWidth::Frame));
         painter->drawRoundedRect(shape, radius, radius);
     } else if (useStrongFocus && (selected || sunken)) {
-        QColor color;
-        if (sunken) {
-            color = _helper->focusColor(palette);
-        } else if (selected) {
-            color = _helper->hoverColor(palette);
-        }
+        // Breeze NG: a title under the pointer gets a faint veil, as the buttons do, not a block of the accent
+        const QColor color = _helper->alphaColor(_helper->ink(palette), sunken ? 0.14 : 0.08);
 
         const qreal radius = _helper->frameRadius(PenWidth::Frame);
 
@@ -6201,7 +6197,7 @@ bool Style::drawMenuBarItemControl(const QStyleOption *option, QPainter *painter
         const auto textRect = option->fontMetrics.boundingRect(rect, textFlags, menuItemOption->text);
 
         // render text
-        const QPalette::ColorRole role = (!joined && useStrongFocus && (sunken || selected)) ? QPalette::HighlightedText : QPalette::WindowText;
+        const QPalette::ColorRole role = QPalette::WindowText; // Breeze NG: the veil keeps the normal text colour
         drawItemText(painter, textRect, textFlags, palette, enabled, menuItemOption->text, role);
 
         // render outline
