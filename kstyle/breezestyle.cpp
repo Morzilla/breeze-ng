@@ -698,7 +698,7 @@ int Style::pixelMetric(PixelMetric metric, const QStyleOption *option, const QWi
         if (!widget && !isControl) {
             return 0;
         }
-        if (qobject_cast<const QMenu *>(widget) || widget->inherits("QComboBoxPrivateContainer")) {
+        if (qobject_cast<const QMenu *>(widget) || (widget && widget->inherits("QComboBoxPrivateContainer"))) {
             return Metrics::Menu_FrameWidth; // Breeze NG: the list of a combo box is padded like a menu
         }
         if (qobject_cast<const QLineEdit *>(widget)) {
