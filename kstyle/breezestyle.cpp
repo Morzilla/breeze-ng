@@ -165,17 +165,19 @@ public:
         if (option.showDecorationSelected && (option.state & QStyle::State_Selected)) {
             using namespace Breeze;
 
-            auto c = option.palette.brush((option.state & QStyle::State_Enabled) ? QPalette::Normal : QPalette::Disabled, HighlightColor).color();
-
-            painter->setPen(c);
-            c.setAlphaF(c.alphaF() * Metrics::Blend_Value);
-            painter->setBrush(c);
-            auto radius = Metrics::Frame_FrameRadius - (0.5 * PenWidth::Frame);
+            // Breeze NG: as in menus, the current item sits on a solid accent block without outline
+            const auto group = (option.state & QStyle::State_Enabled) ? QPalette::Normal : QPalette::Disabled;
+            painter->setPen(Qt::NoPen);
+            painter->setBrush(option.palette.brush(group, HighlightColor));
+            const qreal radius = Metrics::Frame_FrameRadius - 2.0;
             painter->drawRoundedRect(QRectF(option.rect).adjusted(0.5, 0.5, -0.5, -0.5), radius, radius);
         }
 
         // and ask the base class to do everything else for us besides the selected/highlighted part which we just did
         auto opt = option;
+        if (opt.showDecorationSelected && (opt.state & QStyle::State_Selected)) {
+            opt.palette.setColor(QPalette::Text, option.palette.color(QPalette::HighlightedText));
+        }
         opt.showDecorationSelected = false;
         opt.state &= ~QStyle::State_Selected;
 
@@ -695,8 +697,8 @@ int Style::pixelMetric(PixelMetric metric, const QStyleOption *option, const QWi
         if (!widget && !isControl) {
             return 0;
         }
-        if (qobject_cast<const QMenu *>(widget)) {
-            return Metrics::Menu_FrameWidth;
+        if (qobject_cast<const QMenu *>(widget) || widget->inherits("QComboBoxPrivateContainer")) {
+            return Metrics::Menu_FrameWidth; // Breeze NG: the list of a combo box is padded like a menu
         }
         if (qobject_cast<const QLineEdit *>(widget)) {
             return Metrics::LineEdit_FrameWidth;
@@ -1729,8 +1731,8 @@ bool Style::event(QEvent *e)
 //_____________________________________________________________________
 bool Style::eventFilter(QObject *object, QEvent *event)
 {
-    if (auto menu = qobject_cast<QMenu *>(object)) {
-        eventFilterNgMenu(menu, event);
+    if (qobject_cast<QMenu *>(object) || object->inherits("QComboBoxPrivateContainer")) {
+        eventFilterNgPopup(static_cast<QWidget *>(object), event);
     }
     if (auto dockWidget = qobject_cast<QDockWidget *>(object)) {
         return eventFilterDockWidget(dockWidget, event);
@@ -1969,92 +1971,151 @@ bool Style::eventFilterComboBoxContainer(QWidget *widget, QEvent *event)
         auto paintEvent = static_cast<QPaintEvent *>(event);
         painter.setClipRegion(paintEvent->region());
 
-        const auto rect(widget->rect());
-        const auto &palette(widget->palette());
-        const auto background(_helper->frameBackgroundColor(palette));
-        const auto outline(_helper->frameOutlineColor(palette));
-
+        // Breeze NG: the list of a combo box is a menu: same sheet, same corners, joined to the combo it opens from
         const bool hasAlpha(_helper->hasAlphaChannel(widget));
         if (hasAlpha) {
             painter.setCompositionMode(QPainter::CompositionMode_Source);
         }
-        _helper->renderMenuFrame(&painter, rect, background, outline, hasAlpha);
+        ngRenderPopupPanel(&painter, widget->rect(), widget->palette(), hasAlpha, widget);
     }
 
     return false;
 }
 
 //____________________________________________________________________________
-// Breeze NG: when a menu pops up right under (or over) a button, the two become one shape: the menu loses its
-// corners on that side, the button loses its own, and both share the menu's background. Breeze's "seamless edges"
-// property does the menu half; the button half is read by renderNgButtonFrame().
-bool Style::eventFilterNgMenu(QMenu *menu, QEvent *event)
+// Breeze NG: when a popup (a menu, the list of a combo box) opens right under or over the button it comes from,
+// the two become one shape: the popup loses its corners on that side, the button loses its own, and both share
+// the popup's background. Breeze's "seamless edges" property does the popup half; the button half is read by
+// renderNgButtonFrame(). The popup's shadow is re-applied so that it casts none over the button.
+bool Style::eventFilterNgPopup(QWidget *popup, QEvent *event)
 {
     static const char joinedProperty[] = "_breeze_ng_joined";
     static const bool debug = qEnvironmentVariableIsSet("BREEZE_NG_DEBUG");
     if (event->type() == QEvent::Show) {
-        if (menu->property(PropertyNames::menuSeamlessEdges).isValid()) {
+        if (popup->property(PropertyNames::menuSeamlessEdges).isValid()) {
             return false; // the application decided the edges itself
         }
-        const QPoint topLeft = menu->pos();
-        auto buttonAt = [menu](const QPoint &globalPos) -> QWidget * {
-            QWidget *widget = QApplication::widgetAt(globalPos);
-            while (widget && widget != menu && !qobject_cast<QAbstractButton *>(widget)) {
-                widget = widget->parentWidget();
+        const QPoint topLeft = popup->pos();
+        QWidget *button = nullptr;
+        if (popup->inherits("QComboBoxPrivateContainer")) {
+            // the combo box itself, unless it is an editable one (a field, not a button)
+            auto comboBox = qobject_cast<QComboBox *>(popup->parentWidget());
+            if (!comboBox || comboBox->isEditable()) {
+                return false;
             }
-            return (widget && widget != menu) ? widget : nullptr;
-        };
-        // a button just above the menu, or just below it (a menu that opens upwards)
-        QWidget *button = buttonAt(topLeft + QPoint(6, -3));
-        Qt::Edge menuEdge = Qt::TopEdge;
-        QString buttonSide = QStringLiteral("bottom");
+            button = comboBox;
+        } else {
+            auto buttonAt = [popup](const QPoint &globalPos) -> QWidget * {
+                QWidget *widget = QApplication::widgetAt(globalPos);
+                while (widget && widget != popup && !qobject_cast<QAbstractButton *>(widget) && !qobject_cast<QComboBox *>(widget)) {
+                    widget = widget->parentWidget();
+                }
+                return (widget && widget != popup) ? widget : nullptr;
+            };
+            // a button just above the menu, or just below it (a menu that opens upwards)
+            button = buttonAt(topLeft + QPoint(6, -3));
+            if (!button) {
+                button = buttonAt(QPoint(topLeft.x() + 6, topLeft.y() + popup->height() + 3));
+            }
+            if (debug) {
+                const QWidget *at = QApplication::widgetAt(topLeft + QPoint(6, -3));
+                qWarning("breeze-ng: popup shown at %d,%d size %dx%d; widget above: %s (%s); button: %s", topLeft.x(), topLeft.y(), popup->width(), popup->height(),
+                         at ? at->metaObject()->className() : "none", at ? qPrintable(at->objectName()) : "", button ? button->metaObject()->className() : "none");
+            }
+        }
         if (!button) {
-            button = buttonAt(QPoint(topLeft.x() + 6, topLeft.y() + menu->height() + 3));
+            return false;
+        }
+        // the popup must really sit against the button, within a couple of pixels, above or below it
+        const QRect buttonRect(button->mapToGlobal(QPoint(0, 0)), button->size());
+        const int gapBelow = topLeft.y() - buttonRect.bottom(); // popup under the button
+        const int gapAbove = buttonRect.top() - (topLeft.y() + popup->height()); // popup over the button
+        Qt::Edge menuEdge;
+        QString buttonSide;
+        if (gapBelow >= -2 && gapBelow <= 4) {
+            menuEdge = Qt::TopEdge;
+            buttonSide = QStringLiteral("bottom");
+        } else if (gapAbove >= -2 && gapAbove <= 4) {
             menuEdge = Qt::BottomEdge;
             buttonSide = QStringLiteral("top");
-        }
-        if (debug) {
-            const QWidget *at = QApplication::widgetAt(topLeft + QPoint(6, -3));
-            qWarning("breeze-ng: menu shown at %d,%d size %dx%d; widget above: %s (%s); button: %s", topLeft.x(), topLeft.y(), menu->width(), menu->height(),
-                     at ? at->metaObject()->className() : "none", at ? qPrintable(at->objectName()) : "", button ? button->metaObject()->className() : "none");
-        }
-        if (!button) {
+        } else {
+            if (debug) {
+                qWarning("breeze-ng: button rect %d,%d %dx%d, gaps %d / %d: not joined", buttonRect.x(), buttonRect.y(), buttonRect.width(), buttonRect.height(), gapBelow, gapAbove);
+            }
             return false;
         }
-        // the menu must really sit against the button, within a couple of pixels
-        const QRect buttonRect(button->mapToGlobal(QPoint(0, 0)), button->size());
-        const int gap = menuEdge == Qt::TopEdge ? topLeft.y() - buttonRect.bottom() : buttonRect.top() - (topLeft.y() + menu->height());
-        if (debug) {
-            qWarning("breeze-ng: button rect %d,%d %dx%d, gap %d", buttonRect.x(), buttonRect.y(), buttonRect.width(), buttonRect.height(), gap);
-        }
-        if (gap < -2 || gap > 4) {
-            return false;
-        }
-        menu->setProperty("_breeze_ng_joins", QVariant::fromValue(QPointer<QWidget>(button)));
-        // the button's span in the menu's coordinates, on the top (y 0) or bottom (y 1) side
+        popup->setProperty("_breeze_ng_joins", QVariant::fromValue(QPointer<QWidget>(button)));
+        // the button's span in the popup's coordinates, on the top (y 0) or bottom (y 1) side
         const int x1 = qMax(0, buttonRect.left() - topLeft.x());
-        const int x2 = qMin(menu->width() - 1, buttonRect.right() - topLeft.x());
-        menu->setProperty("_breeze_ng_join_span", QRect(x1, menuEdge == Qt::TopEdge ? 0 : 1, qMax(1, x2 - x1 + 1), 1));
+        const int x2 = qMin(popup->width() - 1, buttonRect.right() - topLeft.x());
+        popup->setProperty("_breeze_ng_join_span", QRect(x1, menuEdge == Qt::TopEdge ? 0 : 1, qMax(1, x2 - x1 + 1), 1));
         QColor outline;
-        const QColor sheet = _helper->menuSheet(menu->palette(), _helper->hasAlphaChannel(menu), &outline, true);
+        const QColor sheet = _helper->menuSheet(popup->palette(), _helper->hasAlphaChannel(popup), &outline, true);
         button->setProperty(joinedProperty, buttonSide);
         button->setProperty("_breeze_ng_joined_bg", sheet);
         button->setProperty("_breeze_ng_joined_edge", outline);
         button->update();
+        _shadowHelper->updateShadows(popup); // no shadow on the joined side
     } else if (event->type() == QEvent::Hide) {
-        const QVariant joins = menu->property("_breeze_ng_joins");
+        const QVariant joins = popup->property("_breeze_ng_joins");
         if (joins.isValid()) {
             if (QWidget *button = joins.value<QPointer<QWidget>>()) {
                 button->setProperty(joinedProperty, QVariant());
                 button->setProperty("_breeze_ng_joined_bg", QVariant());
                 button->setProperty("_breeze_ng_joined_edge", QVariant());
+                // while the popup was open the button counted as pressed; drop that at once, or the hover tone
+                // would fade out over the button as if the pointer had just left it
+                _animations->widgetStateEngine().snap(button, AnimationHover, false);
+                _animations->widgetStateEngine().snap(button, AnimationFocus, false);
+                _animations->widgetStateEngine().snap(button, AnimationPressed, false);
                 button->update();
             }
-            menu->setProperty("_breeze_ng_joins", QVariant());
-            menu->setProperty("_breeze_ng_join_span", QVariant());
+            popup->setProperty("_breeze_ng_joins", QVariant());
+            popup->setProperty("_breeze_ng_join_span", QVariant());
+            _shadowHelper->updateShadows(popup);
         }
     }
     return false;
+}
+
+//____________________________________________________________________________
+// Breeze NG: the panel of a popup, menu or combo list, and the trimming that joins it to its button
+void Style::ngRenderPopupPanel(QPainter *painter, const QRect &rect, const QPalette &palette, bool hasAlpha, const QWidget *widget) const
+{
+    const auto seamlessEdges = _helper->menuSeamlessEdges(widget);
+    const QRect joinSpan = widget ? widget->property("_breeze_ng_join_span").toRect() : QRect();
+    QColor outline;
+    const QColor background = _helper->menuSheet(palette, hasAlpha, &outline, joinSpan.isValid());
+    if (qEnvironmentVariableIsSet("BREEZE_NG_DEBUG")) {
+        qWarning("breeze-ng: popup panel paint, alpha %d, span %d,%d %dx%d, background alpha %d, opacity setting %d", hasAlpha, joinSpan.x(), joinSpan.y(), joinSpan.width(), joinSpan.height(), background.alpha(), StyleConfigData::menuOpacity());
+    }
+
+    painter->save();
+    _helper->renderMenuFrame(painter, rect, background, outline, hasAlpha, seamlessEdges);
+
+    if (joinSpan.isValid()) {
+        // the button continues the panel: no outline under it, and a square corner if it sits on one
+        const int radius = Metrics::Menu_Radius + 2;
+        const bool top = joinSpan.y() <= 0;
+        painter->setRenderHint(QPainter::Antialiasing, false);
+        painter->setPen(Qt::NoPen);
+        painter->setBrush(background);
+        const int y = top ? rect.top() : rect.bottom() - 1;
+        painter->drawRect(QRect(joinSpan.left(), y, joinSpan.width(), 2));
+        // a corner under the button becomes square, and the side outline runs straight up to the button
+        const int cornerTop = top ? rect.top() : rect.bottom() - radius;
+        const QColor sideLine = KColorUtils::overlayColors(background, outline);
+        if (joinSpan.left() <= rect.left() + radius) {
+            painter->drawRect(QRect(rect.left(), cornerTop, radius, radius));
+            painter->fillRect(QRect(rect.left(), cornerTop, 1, radius), sideLine);
+        }
+        if (joinSpan.right() >= rect.right() - radius) {
+            painter->drawRect(QRect(rect.right() - radius, cornerTop, radius + 1, radius));
+            painter->fillRect(QRect(rect.right(), cornerTop, 1, radius), sideLine);
+        }
+    }
+
+    painter->restore();
 }
 
 //____________________________________________________________________________
@@ -4862,46 +4923,12 @@ bool Style::drawPanelMenuPrimitive(const QStyleOption *option, QPainter *painter
         return true;
     }
 
-    const auto &palette(option->palette);
     const bool hasAlpha(_helper->hasAlphaChannel(widget));
-    const auto seamlessEdges = _helper->menuSeamlessEdges(widget);
-    const QRect joinSpan = widget ? widget->property("_breeze_ng_join_span").toRect() : QRect(); // Breeze NG: where the button sits
-    QColor outline;
-    const QColor background = _helper->menuSheet(palette, hasAlpha, &outline, joinSpan.isValid()); // Breeze NG
-    if (qEnvironmentVariableIsSet("BREEZE_NG_DEBUG")) {
-        qWarning("breeze-ng: menu panel paint, alpha %d, span %d,%d %dx%d, background alpha %d, opacity setting %d", hasAlpha, joinSpan.x(), joinSpan.y(), joinSpan.width(), joinSpan.height(), background.alpha(), StyleConfigData::menuOpacity());
-    }
-
     painter->save();
     if (widget && widget->isWindow()) {
         painter->setCompositionMode(QPainter::CompositionMode_Source);
     }
-
-    _helper->renderMenuFrame(painter, option->rect, background, outline, hasAlpha, seamlessEdges);
-
-    if (joinSpan.isValid()) {
-        // Breeze NG: the button continues the panel: no outline under it, and a square corner if it sits on one
-        const int radius = Metrics::Menu_Radius + 2;
-        const QRect rect = option->rect;
-        const bool top = joinSpan.y() <= 0;
-        painter->setRenderHint(QPainter::Antialiasing, false);
-        painter->setPen(Qt::NoPen);
-        painter->setBrush(background);
-        const int y = top ? rect.top() : rect.bottom() - 1;
-        painter->drawRect(QRect(joinSpan.left(), y, joinSpan.width(), 2));
-        // a corner under the button becomes square, and the side outline runs straight up to the button
-        const int cornerTop = top ? rect.top() : rect.bottom() - radius;
-        const QColor sideLine = KColorUtils::overlayColors(background, outline);
-        if (joinSpan.left() <= rect.left() + radius) {
-            painter->drawRect(QRect(rect.left(), cornerTop, radius, radius));
-            painter->fillRect(QRect(rect.left(), cornerTop, 1, radius), sideLine);
-        }
-        if (joinSpan.right() >= rect.right() - radius) {
-            painter->drawRect(QRect(rect.right() - radius, cornerTop, radius + 1, radius));
-            painter->fillRect(QRect(rect.right(), cornerTop, 1, radius), sideLine);
-        }
-    }
-
+    ngRenderPopupPanel(painter, option->rect, option->palette, hasAlpha, widget); // Breeze NG
     painter->restore();
 
     return true;

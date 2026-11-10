@@ -42,6 +42,20 @@ public:
         return isAnimated(object, mode) ? data(object, mode).data()->opacity() : AnimationData::OpacityInvalid;
     }
 
+    //* Breeze NG: put a widget into a state at once, without the fade (the button whose menu just closed)
+    void snap(const QObject *object, AnimationMode mode, bool state)
+    {
+        DataMap<WidgetStateData>::Value d(data(object, mode));
+        if (d.isNull()) {
+            return;
+        }
+        d.data()->updateState(state);
+        if (d.data()->animation()) {
+            d.data()->animation().data()->stop();
+        }
+        d.data()->setOpacity(state ? 1.0 : 0.0);
+    }
+
     //* animation mode
     /** precedence on focus */
     AnimationMode frameAnimationMode(const QObject *object)

@@ -93,6 +93,12 @@ public:
     //* register widget
     bool registerWidget(QWidget *, bool force = false);
 
+    //* Breeze NG: re-applies the shadow of a window whose margins changed (a popup joined to its button)
+    void updateShadows(QWidget *widget)
+    {
+        installShadows(widget);
+    }
+
     //* unregister widget
     void unregisterWidget(QWidget *);
 
