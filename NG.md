@@ -19,6 +19,12 @@ and a menu opened from a button that joins it into one shape.
 
 ![Dolphin NG and the controls in Breeze NG Soft](ng/screenshots/01-desktop.png)
 
+## Part of the NG desktop
+
+- [Dolphin NG](https://github.com/Morzilla/dolphin-ng) – the file manager with cards view, glass sidebar and quick actions ([KDE Store](https://store.kde.org/p/2381561/))
+- [NeoLine](https://github.com/Morzilla/neoline-icons) – the outline icon theme in the screenshots ([KDE Store](https://store.kde.org/p/2381562/))
+- Breeze NG on the KDE Store: https://store.kde.org/p/2381557/
+
 ## Parts
 
 - `kstyle/` – the widget style, plugin key `BreezeNG`
