@@ -6923,9 +6923,9 @@ bool Style::drawHeaderSectionControl(const QStyleOption *option, QPainter *paint
     const qreal opacity(_animations->headerViewEngine().opacity(widget, rect.topLeft()));
 
     // fill
-    const auto &normal = palette.color(QPalette::Button);
+    const auto normal = palette.color(QPalette::Window); // Breeze NG: the header is the surface itself
     const auto focus(KColorUtils::mix(normal, _helper->focusColor(palette), 0.2));
-    const auto hover(KColorUtils::mix(normal, _helper->hoverColor(palette), 0.2));
+    const auto hover(KColorUtils::mix(normal, _helper->ink(palette), 0.07));
 
     QColor color;
     if (sunken) {
@@ -6945,7 +6945,7 @@ bool Style::drawHeaderSectionControl(const QStyleOption *option, QPainter *paint
 
     // outline
     painter->setBrush(Qt::NoBrush);
-    painter->setPen(_helper->alphaColor(palette.color(QPalette::WindowText), _helper->frameIntensityBias()));
+    painter->setPen(Qt::NoPen); // Breeze NG: no lines between header sections
 
     if (isCorner) {
         if (reverseLayout) {
@@ -6966,7 +6966,7 @@ bool Style::drawHeaderSectionControl(const QStyleOption *option, QPainter *paint
     }
 
     // separators
-    painter->setPen(_helper->alphaColor(palette.color(QPalette::WindowText), _helper->frameIntensityBias()));
+    painter->setPen(Qt::NoPen); // Breeze NG: no lines between header sections
 
     // If the separator is next to a "HeaderEmptyArea", skip it and let that draw
     // the separator instead. This means that those separators are only visible when necessary.
@@ -7023,7 +7023,7 @@ bool Style::drawHeaderEmptyAreaControl(const QStyleOption *option, QPainter *pai
     }
 
     // separators
-    painter->setPen(_helper->alphaColor(palette.color(QPalette::WindowText), _helper->frameIntensityBias()));
+    painter->setPen(Qt::NoPen); // Breeze NG: no lines between header sections
 
     if (horizontal) {
         // 26aa20407d in qtbase introduced a 1px empty area in reversed horizontal headers. Ignore it.

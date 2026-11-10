@@ -864,14 +864,16 @@ void Helper::renderNgButtonFrame(QPainter *painter,
     if (checked) {
         fill = glass ? 0.18 : 0.16;
     }
-    if (hovered) {
+    // hover and press fade in and out with the animation engine
+    if (penAnimation != AnimationData::OpacityInvalid) {
+        fill += 0.06 * penAnimation;
+    } else if (hovered) {
         fill += 0.06;
     }
-    if (down) {
-        fill += 0.08;
-    }
     if (bgAnimation != AnimationData::OpacityInvalid) {
-        fill += 0.08 * bgAnimation; // the press animation
+        fill += 0.08 * bgAnimation;
+    } else if (down) {
+        fill += 0.08;
     }
     QColor bg = alphaColor(inkColor, qMin(fill, 0.4));
     if (defaultButton && !checked) {
