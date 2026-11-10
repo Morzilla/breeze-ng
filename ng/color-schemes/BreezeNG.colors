@@ -4,6 +4,7 @@ Name=Breeze NG
 shadeSortColumn=true
 
 [KDE]
+frameContrast=0
 contrast=4
 
 [Colors:Button]
