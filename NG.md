@@ -19,6 +19,8 @@ and a menu opened from a button that joins it into one shape.
 
 ![Dolphin NG and the controls in Breeze NG Soft](ng/screenshots/01-desktop.png)
 
+![Dolphin NG in Breeze NG, its sidebar showing the compositor's blur of the desktop](ng/screenshots/05-dolphin-live-blur.png)
+
 ## Part of the NG desktop
 
 - [Dolphin NG](https://github.com/Morzilla/dolphin-ng) – the file manager with cards view, glass sidebar and quick actions ([KDE Store](https://store.kde.org/p/2381561/))
