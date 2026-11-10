@@ -4889,11 +4889,16 @@ bool Style::drawPanelMenuPrimitive(const QStyleOption *option, QPainter *painter
         painter->setBrush(background);
         const int y = top ? rect.top() : rect.bottom() - 1;
         painter->drawRect(QRect(joinSpan.left(), y, joinSpan.width(), 2));
+        // a corner under the button becomes square, and the side outline runs straight up to the button
+        const int cornerTop = top ? rect.top() : rect.bottom() - radius;
+        const QColor sideLine = KColorUtils::overlayColors(background, outline);
         if (joinSpan.left() <= rect.left() + radius) {
-            painter->drawRect(QRect(rect.left(), top ? rect.top() : rect.bottom() - radius, radius, radius));
+            painter->drawRect(QRect(rect.left(), cornerTop, radius, radius));
+            painter->fillRect(QRect(rect.left(), cornerTop, 1, radius), sideLine);
         }
         if (joinSpan.right() >= rect.right() - radius) {
-            painter->drawRect(QRect(rect.right() - radius, top ? rect.top() : rect.bottom() - radius, radius + 1, radius));
+            painter->drawRect(QRect(rect.right() - radius, cornerTop, radius + 1, radius));
+            painter->fillRect(QRect(rect.right(), cornerTop, 1, radius), sideLine);
         }
     }
 

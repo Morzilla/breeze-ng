@@ -936,17 +936,19 @@ void Helper::renderNgButtonFrame(QPainter *painter,
     }
     if (joined == QLatin1String("bottom") || joined == QLatin1String("top")) {
         // the menu's own sheet and outline; the path runs past the joined side, which the widget clips away
+        // the tool button's own rect is a pixel inside the widget: reach out to the widget's edge so the outline
+        // lands on the same column as the menu's
         if (joined == QLatin1String("bottom")) {
-            frameRect.adjust(0, 0, 0, radius + 3);
+            frameRect.adjust(-1, 0, 1, radius + 3);
             path = roundedPath(frameRect, CornersTop, radius);
         } else {
-            frameRect.adjust(0, -radius - 3, 0, 0);
+            frameRect.adjust(-1, -radius - 3, 1, 0);
             path = roundedPath(frameRect, CornersBottom, radius);
         }
         bg = joinedBg.isValid() ? joinedBg : frameBackgroundColor(palette);
         bg.setAlpha(255);
-        edge = joinedEdge.isValid() ? joinedEdge : QColor(0, 0, 0, 0);
-        painter->setCompositionMode(QPainter::CompositionMode_Source);
+        // the outline is the menu's translucent one, composited over the fill (never Source: it would turn black)
+        edge = joinedEdge.isValid() ? KColorUtils::overlayColors(bg, joinedEdge) : QColor(0, 0, 0, 0);
     } else {
         path.addRoundedRect(frameRect, radius, radius);
     }
