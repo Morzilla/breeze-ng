@@ -100,10 +100,12 @@ QPushButton:disabled { color: #6f737a; background: #292c31; }
 QPushButton#primary { background: #2f5f93; color: white; font-weight: 600; }
 QPushButton#primary:hover { background: #3a71ab; }
 QPushButton#link { background: transparent; color: #7fb4ea; padding: 4px 6px; }
-QCheckBox { spacing: 10px; }
-QCheckBox::indicator { width: 18px; height: 18px; border-radius: 5px; background: #3a3e45; }
-QCheckBox::indicator:checked { background: #3f7fc0; image: none; border: 4px solid #3a3e45; }
-QComboBox, QSpinBox { background: #292c31; border: 1px solid #3a3e45; border-radius: 8px; padding: 5px 10px; }
+QCheckBox { spacing: 10px; background: transparent; }
+QPushButton#step { padding: 0; min-width: 30px; max-width: 30px; min-height: 30px; max-height: 30px; border-radius: 8px; font-size: 13pt; }
+QSpinBox { background: #292c31; border: 1px solid #3a3e45; border-radius: 8px; padding: 5px 6px; }
+QComboBox { background: #33373d; border: 0; border-radius: 8px; padding: 6px 12px; min-width: 150px; }
+QComboBox::drop-down { border: 0; width: 26px; }
+QComboBox::down-arrow { image: none; }
 QComboBox QAbstractItemView { background: #292c31; selection-background-color: #2f5f93; }
 QProgressBar { background: #292c31; border: 0; border-radius: 4px; height: 8px; }
 QProgressBar::chunk { background: #4f8fd0; border-radius: 4px; }
@@ -180,6 +182,57 @@ class Preview(QWidget):
                 p.setBrush(QColor(255, 255, 255, 45)); p.drawRoundedRect(QRectF(tx, cy + 14, cw - (tx - cx) - 22, 3), 1, 1)
         p.setClipping(False)
         p.setBrush(Qt.BrushStyle.NoBrush); p.setPen(QPen(QColor(255, 255, 255, 40), 1)); p.drawRoundedRect(r, 9, 9)
+
+
+class Check(QCheckBox):
+    """A check box that draws itself: a rounded box with a tick, the same under every widget style."""
+
+    def paintEvent(self, _):
+        p = QPainter(self)
+        p.setRenderHint(QPainter.RenderHint.Antialiasing)
+        side = 20
+        box = QRectF(1, (self.height() - side) / 2, side, side)
+        on = self.isChecked()
+        p.setPen(Qt.PenStyle.NoPen if on else QPen(QColor("#5a6069"), 1.4))
+        p.setBrush(QColor("#3f7fc0") if on else QColor("#2b2e33"))
+        p.drawRoundedRect(box, 6, 6)
+        if on:
+            tick = QPainterPath()
+            tick.moveTo(box.left() + 5, box.center().y() + 0.5)
+            tick.lineTo(box.left() + 8.6, box.bottom() - 5.6)
+            tick.lineTo(box.right() - 4.6, box.top() + 6)
+            pen = QPen(QColor("white"), 2.1)
+            pen.setCapStyle(Qt.PenCapStyle.RoundCap); pen.setJoinStyle(Qt.PenJoinStyle.RoundJoin)
+            p.setPen(pen); p.setBrush(Qt.BrushStyle.NoBrush); p.drawPath(tick)
+        p.setPen(QColor("#dfdfdf") if self.isEnabled() else QColor("#6f737a"))
+        p.setFont(self.font())
+        p.drawText(QRectF(side + 11, 0, self.width() - side - 11, self.height()), int(Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft), self.text())
+        if self.hasFocus():
+            p.setPen(QPen(QColor("#4f8fd0"), 1.2)); p.setBrush(Qt.BrushStyle.NoBrush); p.drawRoundedRect(box.adjusted(-1.5, -1.5, 1.5, 1.5), 7, 7)
+
+    def sizeHint(self):
+        fm = self.fontMetrics()
+        return QSize(fm.horizontalAdvance(self.text()) + 36, max(24, fm.height() + 6))
+
+    minimumSizeHint = sizeHint
+
+    def hitButton(self, pos):
+        return self.rect().contains(pos)
+
+
+class Combo(QComboBox):
+    """A combo box with a chevron drawn by hand (the style sheet cannot draw one without an image file)."""
+
+    def paintEvent(self, e):
+        super().paintEvent(e)
+        p = QPainter(self)
+        p.setRenderHint(QPainter.RenderHint.Antialiasing)
+        pen = QPen(QColor("#c5c9cf"), 1.8)
+        pen.setCapStyle(Qt.PenCapStyle.RoundCap); pen.setJoinStyle(Qt.PenJoinStyle.RoundJoin)
+        p.setPen(pen)
+        cx, cy = self.width() - 16, self.height() / 2
+        path = QPainterPath(); path.moveTo(cx - 4.5, cy - 2); path.lineTo(cx, cy + 2.5); path.lineTo(cx + 4.5, cy - 2)
+        p.drawPath(path)
 
 
 class Card(QFrame):
@@ -270,16 +323,19 @@ class Installer(QWidget):
         self.parts = {}
         for key in ("dolphin", "breeze", "icons"):
             card = Card(); h = QVBoxLayout(card); h.setContentsMargins(16, 12, 16, 12); h.setSpacing(2)
-            box = QCheckBox(t(key)); box.setChecked(True); f = box.font(); f.setBold(True); box.setFont(f)
+            box = Check(t(key)); box.setChecked(True); f = box.font(); f.setBold(True); box.setFont(f)
             card.clicked.connect(box.toggle)
             h.addWidget(box); d = label(t(key + "_d"), "dim"); d.setContentsMargins(28, 0, 0, 0); h.addWidget(d)
             self.parts[key] = box
             v.addWidget(card)
-        self.deps = QCheckBox(t("deps")); self.deps.setChecked(True)
+        self.deps = Check(t("deps")); self.deps.setChecked(True)
         v.addSpacing(6); v.addWidget(self.deps)
         row = QHBoxLayout(); row.addWidget(label(t("jobs"), "dim", False))
         self.jobs = QSpinBox(); self.jobs.setRange(1, 64); self.jobs.setValue(max(1, (os.cpu_count() or 4) // 2))
-        row.addWidget(self.jobs); row.addStretch(); v.addLayout(row)
+        self.jobs.setButtonSymbols(QSpinBox.ButtonSymbols.NoButtons); self.jobs.setAlignment(Qt.AlignmentFlag.AlignCenter); self.jobs.setFixedWidth(56)
+        minus = QPushButton("−"); minus.setObjectName("step"); minus.clicked.connect(self.jobs.stepDown)
+        plus = QPushButton("+"); plus.setObjectName("step"); plus.clicked.connect(self.jobs.stepUp)
+        row.addWidget(minus); row.addWidget(self.jobs); row.addWidget(plus); row.addStretch(); v.addLayout(row)
         v.addStretch(1)
         return w
 
@@ -300,11 +356,11 @@ class Installer(QWidget):
             row.addWidget(card)
         v.addLayout(row)
         r2 = QHBoxLayout(); r2.addWidget(label(t("iconset"), "dim", False))
-        self.iconset = QComboBox()
+        self.iconset = Combo()
         for name, text in (("NeoLine-White", "NeoLine White"), ("NeoLine", "NeoLine"), ("NeoLine-Yellow", "NeoLine Yellow")):
             self.iconset.addItem(text, name)
         r2.addWidget(self.iconset); r2.addStretch(); v.addLayout(r2)
-        self.apply = QCheckBox(t("apply")); v.addWidget(self.apply)
+        self.apply = Check(t("apply")); v.addWidget(self.apply)
         v.addStretch(1)
         self.pick("soft")
         return w
