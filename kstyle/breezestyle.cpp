@@ -50,6 +50,7 @@
 #include <QPushButton>
 #include <QRadioButton>
 #include <QScrollBar>
+#include <QSplitter>
 #include <QSplitterHandle>
 #include <QStackedLayout>
 #include <QTableView>
@@ -7853,6 +7854,21 @@ bool Style::drawDockWidgetTitleControl(const QStyleOption *option, QPainter *pai
 //______________________________________________________________
 bool Style::drawSplitterControl(const QStyleOption *option, QPainter *painter, [[maybe_unused]] const QWidget *widget) const
 {
+    // Breeze NG: no line; but between two views (the places and the files of a file dialog) the handle would show
+    // the window colour as a lighter strip, so there it takes the colour of the views
+    if (auto handle = qobject_cast<const QSplitterHandle *>(widget)) {
+        if (const QSplitter *splitter = handle->splitter()) {
+            auto isView = [](const QWidget *pane) {
+                return pane && (qobject_cast<const QAbstractScrollArea *>(pane) || pane->findChild<QAbstractScrollArea *>(QString(), Qt::FindDirectChildrenOnly));
+            };
+            for (int i = 1; i < splitter->count(); ++i) {
+                if (splitter->handle(i) == handle && isView(splitter->widget(i - 1)) && isView(splitter->widget(i))) {
+                    painter->fillRect(option->rect, option->palette.color(QPalette::Base));
+                    return true;
+                }
+            }
+        }
+    }
     painter->setBrush(_helper->separatorColor(option->palette));
     painter->setPen(Qt::NoPen);
     painter->drawRect(option->rect);
