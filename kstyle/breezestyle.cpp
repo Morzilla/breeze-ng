@@ -560,6 +560,16 @@ void Style::polishScrollArea(QAbstractScrollArea *scrollArea)
     if (scrollArea->inherits("KDEPrivate::KPageListView") || scrollArea->inherits("KDEPrivate::KPageTreeView")) {
         scrollArea->setProperty(PropertyNames::sidePanelView, true);
     }
+    // Breeze NG: the Places view and any view living in a dock widget are side panels too
+    if (!scrollArea->property(PropertyNames::sidePanelView).toBool()) {
+        bool inDock = scrollArea->inherits("KFilePlacesView");
+        for (const QWidget *parent = scrollArea->parentWidget(); parent && !inDock; parent = parent->parentWidget()) {
+            inDock = qobject_cast<const QDockWidget *>(parent) != nullptr;
+        }
+        if (inDock) {
+            scrollArea->setProperty(PropertyNames::sidePanelView, true);
+        }
+    }
 
     // for all side view panels, unbold font (design choice)
     if (scrollArea->property(PropertyNames::sidePanelView).toBool()) {
