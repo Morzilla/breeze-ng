@@ -1992,7 +1992,7 @@ bool Style::eventFilterNgMenu(QMenu *menu, QEvent *event)
 {
     static const char joinedProperty[] = "_breeze_ng_joined";
     if (event->type() == QEvent::Show) {
-        if (menu->property(PropertyNames::menuSeamlessEdges).isValid() && !menu->property("_breeze_ng_joins").isValid()) {
+        if (menu->property(PropertyNames::menuSeamlessEdges).isValid()) {
             return false; // the application decided the edges itself
         }
         const QPoint topLeft = menu->pos();
@@ -2022,9 +2022,12 @@ bool Style::eventFilterNgMenu(QMenu *menu, QEvent *event)
             return false;
         }
         menu->setProperty("_breeze_ng_joins", QVariant::fromValue(QPointer<QWidget>(button)));
-        menu->setProperty(PropertyNames::menuSeamlessEdges, QVariant::fromValue(Qt::Edges(menuEdge)));
+        // the button's span in the menu's coordinates, on the top (y 0) or bottom (y 1) side
+        const int x1 = qMax(0, buttonRect.left() - topLeft.x());
+        const int x2 = qMin(menu->width() - 1, buttonRect.right() - topLeft.x());
+        menu->setProperty("_breeze_ng_join_span", QRect(x1, menuEdge == Qt::TopEdge ? 0 : 1, qMax(1, x2 - x1 + 1), 1));
         QColor outline;
-        const QColor sheet = _helper->menuSheet(menu->palette(), _helper->hasAlphaChannel(menu), &outline);
+        const QColor sheet = _helper->menuSheet(menu->palette(), _helper->hasAlphaChannel(menu), &outline, true);
         button->setProperty(joinedProperty, buttonSide);
         button->setProperty("_breeze_ng_joined_bg", sheet);
         button->setProperty("_breeze_ng_joined_edge", outline);
@@ -2039,7 +2042,7 @@ bool Style::eventFilterNgMenu(QMenu *menu, QEvent *event)
                 button->update();
             }
             menu->setProperty("_breeze_ng_joins", QVariant());
-            menu->setProperty(PropertyNames::menuSeamlessEdges, QVariant());
+            menu->setProperty("_breeze_ng_join_span", QVariant());
         }
     }
     return false;
@@ -4853,15 +4856,34 @@ bool Style::drawPanelMenuPrimitive(const QStyleOption *option, QPainter *painter
     const auto &palette(option->palette);
     const bool hasAlpha(_helper->hasAlphaChannel(widget));
     const auto seamlessEdges = _helper->menuSeamlessEdges(widget);
+    const QRect joinSpan = widget ? widget->property("_breeze_ng_join_span").toRect() : QRect(); // Breeze NG: where the button sits
     QColor outline;
-    const QColor background = _helper->menuSheet(palette, hasAlpha, &outline); // Breeze NG
+    const QColor background = _helper->menuSheet(palette, hasAlpha, &outline, joinSpan.isValid()); // Breeze NG
 
     painter->save();
-    if (background.alpha() < 255 && widget && widget->isWindow()) {
+    if (widget && widget->isWindow()) {
         painter->setCompositionMode(QPainter::CompositionMode_Source);
     }
 
     _helper->renderMenuFrame(painter, option->rect, background, outline, hasAlpha, seamlessEdges);
+
+    if (joinSpan.isValid()) {
+        // Breeze NG: the button continues the panel: no outline under it, and a square corner if it sits on one
+        const int radius = Metrics::Menu_Radius + 2;
+        const QRect rect = option->rect;
+        const bool top = joinSpan.y() <= 0;
+        painter->setRenderHint(QPainter::Antialiasing, false);
+        painter->setPen(Qt::NoPen);
+        painter->setBrush(background);
+        const int y = top ? rect.top() : rect.bottom() - 1;
+        painter->drawRect(QRect(joinSpan.left(), y, joinSpan.width(), 2));
+        if (joinSpan.left() <= rect.left() + radius) {
+            painter->drawRect(QRect(rect.left(), top ? rect.top() : rect.bottom() - radius, radius, radius));
+        }
+        if (joinSpan.right() >= rect.right() - radius) {
+            painter->drawRect(QRect(rect.right() - radius, top ? rect.top() : rect.bottom() - radius, radius + 1, radius));
+        }
+    }
 
     painter->restore();
 

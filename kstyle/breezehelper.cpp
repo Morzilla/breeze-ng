@@ -164,11 +164,12 @@ QColor Helper::ink(const QPalette &palette)
     return isDark(palette) ? QColor(255, 255, 255) : QColor(0, 0, 0);
 }
 
-QColor Helper::menuSheet(const QPalette &palette, bool alpha, QColor *outline) const
+QColor Helper::menuSheet(const QPalette &palette, bool alpha, QColor *outline, bool joined) const
 {
     QColor background = frameBackgroundColor(palette);
-    const int menuOpacity = (isGlass() && StyleConfigData::menuOpacity() >= 100) ? 78 : StyleConfigData::menuOpacity();
-    QColor edge = frameOutlineColor(palette);
+    // a menu joined to a button is opaque: only then can the button be painted in exactly its colour
+    const int menuOpacity = joined ? 100 : ((isGlass() && StyleConfigData::menuOpacity() >= 100) ? 78 : StyleConfigData::menuOpacity());
+    QColor edge = isGlass() ? alphaColor(ink(palette), 0.16) : frameOutlineColor(palette);
     if (menuOpacity < 100 && alpha) {
         background.setAlphaF(menuOpacity / 100.0);
         edge = alphaColor(ink(palette), isGlass() ? 0.16 : 0.12);
@@ -943,10 +944,9 @@ void Helper::renderNgButtonFrame(QPainter *painter,
             path = roundedPath(frameRect, CornersBottom, radius);
         }
         bg = joinedBg.isValid() ? joinedBg : frameBackgroundColor(palette);
+        bg.setAlpha(255);
         edge = joinedEdge.isValid() ? joinedEdge : QColor(0, 0, 0, 0);
-        if (bg.alpha() < 255) {
-            painter->setCompositionMode(QPainter::CompositionMode_Source);
-        }
+        painter->setCompositionMode(QPainter::CompositionMode_Source);
     } else {
         path.addRoundedRect(frameRect, radius, radius);
     }
@@ -1677,106 +1677,38 @@ void Helper::renderStaticTabBarTab(QPainter *painter,
         return;
     }
 
-    if (selected) {
-        // overlap border
-        bgBrush = windowColor;
-        painter->setPen(Qt::NoPen);
-        painter->setBrush(bgBrush);
-        painter->drawRect(frameRect);
-
-        if (documentMode && !isQtQuickControl && !hasAlteredBackground) {
-            const auto highlightBackground = alphaColor(palette.color(QPalette::Highlight), frameIntensityBias());
-            bgBrush = highlightBackground;
-        } else {
-            bgBrush = frameBackgroundColor(palette);
-        }
-        QColor penBrush = KColorUtils::mix(bgBrush, palette.color(QPalette::WindowText), frameIntensityBias());
-        painter->setBrush(bgBrush);
-        painter->setPen(Qt::NoPen); // Breeze NG Soft: the tab is a tone, not a frame
-        QRectF highlightRect = frameRect;
-        if (north || south) {
-            highlightRect.setHeight(Metrics::TabBar_ActiveEffectSize);
-        } else if (west || east) {
-            highlightRect.setWidth(Metrics::TabBar_ActiveEffectSize);
-        }
-        if (south) {
-            highlightRect.moveBottom(frameRect.bottom());
-        } else if (east) {
-            highlightRect.moveRight(frameRect.right());
-        }
-
-        auto rect = strokedRect(frameRect);
-        // don't stroke the first and last tab
-        if (isFirst) {
-            if (north || south) {
-                rect.adjust(-PenWidth::Frame, 0, 0, 0);
-            } else {
-                rect.adjust(0, -PenWidth::Frame, 0, 0);
-            }
-        }
-        if (isLast) {
-            if (north || south) {
-                rect.adjust(0, 0, PenWidth::Frame, 0);
-            } else {
-                rect.adjust(PenWidth::Frame, 0, 0, 0);
-            }
-        }
-        painter->drawRect(rect);
-        painter->setBrush(palette.color(QPalette::Highlight));
-        painter->setPen(Qt::NoPen);
-        painter->drawRect(highlightRect);
+    // Breeze NG Soft: the current tab is a tongue of the page lifted from the bar, the others are labels; no lines
+    Q_UNUSED(baseColor)
+    Q_UNUSED(isFirst)
+    Q_UNUSED(isLast)
+    Q_UNUSED(isRightOfSelected)
+    Q_UNUSED(documentMode)
+    Q_UNUSED(isQtQuickControl)
+    Q_UNUSED(hasAlteredBackground)
+    const Corners tongueCorners = north ? Corners(CornersTop) : south ? Corners(CornersBottom) : Corners(CornersTop | CornersBottom);
+    QRectF tongue = frameRect;
+    if (north) {
+        tongue.adjust(3, 3, -3, 0);
+    } else if (south) {
+        tongue.adjust(3, 0, -3, -3);
     } else {
-        // don't overlap border
-        // Since we don't set the rectangle as strokedRect here, modify only one side of it
-        // the same amount strokedRect method would, to make it snap next to the border
-        const qreal overlap = PenWidth::Frame;
-        frameRect.adjust(west ? overlap : 0, south || north ? overlap : 0, east ? -overlap : 0, south || north ? -overlap : 0);
-
-        if (hovered) {
-            bgBrush = windowColor;
-        } else {
-            bgBrush = baseColor;
-        }
-
-        const auto hover = alphaColor(hoverColor(palette), frameIntensityBias());
-        if (animated) {
-            bgBrush = KColorUtils::mix(bgBrush, hover, animation);
-        } else if (enabled && hovered) {
-            bgBrush = hover;
-        }
-        painter->setBrush(bgBrush);
-        painter->setPen(Qt::NoPen);
-        painter->drawRect(frameRect);
+        tongue.adjust(3, 3, -3, -3);
     }
-
-    if (!selected && !isRightOfSelected && !isFirst && (north || south)) {
-        auto penColor = KColorUtils::mix(baseColor, palette.color(QPalette::WindowText), frameIntensityBias());
-        QRectF lineRect = frameRect;
-        lineRect.setRight(lineRect.x() + 1);
-
-        // Back the separator with the plain tab background so neither the hover
-        // nor the active fill shows through beneath it.
-        painter->setBrush(baseColor);
-        painter->drawRect(lineRect);
-
-        // separator line, inset from the top and bottom
-        lineRect.adjust(0, 8, 0, -8);
-        painter->setBrush(penColor);
-        painter->drawRect(lineRect);
-    } else if (!selected && !isRightOfSelected && !isFirst && (east || west)) {
-        auto penColor = KColorUtils::mix(baseColor, palette.color(QPalette::WindowText), frameIntensityBias());
-        QRectF lineRect = frameRect;
-        lineRect.setBottom(lineRect.y() + 1);
-
-        // Back the separator with the plain tab background so neither the hover
-        // nor the active fill shows through beneath it.
-        painter->setBrush(baseColor);
-        painter->drawRect(lineRect);
-
-        // separator line, inset from the left and right
-        lineRect.adjust(8, 0, -8, 0);
-        painter->setBrush(penColor);
-        painter->drawRect(lineRect);
+    painter->setPen(Qt::NoPen);
+    if (selected) {
+        painter->setBrush(KColorUtils::mix(windowColor, ink(palette), isDark(palette) ? 0.08 : 0.05));
+        painter->drawPath(roundedPath(tongue, tongueCorners, frameRadius()));
+    } else {
+        qreal veil = 0.0;
+        if (animated) {
+            veil = 0.07 * animation;
+        } else if (enabled && hovered) {
+            veil = 0.07;
+        }
+        if (veil > 0.0) {
+            painter->setBrush(alphaColor(ink(palette), veil));
+            painter->drawPath(roundedPath(tongue, tongueCorners, frameRadius()));
+        }
     }
 }
 

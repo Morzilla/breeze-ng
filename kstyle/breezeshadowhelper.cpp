@@ -429,7 +429,11 @@ QMargins ShadowHelper::shadowMargins(QWidget *widget) const
 
     // Breeze NG: a menu joined to the button it opens from casts no shadow over that button
     {
-        const Qt::Edges seamless = widget->property("_breeze_menu_seamless_edges").value<Qt::Edges>();
+        Qt::Edges seamless = widget->property("_breeze_menu_seamless_edges").value<Qt::Edges>();
+        const QRect joinSpan = widget->property("_breeze_ng_join_span").toRect();
+        if (joinSpan.isValid()) {
+            seamless |= joinSpan.y() <= 0 ? Qt::TopEdge : Qt::BottomEdge;
+        }
         if (seamless & Qt::TopEdge) {
             margins.setTop(0);
         }
