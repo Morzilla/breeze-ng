@@ -329,6 +329,17 @@ QColor Button::foregroundColor() const
     } else {
         return d->fontColor();
     }
+
+    // Breeze NG: the glyph appears only when the pointer is on the button (or the button is on)
+    if (type() != DecorationButtonType::Menu && type() != DecorationButtonType::Spacer) {
+        const qreal hover = m_animation->state() == QAbstractAnimation::Running ? m_opacity : (isHovered() ? 1.0 : 0.0);
+        if (hover <= 0.0 && !isPressed() && !isChecked()) {
+            return QColor();
+        }
+        QColor glyph = type() == DecorationButtonType::Close ? QColor(40, 12, 8) : d->titleBarColor();
+        glyph.setAlphaF(isPressed() || isChecked() ? 1.0 : hover);
+        return glyph;
+    }
 }
 
 //__________________________________________________________________
@@ -341,6 +352,19 @@ QColor Button::backgroundColor() const
 
     auto c = d->window();
     QColor redColor(c->color(ColorGroup::Warning, ColorRole::Foreground));
+
+    // Breeze NG: every button is a disc; close is red, the others a tone of the title text; brighter on hover
+    if (type() != DecorationButtonType::Menu && type() != DecorationButtonType::Spacer) {
+        const qreal hover = m_animation->state() == QAbstractAnimation::Running ? m_opacity : (isHovered() ? 1.0 : 0.0);
+        if (type() == DecorationButtonType::Close) {
+            const QColor base = c->isActive() ? QColor(224, 112, 91) : QColor(224, 112, 91, 150);
+            return isPressed() ? base.darker(120) : KColorUtils::mix(base, base.lighter(118), hover);
+        }
+        QColor disc(d->fontColor());
+        const bool on = isChecked() && (type() == DecorationButtonType::KeepBelow || type() == DecorationButtonType::KeepAbove || type() == DecorationButtonType::Shade || type() == DecorationButtonType::OnAllDesktops);
+        disc.setAlphaF(isPressed() ? 0.6 : (on ? 0.5 : 0.18 + 0.22 * hover));
+        return disc;
+    }
 
     if (isPressed()) {
         if (type() == DecorationButtonType::Close) {

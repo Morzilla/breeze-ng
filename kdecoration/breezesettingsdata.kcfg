@@ -83,7 +83,7 @@
           <choice name="AlignCenterFullWidth" />
           <choice name="AlignRight" />
       </choices>
-      <default>AlignCenterFullWidth</default>
+      <default>AlignLeft</default>
     </entry>
 
     <!-- button size -->

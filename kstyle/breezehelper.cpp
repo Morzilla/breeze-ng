@@ -386,8 +386,9 @@ QColor Helper::checkBoxIndicatorColor(const QPalette &palette, bool mouseOver, b
 //______________________________________________________________________________
 QColor Helper::separatorColor(const QPalette &palette) const
 {
-    // Breeze NG: lines are whispers in both variants
-    return alphaColor(ink(palette), isGlass() ? 0.09 : 0.07);
+    // Breeze NG: no separator lines at all; surfaces are told apart by tone
+    Q_UNUSED(palette)
+    return QColor(0, 0, 0, 0);
 
     return KColorUtils::mix(palette.color(QPalette::Window), palette.color(QPalette::WindowText), frameIntensityBias());
 }
@@ -845,7 +846,7 @@ void Helper::renderNgButtonFrame(QPainter *painter,
     QColor bg = alphaColor(inkColor, qMin(fill, 0.4));
     if (defaultButton && !checked) {
         // the primary action: tinted with the highlight, still readable with the normal button text
-        bg = glass ? KColorUtils::mix(alphaColor(inkColor, 0.16), highlight, 0.25) : KColorUtils::mix(palette.color(QPalette::Button), highlight, 0.35);
+        bg = glass ? KColorUtils::mix(alphaColor(inkColor, 0.16), highlight, 0.25) : (hovered ? highlight.lighter(112) : highlight);
     } else if (hasNeutralHighlight) {
         bg = alphaColor(neutralText(palette), 0.25);
     }
@@ -1380,6 +1381,23 @@ QRectF Helper::pathForSliderHandleFocusFrame(QPainterPath &focusFramePath, const
 //______________________________________________________________________________
 void Helper::renderSliderHandle(QPainter *painter, const QRectF &rect, const QColor &color, const QColor &outline, const QColor &shadow, bool sunken) const
 {
+    // Breeze NG: a plain disc that contrasts with the surface, no outline
+    {
+        Q_UNUSED(outline)
+        Q_UNUSED(shadow)
+        painter->save();
+        painter->setRenderHint(QPainter::Antialiasing, true);
+        const bool darkSurface = color.lightnessF() < 0.5;
+        QColor disc = darkSurface ? KColorUtils::mix(color, QColor(255, 255, 255), 0.82) : KColorUtils::mix(color, QColor(0, 0, 0), 0.55);
+        if (sunken) {
+            disc = darkSurface ? disc.darker(115) : disc.lighter(115);
+        }
+        painter->setPen(Qt::NoPen);
+        painter->setBrush(disc);
+        painter->drawEllipse(rect.adjusted(2, 2, -2, -2));
+        painter->restore();
+        return;
+    }
     // setup painter
     painter->setRenderHint(QPainter::Antialiasing, true);
 

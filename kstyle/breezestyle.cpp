@@ -4944,11 +4944,17 @@ bool Style::drawPanelItemViewItemPrimitive(const QStyleOption *option, QPainter 
         focusColor.setAlphaF(selected ? 1.0 : 0.8);
     }
 
-    // Breeze NG Glass: the selection is a pale sheet with a faint edge, not a block of colour
+    // Breeze NG Glass: the selection is a pale sheet with a faint edge, not a block of colour.
+    // Breeze NG Soft: the same, without the edge, in side panels (Places, sidebars): the accent is for the content.
+    const bool sidePanel = actualWidget && actualWidget->property(PropertyNames::sidePanelView).toBool();
     if (_helper->isGlass() && !hasCustomBackground) {
         const QColor inkColor = _helper->ink(palette);
         color = _helper->alphaColor(inkColor, selected ? (mouseOver ? 0.21 : 0.16) : 0.07);
         focusColor = _helper->alphaColor(inkColor, selected ? 0.22 : 0.0);
+    } else if (sidePanel && !hasCustomBackground) {
+        const QColor inkColor = _helper->ink(palette);
+        color = _helper->alphaColor(inkColor, selected ? (mouseOver ? 0.15 : 0.11) : 0.06);
+        focusColor = QColor(0, 0, 0, 0);
     }
 
     // render
@@ -6049,7 +6055,7 @@ bool Style::drawMenuItemControl(const QStyleOption *option, QPainter *painter, c
         if (StyleConfigData::menuOpacity() < 100) {
             separatorColor = _helper->alphaColor(palette.color(QPalette::WindowText), _helper->frameIntensityBias());
         } else {
-            separatorColor = _helper->separatorColor(palette);
+            separatorColor = _helper->alphaColor(_helper->ink(palette), 0.10); // Breeze NG: menus keep a whisper of a line
         }
 
         if (!menuItemOption->text.isEmpty()) { // icon is ignored on purpose
