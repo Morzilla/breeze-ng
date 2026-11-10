@@ -18,12 +18,16 @@
 #   --no-deps              do not install build dependencies (no sudo)
 #   --src DIR              keep the sources in DIR instead of ~/.local/src
 #   --jobs N               parallel compile jobs (default: half of the processors)
+#   --preset NAME          Dolphin NG settings preset: classic, soft or glass
+#   --deps-only            only install the build dependencies (this is what the graphical installer runs as root)
 #   --licence              print the licence and the notices, then exit
 #
 # This script is MIT licensed (text below, in notices()). The software it builds has its own licences.
 set -euo pipefail
 
-SRC="$HOME/.local/src" DEPS=1 APPLY="" APPLY_SET=0 ICONS="NeoLine-White" ONLY="" YES=0
+SRC="$HOME/.local/src" DEPS=1 APPLY="" APPLY_SET=0 ICONS="NeoLine-White" ONLY="" YES=0 PRESET="" DEPS_ONLY=0
+# as root (pkexec from the graphical installer) there is nothing to elevate
+SUDO="sudo"; [ "$(id -u)" = 0 ] && SUDO=""
 JOBS="${JOBS:-$(( ($(nproc 2>/dev/null || echo 4) + 1) / 2 ))}"
 
 # ---- colours, only on a terminal
@@ -90,11 +94,13 @@ while [ $# -gt 0 ]; do
         --apply) APPLY=soft; APPLY_SET=1; case "${2:-}" in soft|glass) APPLY="$2"; shift ;; esac ;;
         --icons) ICONS="$2"; shift ;;
         --no-deps) DEPS=0 ;;
+        --deps-only) DEPS_ONLY=1; YES=1 ;;
+        --preset) PRESET="$2"; shift ;;
         --only) ONLY="$2"; shift ;;
         --src) SRC="$2"; shift ;;
         --jobs) JOBS="$2"; shift ;;
         --licence|--license) notices; exit 0 ;;
-        -h|--help) sed -n '5,22p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; exit 0 ;;
+        -h|--help) sed -n '5,24p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; exit 0 ;;
         *) die "unknown option: $1 (see --help)" ;;
     esac
     shift
@@ -215,25 +221,26 @@ want() { local i; for i in "${!KEYS[@]}"; do [ "${KEYS[$i]}" = "$1" ] && [ "${PI
 if [ "$DEPS" = 1 ]; then
     say "Build dependencies (sudo)"
     if command -v dnf >/dev/null; then
-        sudo dnf install -y git cmake gcc-c++ extra-cmake-modules 'dnf-command(builddep)' python3 \
+        $SUDO dnf install -y git cmake gcc-c++ extra-cmake-modules 'dnf-command(builddep)' python3 \
             poppler-utils qt6-qtmultimedia-devel qt6-qtsvg-devel kf6-frameworkintegration-devel ImageMagick ffmpeg-free
-        sudo dnf builddep -y dolphin breeze || sudo dnf builddep -y dolphin plasma-breeze
+        $SUDO dnf builddep -y dolphin breeze || $SUDO dnf builddep -y dolphin plasma-breeze
     elif command -v apt-get >/dev/null; then
-        sudo apt-get update
-        sudo apt-get install -y git cmake g++ extra-cmake-modules python3 poppler-utils qt6-multimedia-dev qt6-svg-dev imagemagick ffmpeg
-        sudo apt-get build-dep -y dolphin breeze || die "apt could not install the build dependencies: enable the source repositories (deb-src) and run this again."
+        $SUDO apt-get update
+        $SUDO apt-get install -y git cmake g++ extra-cmake-modules python3 poppler-utils qt6-multimedia-dev qt6-svg-dev imagemagick ffmpeg
+        $SUDO apt-get build-dep -y dolphin breeze || die "apt could not install the build dependencies: enable the source repositories (deb-src) and run this again."
     elif command -v pacman >/dev/null; then
-        sudo pacman -S --needed --noconfirm git cmake base-devel extra-cmake-modules python poppler qt6-multimedia qt6-svg imagemagick ffmpeg \
+        $SUDO pacman -S --needed --noconfirm git cmake base-devel extra-cmake-modules python poppler qt6-multimedia qt6-svg imagemagick ffmpeg \
             kio kxmlgui kparts knewstuff kcmutils baloo baloo-widgets kfilemetadata kuserfeedback phonon-qt6 \
             kdecoration kwindowsystem kconfigwidgets kguiaddons ki18n kiconthemes kcoreaddons kcolorscheme frameworkintegration kirigami
     elif command -v zypper >/dev/null; then
-        sudo zypper install -y git cmake gcc-c++ extra-cmake-modules python3 poppler-tools qt6-multimedia-devel qt6-svg-devel ImageMagick ffmpeg
-        sudo zypper source-install --build-deps-only dolphin breeze6-style || true
+        $SUDO zypper install -y git cmake gcc-c++ extra-cmake-modules python3 poppler-tools qt6-multimedia-devel qt6-svg-devel ImageMagick ffmpeg
+        $SUDO zypper source-install --build-deps-only dolphin breeze6-style || true
     else
         die "No known package manager (dnf, apt, pacman, zypper): install the build dependencies of Dolphin and Breeze by hand, then use --no-deps."
     fi
     ok "dependencies installed"
 fi
+[ "$DEPS_ONLY" = 1 ] && exit 0
 command -v git >/dev/null || die "git is needed to download the sources."
 
 # ---- 2. sources
@@ -271,6 +278,20 @@ if want icons; then
     fetch neoline-icons master
     python3 "$SRC/neoline-icons/make-icons.py"
     DONE+=("NeoLine      System Settings > Icons > NeoLine, NeoLine White or NeoLine Yellow")
+fi
+
+# ---- a preset for the settings of Dolphin NG (the same three as its settings page)
+if [ -n "$PRESET" ] && want dolphin; then
+    say "Dolphin NG preset: $PRESET"
+    key() { if [ -n "$2" ]; then kwriteconfig6 --file dolphinrc --group DolphinNG --key "$1" "$2"; else kwriteconfig6 --file dolphinrc --group DolphinNG --key "$1" --delete; fi; }
+    for k in SIDEBAR DEVICES SIDEBAR_FILTERS LIST ICONS TILES GLASS_RIM CARDS_MARK RowStyle; do key "$k" ""; done
+    case "$PRESET" in
+        classic) key SIDEBAR plain; key DEVICES show; key SIDEBAR_FILTERS hide; key LIST columns; key ICONS show; key TILES off; key RowStyle stripe ;;
+        soft) key SIDEBAR plain; key DEVICES show ;;
+        glass) key GLASS_RIM diagonal; key CARDS_MARK type ;;
+        *) warn "unknown preset: $PRESET (classic, soft, glass)" ;;
+    esac
+    ok "settings written (change them later in Dolphin NG > Configure > NG)"
 fi
 
 if [ -n "$APPLY" ]; then

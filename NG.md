@@ -47,8 +47,12 @@ install and whether to switch the desktop to it; `--yes` runs it without questio
 `--licence` prints the notices (the installer is MIT; Breeze NG and Dolphin NG stay GPL).
 
 ```
-bash <(curl -fsSL https://raw.githubusercontent.com/Morzilla/breeze-ng/ng/ng/install-desktop.sh)
+bash <(curl -fsSL https://raw.githubusercontent.com/Morzilla/breeze-ng/ng/ng/install-gui.sh)      # graphical
+bash <(curl -fsSL https://raw.githubusercontent.com/Morzilla/breeze-ng/ng/ng/install-desktop.sh)  # in the terminal
 ```
+
+The graphical installer is a small wizard: pick the parts, pick a look (Classic, Soft or Glass), watch it build. It
+needs Python with PyQt6 or PySide6 and offers to install them; without them it falls back to the terminal one.
 
 ## Build and install
 
