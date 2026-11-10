@@ -4139,11 +4139,21 @@ bool Style::drawFrameLineEditPrimitive(const QStyleOption *option, QPainter *pai
         const AnimationMode mode(_animations->inputWidgetEngine().frameAnimationMode(widget));
         const qreal opacity(_animations->inputWidgetEngine().frameOpacity(widget));
 
-        // render
-        const auto background = _helper->inputBackground(palette); // Breeze NG
-        const auto outline(hasHighlightNeutral(widget, option, mouseOver, hasFocus) ? _helper->neutralText(palette).lighter(mouseOver || hasFocus ? 150 : 100)
-                                                                                    : _helper->frameOutlineColor(palette, mouseOver, hasFocus, opacity, mode));
-        _helper->renderFrame(painter, rect, background, outline);
+        // render: Breeze NG: the field keeps its resting edge; attention is a neon glow inside it, faded in and out
+        const auto background = _helper->inputBackground(palette);
+        const bool neutral = hasHighlightNeutral(widget, option, mouseOver, hasFocus);
+        _helper->renderFrame(painter, rect, background, neutral ? _helper->neutralText(palette) : _helper->frameOutlineColor(palette, false, false, 1.0, AnimationNone));
+        qreal strength = 0.0;
+        if (mode == AnimationFocus) {
+            strength = opacity;
+        } else if (hasFocus) {
+            strength = 1.0;
+        } else if (mode == AnimationHover) {
+            strength = 0.45 * opacity;
+        } else if (mouseOver) {
+            strength = 0.45;
+        }
+        _helper->renderNgGlow(painter, rect, neutral ? _helper->neutralText(palette) : _helper->focusColor(palette), strength);
     }
 
     return true;

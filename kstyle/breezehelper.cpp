@@ -164,6 +164,29 @@ QColor Helper::ink(const QPalette &palette)
     return isDark(palette) ? QColor(255, 255, 255) : QColor(0, 0, 0);
 }
 
+void Helper::renderNgGlow(QPainter *painter, const QRectF &rect, const QColor &color, qreal strength, qreal radius) const
+{
+    if (strength <= 0.0 || !color.isValid()) {
+        return;
+    }
+    if (radius < 0) {
+        radius = frameRadius(PenWidth::Frame);
+    }
+    painter->save();
+    painter->setRenderHint(QPainter::Antialiasing, true);
+    painter->setBrush(Qt::NoBrush);
+    // four rings, from the edge inwards, each fainter: the light bleeds into the field
+    const qreal alphas[4] = {0.95, 0.45, 0.22, 0.10};
+    for (int i = 0; i < 4; ++i) {
+        QColor ring = color;
+        ring.setAlphaF(qBound(0.0, alphas[i] * strength, 1.0));
+        painter->setPen(QPen(ring, 1));
+        const qreal inset = 0.5 + i;
+        painter->drawRoundedRect(rect.adjusted(inset, inset, -inset, -inset), qMax(0.0, radius - i), qMax(0.0, radius - i));
+    }
+    painter->restore();
+}
+
 QColor Helper::glassSheet(const QPainter *painter) const
 {
     if (!painter || !painter->device() || painter->device()->devType() != QInternal::Widget) {
@@ -863,13 +886,16 @@ void Helper::renderNgButtonFrame(QPainter *painter,
         edge = alphaColor(inkColor, checked ? 0.26 : (hovered ? 0.22 : 0.14));
     }
     if (visualFocus) {
-        edge = focusColor(palette);
+        // the glow below says it
     } else if (penAnimation != AnimationData::OpacityInvalid && glass) {
         edge = KColorUtils::mix(edge, alphaColor(inkColor, 0.22), penAnimation);
     }
 
     clearUnder(painter, rect); // Breeze NG Glass: a clean sheet first (even when nothing follows: the old veil goes)
     if (bg.alpha() == 0 && edge.alpha() == 0) {
+        if (visualFocus) {
+            renderNgGlow(painter, rect, focusColor(palette), 1.0, roundButton ? std::max(rect.width(), rect.height()) / 2 : frameRadius(PenWidth::Frame));
+        }
         return;
     }
 
@@ -897,6 +923,9 @@ void Helper::renderNgButtonFrame(QPainter *painter,
         painter->drawLine(QPointF(frameRect.left() + radius, frameRect.top() + 1.0), QPointF(frameRect.right() - radius, frameRect.top() + 1.0));
     }
     painter->restore();
+    if (visualFocus) {
+        renderNgGlow(painter, rect, focusColor(palette), 1.0, radius);
+    }
 }
 
 //______________________________________________________________________________
