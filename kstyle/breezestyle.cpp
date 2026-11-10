@@ -1734,6 +1734,32 @@ bool Style::eventFilter(QObject *object, QEvent *event)
     if (qobject_cast<QMenu *>(object) || object->inherits("QComboBoxPrivateContainer")) {
         eventFilterNgPopup(static_cast<QWidget *>(object), event);
     }
+    if (auto menuBar = qobject_cast<QMenuBar *>(object)) {
+        static bool repainting = false; // the style filters the bar and the whole application: guard the re-sent event
+        if (repainting) {
+            return false;
+        }
+        if (event->type() == QEvent::Paint && menuBar->property("_breeze_ng_joined").isValid()) {
+            repainting = true;
+            // Breeze NG: the bar paints itself (each title clipped to its rectangle), then the strip between the
+            // open title and the bottom edge of the bar is filled so that the title reaches its menu
+            QCoreApplication::sendEvent(menuBar, event);
+            repainting = false;
+            const QRect item = menuBar->property("_breeze_ng_joined_item").toRect();
+            const QColor sheet = menuBar->property("_breeze_ng_joined_bg").value<QColor>();
+            const QColor edge = menuBar->property("_breeze_ng_joined_edge").value<QColor>();
+            if (item.isValid() && sheet.isValid() && item.bottom() < menuBar->rect().bottom()) {
+                QPainter painter(menuBar);
+                const QRect strip(item.left(), item.bottom() + 1, item.width(), menuBar->rect().bottom() - item.bottom());
+                painter.fillRect(strip, sheet);
+                const QColor line = KColorUtils::overlayColors(sheet, edge);
+                painter.fillRect(QRect(strip.left(), strip.top(), 1, strip.height()), line);
+                painter.fillRect(QRect(strip.right(), strip.top(), 1, strip.height()), line);
+            }
+            return true;
+        }
+        return false;
+    }
     if (auto dockWidget = qobject_cast<QDockWidget *>(object)) {
         return eventFilterDockWidget(dockWidget, event);
     } else if (auto subWindow = qobject_cast<QMdiSubWindow *>(object)) {
@@ -2007,13 +2033,16 @@ bool Style::eventFilterNgPopup(QWidget *popup, QEvent *event)
         } else {
             auto buttonAt = [popup](const QPoint &globalPos) -> QWidget * {
                 QWidget *widget = QApplication::widgetAt(globalPos);
-                while (widget && widget != popup && !qobject_cast<QAbstractButton *>(widget) && !qobject_cast<QComboBox *>(widget)) {
+                while (widget && widget != popup && !qobject_cast<QAbstractButton *>(widget) && !qobject_cast<QComboBox *>(widget) && !qobject_cast<QMenuBar *>(widget)) {
                     widget = widget->parentWidget();
                 }
                 return (widget && widget != popup) ? widget : nullptr;
             };
             // a button just above the menu, or just below it (a menu that opens upwards)
             button = buttonAt(topLeft + QPoint(6, -3));
+            if (!button) {
+                button = buttonAt(topLeft + QPoint(6, -8)); // a menu bar may leave a few pixels under its items
+            }
             if (!button) {
                 button = buttonAt(QPoint(topLeft.x() + 6, topLeft.y() + popup->height() + 3));
             }
@@ -2027,7 +2056,22 @@ bool Style::eventFilterNgPopup(QWidget *popup, QEvent *event)
             return false;
         }
         // the popup must really sit against the button, within a couple of pixels, above or below it
-        const QRect buttonRect(button->mapToGlobal(QPoint(0, 0)), button->size());
+        QRect buttonRect(button->mapToGlobal(QPoint(0, 0)), button->size());
+        if (auto menuBar = qobject_cast<QMenuBar *>(button)) {
+            // a menu of the menu bar joins the open title: its rectangle, down to the bottom edge of the bar
+            QAction *active = menuBar->activeAction();
+            if (!active) {
+                return false;
+            }
+            QRect item = menuBar->actionGeometry(active);
+            menuBar->setProperty("_breeze_ng_joined_item", item);
+            item.setBottom(menuBar->rect().bottom());
+            buttonRect = QRect(menuBar->mapToGlobal(item.topLeft()), item.size());
+            if (!menuBar->property("_breeze_ng_filtered").toBool()) {
+                menuBar->setProperty("_breeze_ng_filtered", true);
+                menuBar->installEventFilter(this);
+            }
+        }
         const int gapBelow = topLeft.y() - buttonRect.bottom(); // popup under the button
         const int gapAbove = buttonRect.top() - (topLeft.y() + popup->height()); // popup over the button
         Qt::Edge menuEdge;
@@ -2063,6 +2107,7 @@ bool Style::eventFilterNgPopup(QWidget *popup, QEvent *event)
                 button->setProperty(joinedProperty, QVariant());
                 button->setProperty("_breeze_ng_joined_bg", QVariant());
                 button->setProperty("_breeze_ng_joined_edge", QVariant());
+                button->setProperty("_breeze_ng_joined_item", QVariant());
                 // while the popup was open the button counted as pressed; drop that at once, or the hover tone
                 // would fade out over the button as if the pointer had just left it
                 _animations->widgetStateEngine().snap(button, AnimationHover, false);
@@ -6080,8 +6125,18 @@ bool Style::drawMenuBarItemControl(const QStyleOption *option, QPainter *painter
     painter->save();
     painter->setRenderHints(QPainter::Antialiasing);
 
-    // render hover and focus
-    if (useStrongFocus && (selected || sunken)) {
+    // Breeze NG: the title whose menu is open is one shape with it: the sheet and outline of the menu, round on top
+    const bool joined = sunken && widget && widget->property("_breeze_ng_joined").isValid() && widget->property("_breeze_ng_joined_item").toRect() == rect;
+    if (joined) {
+        const QColor sheet = widget->property("_breeze_ng_joined_bg").value<QColor>();
+        const QColor edge = KColorUtils::overlayColors(sheet, widget->property("_breeze_ng_joined_edge").value<QColor>());
+        const qreal radius = _helper->frameRadius(PenWidth::Frame);
+        QRectF shape = _helper->strokedRect(QRectF(rect));
+        shape.adjust(0, 0, 0, radius + 3); // past the bottom: the painter is clipped to the title
+        painter->setBrush(sheet);
+        painter->setPen(QPen(edge, PenWidth::Frame));
+        painter->drawRoundedRect(shape, radius, radius);
+    } else if (useStrongFocus && (selected || sunken)) {
         QColor color;
         if (sunken) {
             color = _helper->focusColor(palette);
@@ -6146,7 +6201,7 @@ bool Style::drawMenuBarItemControl(const QStyleOption *option, QPainter *painter
         const auto textRect = option->fontMetrics.boundingRect(rect, textFlags, menuItemOption->text);
 
         // render text
-        const QPalette::ColorRole role = (useStrongFocus && (sunken || selected)) ? QPalette::HighlightedText : QPalette::WindowText;
+        const QPalette::ColorRole role = (!joined && useStrongFocus && (sunken || selected)) ? QPalette::HighlightedText : QPalette::WindowText;
         drawItemText(painter, textRect, textFlags, palette, enabled, menuItemOption->text, role);
 
         // render outline
