@@ -1774,8 +1774,12 @@ void Helper::renderTabBarTab(QPainter *painter,
         Q_UNUSED(documentMode)
         Q_UNUSED(isQtQuickControl)
         Q_UNUSED(hasAlteredBackground)
-        // in a document bar the tongue takes the colour of the page under it, so that the two are one surface
+        // in a document bar the tongue takes the colour of the page under it, so that the two are one surface,
+        // and runs past the edge of the bar (the bar clips it) so that no row of the bar shows between them
         bgBrush = pillBar ? palette.color(QPalette::Base) : tabPanelColor(palette);
+        if (pillBar) {
+            frameRect.adjust(east ? -4 : 0, south ? -4 : 0, west ? 4 : 0, north ? 4 : 0);
+        }
         painter->setBrush(bgBrush);
         painter->setPen(Qt::NoPen);
         QRectF highlightRect = frameRect;

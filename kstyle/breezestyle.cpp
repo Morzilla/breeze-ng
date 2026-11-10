@@ -2841,6 +2841,9 @@ QRect Style::tabWidgetTabContentsRect(const QStyleOption *option, const QWidget 
 
     const bool documentMode(tabOption->lineWidth == 0);
     if (documentMode) {
+        // Breeze NG: no base line under the tabs, so no margin either: the page starts right under the tab bar
+        // and the current tab is one surface with it
+        return rect;
         // add margin only to the relevant side
         switch (tabOption->shape) {
         case QTabBar::RoundedNorth:
