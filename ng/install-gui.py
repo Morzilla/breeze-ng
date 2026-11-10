@@ -66,6 +66,7 @@ TEXT = {
     "next": ("Next", "Avanti"),
     "install": ("Install", "Installa"),
     "close": ("Close", "Chiudi"),
+    "quit": ("Quit", "Esci"),
     "cancel": ("Cancel", "Annulla"),
     "working": ("Installing…", "Installazione in corso…"),
     "step_deps": ("Build dependencies", "Dipendenze di compilazione"),
@@ -300,7 +301,8 @@ class Installer(QWidget):
         nav.addWidget(self.hint); nav.addStretch()
         self.back = QPushButton(t("back")); self.back.clicked.connect(lambda: self.go(-1))
         self.next = QPushButton(t("next")); self.next.setObjectName("primary"); self.next.clicked.connect(lambda: self.go(1))
-        nav.addWidget(self.back); nav.addWidget(self.next)
+        self.quit = QPushButton(t("quit")); self.quit.clicked.connect(self.close)
+        nav.addWidget(self.quit); nav.addWidget(self.back); nav.addWidget(self.next)
         root.addLayout(nav)
         self.update_nav()
 
@@ -427,6 +429,7 @@ class Installer(QWidget):
     def update_nav(self):
         i = self.pages.currentIndex()
         self.back.setVisible(0 < i < 3)
+        self.quit.setVisible(i < 3)  # while installing, the main button itself is Cancel, then Close
         self.next.setText(t("install") if i == 2 else t("cancel") if i == 3 else t("next"))
         if i == 3:
             self.next.setObjectName(""); self.next.style().unpolish(self.next); self.next.style().polish(self.next)
