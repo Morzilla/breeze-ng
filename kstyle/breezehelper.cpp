@@ -657,7 +657,7 @@ void Helper::renderMenuFrame(QPainter *painter, const QRectF &rect, const QColor
         painter->setRenderHint(QPainter::Antialiasing);
         QRectF frameRect(rect);
 
-        qreal radius(Metrics::Frame_FrameRadius);
+        qreal radius(Metrics::Menu_Radius); // Breeze NG
 
         frameRect.adjust( //
             seamlessEdges.testFlag(Qt::LeftEdge) ? -radius : 0,
@@ -715,7 +715,7 @@ QRegion Helper::menuFrameRegion(const QMenu *widget)
     if (roundCorners) {
         QRectF frameRect(widget->rect());
 
-        qreal radius(Metrics::Frame_FrameRadius);
+        qreal radius(Metrics::Menu_Radius); // Breeze NG
 
         frameRect.adjust( //
             seamlessEdges.testFlag(Qt::LeftEdge) ? -radius : 0,

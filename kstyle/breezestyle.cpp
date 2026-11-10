@@ -6109,14 +6109,12 @@ bool Style::drawMenuItemControl(const QStyleOption *option, QPainter *painter, c
 
     // render hover and focus
     if (useStrongFocus && (selected || sunken)) {
-        auto color = _helper->focusColor(palette);
-        // When clicking, use the same background color
-        auto outlineColor = color;
-        if (!sunken) {
-            // If not clicking, use the alphaColor
-            color = _helper->alphaColor(color, Metrics::Blend_Value);
-            outlineColor = _helper->focusOutlineColor(palette);
+        // Breeze NG: the current item sits on the accent, a solid rounded block without outline
+        auto color = palette.color(QPalette::Highlight);
+        if (sunken) {
+            color = color.darker(110);
         }
+        const QColor outlineColor(0, 0, 0, 0);
 
         Sides sides;
         if (!menuItemOption->menuRect.isNull()) {
@@ -6251,7 +6249,7 @@ bool Style::drawMenuItemControl(const QStyleOption *option, QPainter *painter, c
             QString accelerator(text.mid(tabPosition + 1));
             text = text.left(tabPosition);
             painter->save();
-            painter->setOpacity(0.7);
+            painter->setOpacity(0.5); // Breeze NG: the shortcut is a whisper
             drawItemText(painter, textRect, textFlags, palette, enabled, accelerator, role);
             painter->restore();
         }

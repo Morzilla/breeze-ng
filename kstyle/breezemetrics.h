@@ -50,9 +50,10 @@ struct Metrics {
     static constexpr int LineEdit_FrameWidth = 7; // Breeze NG
 
     // menu items
-    static constexpr int Menu_FrameWidth = 0;
+    static constexpr int Menu_FrameWidth = 6; // Breeze NG: room around the items
+    static constexpr int Menu_Radius = 12; // Breeze NG: the panel corners
     static constexpr int MenuItem_MarginWidth = 6; // Breeze NG
-    static constexpr int MenuItem_HighlightGap = 4;
+    static constexpr int MenuItem_HighlightGap = 6; // Breeze NG
     static constexpr int MenuItem_ExtraLeftMargin = 4;
     static constexpr int MenuItem_MarginHeight = 5; // Breeze NG
     static constexpr int MenuItem_ItemSpacing = 2;
