@@ -427,6 +427,23 @@ QMargins ShadowHelper::shadowMargins(QWidget *widget) const
                       shadowRect.right() - boxRect.right() - Metrics::Shadow_Overlap + params.offset.x(),
                       shadowRect.bottom() - boxRect.bottom() - Metrics::Shadow_Overlap + params.offset.y());
 
+    // Breeze NG: a menu joined to the button it opens from casts no shadow over that button
+    {
+        const Qt::Edges seamless = widget->property("_breeze_menu_seamless_edges").value<Qt::Edges>();
+        if (seamless & Qt::TopEdge) {
+            margins.setTop(0);
+        }
+        if (seamless & Qt::BottomEdge) {
+            margins.setBottom(0);
+        }
+        if (seamless & Qt::LeftEdge) {
+            margins.setLeft(0);
+        }
+        if (seamless & Qt::RightEdge) {
+            margins.setRight(0);
+        }
+    }
+
     if (widget->inherits("QBalloonTip")) {
         // Balloon tip needs special margins to deal with the arrow.
         int top = widget->contentsMargins().top();
