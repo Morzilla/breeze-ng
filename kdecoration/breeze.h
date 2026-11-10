@@ -29,8 +29,8 @@ namespace Metrics
 static constexpr qreal Frame_FrameRadius = 7.0; // Breeze NG: 14 px at the usual small spacing
 
 //* titlebar metrics, in units of small spacing
-static constexpr int TitleBar_TopMargin = 3;
-static constexpr int TitleBar_BottomMargin = 3;
+static constexpr int TitleBar_TopMargin = 5;
+static constexpr int TitleBar_BottomMargin = 4;
 static constexpr int TitleBar_SideMargin = 4;
 static constexpr int TitleBar_ButtonSpacing = 2;
 

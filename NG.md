@@ -30,11 +30,12 @@ fallback. `WindowOpacity` (Glass, default 70) and `MenuOpacity` are there too.
 ## Everything at once
 
 `ng/install-desktop.sh` installs the whole desktop this style belongs to: [Dolphin NG](https://github.com/Morzilla/dolphin-ng),
-Breeze NG and the [NeoLine icons](https://github.com/Morzilla/neoline-icons), dependencies included. Add
-`--apply soft` or `--apply glass` to switch to it as well; `--help` lists the options.
+Breeze NG and the [NeoLine icons](https://github.com/Morzilla/neoline-icons), dependencies included. It asks what to
+install and whether to switch the desktop to it; `--yes` runs it without questions, `--help` lists the options,
+`--licence` prints the notices (the installer is MIT; Breeze NG and Dolphin NG stay GPL).
 
 ```
-curl -fsSL https://raw.githubusercontent.com/Morzilla/breeze-ng/ng/ng/install-desktop.sh | bash
+bash <(curl -fsSL https://raw.githubusercontent.com/Morzilla/breeze-ng/ng/ng/install-desktop.sh)
 ```
 
 ## Build and install
