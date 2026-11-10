@@ -928,21 +928,23 @@ void Helper::renderNgButtonFrame(QPainter *painter,
     QString joined;
     QColor joinedBg;
     QColor joinedEdge;
+    QRectF widgetRect;
     if (painter->device() && painter->device()->devType() == QInternal::Widget) {
         const QWidget *device = static_cast<const QWidget *>(painter->device());
         joined = device->property("_breeze_ng_joined").toString();
         joinedBg = device->property("_breeze_ng_joined_bg").value<QColor>();
         joinedEdge = device->property("_breeze_ng_joined_edge").value<QColor>();
+        widgetRect = device->rect();
     }
     if (joined == QLatin1String("bottom") || joined == QLatin1String("top")) {
-        // the menu's own sheet and outline; the path runs past the joined side, which the widget clips away
-        // the tool button's own rect is a pixel inside the widget: reach out to the widget's edge so the outline
-        // lands on the same column as the menu's
+        // the menu's own sheet and outline. The shape covers the whole widget, whatever sub-rect the style was
+        // handed, because the menu sits against the widget's edge; it runs past the joined side, which the widget clips.
+        frameRect = strokedRect(widgetRect.isValid() ? widgetRect : QRectF(rect));
         if (joined == QLatin1String("bottom")) {
-            frameRect.adjust(-1, 0, 1, radius + 3);
+            frameRect.adjust(0, 0, 0, radius + 3);
             path = roundedPath(frameRect, CornersTop, radius);
         } else {
-            frameRect.adjust(-1, -radius - 3, 1, 0);
+            frameRect.adjust(0, -radius - 3, 0, 0);
             path = roundedPath(frameRect, CornersBottom, radius);
         }
         bg = joinedBg.isValid() ? joinedBg : frameBackgroundColor(palette);
