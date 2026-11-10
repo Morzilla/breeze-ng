@@ -118,6 +118,11 @@ public:
     static bool isDark(const QPalette &palette);
     //* Breeze NG: background of text fields
     QColor inputBackground(const QPalette &palette) const;
+    //* Breeze NG Glass: the sheet colour of a translucent window (invalid if the painter's widget is not in one)
+    QColor glassSheet(const QPainter *painter) const;
+    //* Breeze NG Glass: lay the sheet under `rect` before a translucent veil is painted on a widget that does not
+    //* fill its own background, so that the veils of successive repaints cannot pile up
+    void clearUnder(QPainter *painter, const QRectF &rect) const;
     //* Breeze NG: the frame of buttons and tool buttons of both variants
     void renderNgButtonFrame(QPainter *painter, const QRectF &rect, const QPalette &palette, const QHash<QByteArray, bool> &stateProperties, qreal bgAnimation, qreal penAnimation) const;
 

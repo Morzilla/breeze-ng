@@ -155,6 +155,32 @@ QColor Helper::ink(const QPalette &palette)
     return isDark(palette) ? QColor(255, 255, 255) : QColor(0, 0, 0);
 }
 
+QColor Helper::glassSheet(const QPainter *painter) const
+{
+    if (!painter || !painter->device() || painter->device()->devType() != QInternal::Widget) {
+        return QColor();
+    }
+    const QWidget *widget = static_cast<const QWidget *>(painter->device());
+    const QWidget *window = widget->window();
+    if (!window || !window->property("_breeze_ng_glass").toBool() || widget->autoFillBackground()) {
+        return QColor();
+    }
+    return alphaColor(window->palette().color(QPalette::Window), qBound(20, StyleConfigData::windowOpacity(), 100) / 100.0);
+}
+
+void Helper::clearUnder(QPainter *painter, const QRectF &rect) const
+{
+    const QColor sheet = glassSheet(painter);
+    if (!sheet.isValid()) {
+        return;
+    }
+    painter->save();
+    painter->setCompositionMode(QPainter::CompositionMode_Source);
+    painter->setRenderHint(QPainter::Antialiasing, false);
+    painter->fillRect(rect, sheet);
+    painter->restore();
+}
+
 QColor Helper::inputBackground(const QPalette &palette) const
 {
     const QColor base = palette.color(QPalette::Base);
@@ -690,6 +716,7 @@ void Helper::renderButtonFrame(QPainter *painter,
 
     // don't render background if flat and not hovered, down, checked, or given visual focus
     if (flat && !(hovered || down || checked || visualFocus) && bgAnimation == AnimationData::OpacityInvalid && penAnimation == AnimationData::OpacityInvalid) {
+        clearUnder(painter, rect); // Breeze NG Glass: wipe the veil of the last hover
         return;
     }
 
@@ -824,6 +851,7 @@ void Helper::renderNgButtonFrame(QPainter *painter,
         edge = KColorUtils::mix(edge, alphaColor(inkColor, 0.22), penAnimation);
     }
 
+    clearUnder(painter, rect); // Breeze NG Glass: a clean sheet first (even when nothing follows: the old veil goes)
     if (bg.alpha() == 0 && edge.alpha() == 0) {
         return;
     }
@@ -1512,6 +1540,7 @@ void Helper::renderStaticTabBarTab(QPainter *painter,
         } else if (enabled && hovered && !selected) {
             alpha = 0.08;
         }
+        clearUnder(painter, frameRect);
         if (alpha <= 0.0) {
             return;
         }

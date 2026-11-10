@@ -4884,8 +4884,10 @@ bool Style::drawPanelItemViewItemPrimitive(const QStyleOption *option, QPainter 
 
     // do nothing if no background is to be rendered
     if (!(mouseOver || selected || hasCustomBackground || hasAlternateBackground)) {
+        _helper->clearUnder(painter, option->rect); // Breeze NG Glass: the veil of the last hover goes
         return true;
     }
+    _helper->clearUnder(painter, option->rect);
 
     // define color group
     QPalette::ColorGroup colorGroup;
