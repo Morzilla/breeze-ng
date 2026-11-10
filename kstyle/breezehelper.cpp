@@ -166,8 +166,7 @@ QColor Helper::ink(const QPalette &palette)
 
 QColor Helper::menuSheet(const QPalette &palette, bool alpha, QColor *outline, bool joined) const
 {
-    // Soft: a menu is a sheet lifted a tone above the window (as the tab panels), never darker than it
-    QColor background = isGlass() ? frameBackgroundColor(palette) : tabPanelColor(palette);
+    QColor background = frameBackgroundColor(palette);
     // a menu joined to a button is opaque: only then can the button be painted in exactly its colour
     const int menuOpacity = joined ? 100 : ((isGlass() && StyleConfigData::menuOpacity() >= 100) ? 78 : StyleConfigData::menuOpacity());
     QColor edge = isGlass() ? alphaColor(ink(palette), 0.16) : frameOutlineColor(palette);
