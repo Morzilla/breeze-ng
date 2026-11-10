@@ -4389,8 +4389,8 @@ bool Style::drawFrameTabWidgetPrimitive(const QStyleOption *option, QPainter *pa
 
     // define colors
     const auto &palette(option->palette);
-    const auto background(_helper->frameBackgroundColor(palette));
-    const auto outline(_helper->frameOutlineColor(palette));
+    const auto background(_helper->tabPanelColor(palette)); // Breeze NG: body and current tab are one sheet
+    const QColor outline;
 
     Corners corners = AllCorners;
 

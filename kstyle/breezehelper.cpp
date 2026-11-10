@@ -1688,15 +1688,15 @@ void Helper::renderStaticTabBarTab(QPainter *painter,
     const Corners tongueCorners = north ? Corners(CornersTop) : south ? Corners(CornersBottom) : Corners(CornersTop | CornersBottom);
     QRectF tongue = frameRect;
     if (north) {
-        tongue.adjust(3, 3, -3, 0);
+        tongue.adjust(3, 3, -3, 2);
     } else if (south) {
-        tongue.adjust(3, 0, -3, -3);
+        tongue.adjust(3, -2, -3, -3);
     } else {
         tongue.adjust(3, 3, -3, -3);
     }
     painter->setPen(Qt::NoPen);
     if (selected) {
-        painter->setBrush(KColorUtils::mix(windowColor, ink(palette), isDark(palette) ? 0.08 : 0.05));
+        painter->setBrush(tabPanelColor(palette));
         painter->drawPath(roundedPath(tongue, tongueCorners, frameRadius()));
     } else {
         qreal veil = 0.0;
@@ -1748,7 +1748,7 @@ void Helper::renderTabBarTab(QPainter *painter,
         Q_UNUSED(documentMode)
         Q_UNUSED(isQtQuickControl)
         Q_UNUSED(hasAlteredBackground)
-        bgBrush = KColorUtils::mix(palette.color(QPalette::Window), ink(palette), isDark(palette) ? 0.08 : 0.05);
+        bgBrush = tabPanelColor(palette);
         painter->setBrush(bgBrush);
         painter->setPen(Qt::NoPen);
         QRectF highlightRect = frameRect;

@@ -11,6 +11,7 @@
 #include "breezemetrics.h"
 
 #include <KConfigWatcher>
+#include <KColorUtils>
 #include <KSharedConfig>
 #include <KStatefulBrush>
 
@@ -120,6 +121,11 @@ public:
     //* Breeze NG: white on a dark palette, black on a light one, for translucent sheets and edges
     static QColor ink(const QPalette &palette);
     static bool isDark(const QPalette &palette);
+    //* Breeze NG: the sheet of a tab panel and of its current tab, a tone lifted from the window
+    QColor tabPanelColor(const QPalette &palette) const
+    {
+        return KColorUtils::mix(palette.color(QPalette::Window), ink(palette), isDark(palette) ? 0.08 : 0.05);
+    }
     //* Breeze NG: background of text fields
     QColor inputBackground(const QPalette &palette) const;
     //* Breeze NG: background and outline of a menu panel (`alpha`: the menu window has an alpha channel)
