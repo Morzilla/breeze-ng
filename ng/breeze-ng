@@ -1,0 +1,104 @@
+#!/bin/bash
+# Breeze NG: a fork of KDE's Breeze widget style and window decoration with two looks, Soft and Glass.
+#   ./ng/breeze-ng build          configure, build and install into ~/.local/breeze-ng (needs the Breeze build deps)
+#   ./ng/breeze-ng env            make the plugins visible to the session (QT_PLUGIN_PATH; log out and in once)
+#   ./ng/breeze-ng now            same, for the running session: restarts KWin and Plasma with the path (X11)
+#   ./ng/breeze-ng themes         install the two global themes (System Settings > Global Theme)
+#   ./ng/breeze-ng use soft|glass select the look: widget style, window decoration, colours; applies at once
+#   ./ng/breeze-ng off            back to the stock Breeze
+#   ./ng/breeze-ng status         what is active now
+set -e
+W="$(cd "$(dirname "$(readlink -f "$0")")/.." && pwd)"   # the repository
+PREFIX="$HOME/.local/breeze-ng"
+PLUGINS="$PREFIX/lib64/plugins"
+ENVFILE="$HOME/.config/plasma-workspace/env/breeze-ng.sh"
+
+reload() {
+    # the style re-reads breezengrc on this signal; KWin re-reads kwinrc on reconfigure
+    dbus-send --session --type=signal /BreezeStyle org.kde.Breeze.Style.reparseConfiguration 2>/dev/null || true
+    dbus-send --session --type=signal /KGlobalSettings org.kde.KGlobalSettings.notifyChange int32:2 int32:0 2>/dev/null || true
+    qdbus org.kde.KWin /KWin reconfigure 2>/dev/null || true
+}
+
+case "$1" in
+build)
+    mkdir -p "$W/build-ng"
+    cd "$W/build-ng"
+    EXTRA=()
+    if [ -d "$W/deps/usr" ]; then
+        # development packages unpacked by hand under deps/usr (no root): point CMake at them
+        EXTRA+=(-DCMAKE_PREFIX_PATH="$W/deps/usr" -DQt6Svg_DIR="$W/deps/usr/lib64/cmake/Qt6Svg" -DQt6SvgWidgets_DIR="$W/deps/usr/lib64/cmake/Qt6SvgWidgets" -DKF6FrameworkIntegration_DIR="$W/deps/usr/lib64/cmake/KF6FrameworkIntegration")
+    fi
+    cmake "$W" -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX="$PREFIX" -DBUILD_QT5=OFF -DBUILD_QT6=ON -DWITH_WALLPAPERS=OFF -DBUILD_CURSOR=OFF -DBUILD_TESTING=OFF "${EXTRA[@]}"
+    nice -n 10 cmake --build . -j"${JOBS:-4}"
+    cmake --install .
+    "$0" themes
+    echo "==> installed in $PREFIX; now: $0 env (once), then $0 use soft|glass"
+    ;;
+env)
+    mkdir -p "$(dirname "$ENVFILE")"
+    cat > "$ENVFILE" <<EOT
+# Breeze NG: the fork's widget style and window decoration live under $PREFIX
+export QT_PLUGIN_PATH="$PLUGINS\${QT_PLUGIN_PATH:+:\$QT_PLUGIN_PATH}"
+EOT
+    echo "==> wrote $ENVFILE; log out and in again, then: $0 use soft|glass"
+    ;;
+now)
+    # the running session: the user service manager and D-Bus hand the path to everything they start from now on,
+    # KWin and Plasma are restarted so that the decoration and the panels pick it up at once
+    export QT_PLUGIN_PATH="$PLUGINS${QT_PLUGIN_PATH:+:$QT_PLUGIN_PATH}"
+    systemctl --user set-environment "QT_PLUGIN_PATH=$QT_PLUGIN_PATH" 2>/dev/null || true
+    dbus-update-activation-environment --systemd "QT_PLUGIN_PATH=$QT_PLUGIN_PATH" 2>/dev/null || dbus-update-activation-environment "QT_PLUGIN_PATH=$QT_PLUGIN_PATH" 2>/dev/null || true
+    if [ "${XDG_SESSION_TYPE:-x11}" = "x11" ]; then
+        (setsid kwin_x11 --replace >/dev/null 2>&1 &)
+        sleep 2
+    else
+        echo "Wayland: KWin cannot be replaced in place; the decoration arrives after logging out and in." >&2
+    fi
+    (kquitapp6 plasmashell 2>/dev/null; sleep 1; setsid plasmashell >/dev/null 2>&1 &)
+    echo "==> done. Applications opened from now on get the style; those already open keep theirs until restarted."
+    ;;
+themes)
+    # the colour scheme and the two global themes (System Settings > Global Theme): Breeze NG Soft / Glass.
+    # The themes keep whatever icon theme is in use.
+    mkdir -p "$HOME/.local/share/color-schemes" "$HOME/.local/share/plasma/look-and-feel"
+    cp "$W/ng/color-schemes/BreezeNG.colors" "$HOME/.local/share/color-schemes/"
+    cp -r "$W/ng/look-and-feel/org.morzilla.breezeng.soft" "$W/ng/look-and-feel/org.morzilla.breezeng.glass" "$HOME/.local/share/plasma/look-and-feel/"
+    ICONS="$(kreadconfig6 --file kdeglobals --group Icons --key Theme 2>/dev/null || true)"
+    if [ -n "$ICONS" ]; then
+        for v in soft glass; do
+            printf '\n[kdeglobals][Icons]\nTheme=%s\n' "$ICONS" >> "$HOME/.local/share/plasma/look-and-feel/org.morzilla.breezeng.$v/contents/defaults"
+        done
+    fi
+    echo "==> global themes installed: Breeze NG Soft, Breeze NG Glass (colour scheme Breeze NG)"
+    ;;
+use)
+    case "$2" in
+    soft) VARIANT=Soft ;;
+    glass) VARIANT=Glass ;;
+    *) echo "usage: $0 use soft|glass" >&2; exit 1 ;;
+    esac
+    kwriteconfig6 --file breezengrc --group Common --key Variant "$VARIANT"
+    kwriteconfig6 --file kdeglobals --group KDE --key widgetStyle BreezeNG
+    kwriteconfig6 --file kwinrc --group org.kde.kdecoration2 --key library org.kde.breezeng
+    kwriteconfig6 --file kwinrc --group org.kde.kdecoration2 --key theme "Breeze NG $VARIANT"
+    reload
+    echo "==> Breeze NG $VARIANT. Applications already open keep their old style until restarted."
+    ;;
+off)
+    kwriteconfig6 --file kdeglobals --group KDE --key widgetStyle Breeze
+    kwriteconfig6 --file kwinrc --group org.kde.kdecoration2 --key library org.kde.breeze
+    kwriteconfig6 --file kwinrc --group org.kde.kdecoration2 --key theme Breeze
+    reload
+    echo "==> back to Breeze"
+    ;;
+status)
+    echo "widget style:  $(kreadconfig6 --file kdeglobals --group KDE --key widgetStyle)"
+    echo "decoration:    $(kreadconfig6 --file kwinrc --group org.kde.kdecoration2 --key library) / $(kreadconfig6 --file kwinrc --group org.kde.kdecoration2 --key theme)"
+    [ -r "$ENVFILE" ] && echo "env file:      $ENVFILE" || echo "env file:      missing (run: $0 env)"
+    [ -e "$PLUGINS/styles/breezeng6.so" ] && echo "installed:     yes" || echo "installed:     no (run: $0 build)"
+    ;;
+*)
+    sed -n 2,9p "$0"
+    ;;
+esac

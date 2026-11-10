@@ -1,3 +1,6 @@
+> **Breeze NG** – this fork adds two looks, Soft and Glass, on top of Breeze. Everything about them is in
+> [NG.md](NG.md); the rest of this file is the original Breeze README.
+
 # Breeze
 
 Breeze is the default style for [Plasma](https://kde.org/plasma-desktop/). This repository contains some parts of Breeze such as the cursors, wallpapers, and the application style.

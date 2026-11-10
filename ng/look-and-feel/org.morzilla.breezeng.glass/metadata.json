@@ -1,0 +1,12 @@
+{
+    "KPackageStructure": "Plasma/LookAndFeel",
+    "KPlugin": {
+        "Authors": [ { "Name": "Morzilla" } ],
+        "Description": "Breeze NG Glass: the Breeze NG widget style and window decoration with the MottoNeo colours",
+        "Id": "org.morzilla.breezeng.glass",
+        "License": "GPL-2.0+",
+        "Name": "Breeze NG Glass",
+        "Version": "1.0"
+    },
+    "X-Plasma-APIVersion": "2"
+}
