@@ -263,7 +263,7 @@ class Installer(QWidget):
     def __init__(self):
         super().__init__()
         self.setWindowTitle(t("title"))
-        self.resize(760, 600)
+        self.resize(780, 680); self.setMinimumSize(760, 660)
         self.look = "soft"
         self.proc = None
         self.queue = []
@@ -360,6 +360,10 @@ class Installer(QWidget):
         for name, text in (("NeoLine-White", "NeoLine White"), ("NeoLine", "NeoLine"), ("NeoLine-Yellow", "NeoLine Yellow")):
             self.iconset.addItem(text, name)
         r2.addWidget(self.iconset); r2.addStretch(); v.addLayout(r2)
+        self.iconstrip = QLabel(); self.iconstrip.setFixedHeight(46)
+        v.addWidget(self.iconstrip)
+        self.iconset.currentIndexChanged.connect(self.show_icons)
+        self.show_icons()
         self.apply = Check(t("apply")); v.addWidget(self.apply)
         v.addStretch(1)
         self.pick("soft")
@@ -380,6 +384,14 @@ class Installer(QWidget):
         self.launch = QPushButton(t("launch")); self.launch.hide(); self.launch.clicked.connect(self.start_dolphin)
         v.addWidget(self.launch, 0, Qt.AlignmentFlag.AlignLeft)
         return w
+
+    def show_icons(self):
+        pix = QPixmap(os.path.join(HERE, "screenshots", "icons-%s.png" % self.iconset.currentData()))
+        if pix.isNull():
+            self.iconstrip.hide()
+            return
+        self.iconstrip.setPixmap(pix.scaledToHeight(42, Qt.TransformationMode.SmoothTransformation))
+        self.iconstrip.show()
 
     # ---- navigation
     def pick(self, key):

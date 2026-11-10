@@ -18,7 +18,7 @@ else
     # started from the web: fetch the installer into the cache, fresh every time
     DIR="${XDG_CACHE_HOME:-$HOME/.cache}/ng-installer"
     mkdir -p "$DIR/screenshots"
-    for f in install-gui.py install-desktop.sh logo.png screenshots/01-desktop.png; do
+    for f in install-gui.py install-desktop.sh logo.png screenshots/01-desktop.png screenshots/icons-NeoLine.png screenshots/icons-NeoLine-White.png screenshots/icons-NeoLine-Yellow.png; do
         curl -fsSL "$RAW/$f" -o "$DIR/$f" || { [ "$f" = install-gui.py ] || [ "$f" = install-desktop.sh ]; } && [ -s "$DIR/$f" ] || true
     done
     [ -s "$DIR/install-gui.py" ] && [ -s "$DIR/install-desktop.sh" ] || { echo "Could not download the installer (no network?)." >&2; exit 1; }
