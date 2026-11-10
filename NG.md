@@ -27,6 +27,16 @@ Settings live in `breezengrc`. The variant follows the decoration theme chosen i
 `Breeze NG Glass`), which is what the global themes set; `[Common] Variant=Soft|Glass` in `breezengrc` is the
 fallback. `WindowOpacity` (Glass, default 70) and `MenuOpacity` are there too.
 
+## Everything at once
+
+`ng/install-desktop.sh` installs the whole desktop this style belongs to: [Dolphin NG](https://github.com/Morzilla/dolphin-ng),
+Breeze NG and the [NeoLine icons](https://github.com/Morzilla/neoline-icons), dependencies included. Add
+`--apply soft` or `--apply glass` to switch to it as well; `--help` lists the options.
+
+```
+curl -fsSL https://raw.githubusercontent.com/Morzilla/breeze-ng/ng/ng/install-desktop.sh | bash
+```
+
 ## Build and install
 
 Build dependencies are those of Breeze itself (`sudo dnf builddep breeze`, `sudo apt build-dep breeze`,
