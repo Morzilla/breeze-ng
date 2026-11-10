@@ -4392,6 +4392,11 @@ bool Style::drawFrameTabWidgetPrimitive(const QStyleOption *option, QPainter *pa
 //___________________________________________________________________________________
 bool Style::drawFrameTabBarBasePrimitive(const QStyleOption *option, QPainter *painter, const QWidget *) const
 {
+    // Breeze NG: no base line under the tabs
+    Q_UNUSED(option)
+    Q_UNUSED(painter)
+    return true;
+
     // tabbar frame used either for 'separate' tabbar, or in 'document mode'
 
     // cast option and check

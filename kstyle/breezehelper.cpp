@@ -241,6 +241,13 @@ QColor Helper::hoverOutlineColor(const QPalette &palette) const
 //____________________________________________________________________
 QColor Helper::sidePanelOutlineColor(const QPalette &palette, bool hasFocus, qreal opacity, AnimationMode mode) const
 {
+    // Breeze NG: side panels have no outline
+    Q_UNUSED(hasFocus)
+    Q_UNUSED(opacity)
+    Q_UNUSED(mode)
+    Q_UNUSED(palette)
+    return QColor(0, 0, 0, 0);
+
     QColor outline(palette.color(QPalette::Inactive, QPalette::Highlight));
     const QColor &focus = palette.color(QPalette::Active, QPalette::Highlight);
 
@@ -966,6 +973,13 @@ void Helper::renderTabWidgetFrame(QPainter *painter, const QRectF &rect, const Q
 //______________________________________________________________________________
 void Helper::renderSeparator(QPainter *painter, const QRectF &rect, const QColor &color, bool vertical) const
 {
+    // Breeze NG: no separator lines, anywhere
+    Q_UNUSED(painter)
+    Q_UNUSED(rect)
+    Q_UNUSED(color)
+    Q_UNUSED(vertical)
+    return;
+
     painter->setRenderHint(QPainter::Antialiasing, false);
     painter->setBrush(Qt::NoBrush);
     painter->setPen(color);
@@ -1518,6 +1532,12 @@ void Helper::renderScrollBarHandle(QPainter *painter, const QRectF &rect, const 
 //______________________________________________________________________________
 void Helper::renderScrollBarBorder(QPainter *painter, const QRectF &rect, const QColor &color) const
 {
+    // Breeze NG: no line between a view and its scroll bar
+    Q_UNUSED(painter)
+    Q_UNUSED(rect)
+    Q_UNUSED(color)
+    return;
+
     // content
     if (color.isValid()) {
         painter->setPen(Qt::NoPen);
