@@ -270,7 +270,7 @@ void Decoration::updateTitleBar()
     setTitleBar(QRectF(x, y, width, height));
 
     // Breeze NG Glass: ask the compositor to blur what lies behind the translucent frame
-    if (m_internalSettings && m_internalSettings->variant() == InternalSettings::Glass) {
+    if (m_ngGlass) {
         QPainterPath path;
         path.addRoundedRect(QRectF(QPointF(0, 0), size()), m_scaledCornerRadius, m_scaledCornerRadius);
         setBlurRegion(QRegion(path.toFillPolygon().toPolygon()));
@@ -373,9 +373,24 @@ qreal Decoration::borderSize(bool bottom, qreal scale) const
 }
 
 //________________________________________________________________
+bool Decoration::ngGlass() const
+{
+    // Breeze NG: the theme name KWin was given decides; breezengrc [Common] Variant is the fallback
+    KSharedConfig::Ptr kwinConfig = KSharedConfig::openConfig(QStringLiteral("kwinrc"));
+    const QString theme = kwinConfig->group(QStringLiteral("org.kde.kdecoration2")).readEntry("theme", QString());
+    if (theme.compare(QLatin1String("Breeze NG Glass"), Qt::CaseInsensitive) == 0) {
+        return true;
+    }
+    if (theme.compare(QLatin1String("Breeze NG Soft"), Qt::CaseInsensitive) == 0) {
+        return false;
+    }
+    return m_internalSettings && m_internalSettings->variant() == InternalSettings::Glass;
+}
+
 void Decoration::reconfigure()
 {
     m_internalSettings = SettingsProvider::self()->internalSettings(this);
+    m_ngGlass = ngGlass();
 
     setScaledCornerRadius();
 
@@ -585,7 +600,7 @@ void Decoration::paint(QPainter *painter, const QRectF &repaintRegion)
         painter->setRenderHint(QPainter::Antialiasing);
         painter->setPen(Qt::NoPen);
         QColor frameColor = window()->color(window()->isActive() ? ColorGroup::Active : ColorGroup::Inactive, ColorRole::Frame);
-        if (m_internalSettings->variant() == InternalSettings::Glass) {
+        if (m_ngGlass) {
             frameColor.setAlphaF(0.70); // Breeze NG
             painter->setCompositionMode(QPainter::CompositionMode_Source);
         }
@@ -641,7 +656,7 @@ void Decoration::paintTitleBar(QPainter *painter, const QRectF &repaintRegion)
     painter->setPen(Qt::NoPen);
 
     // Breeze NG: Soft is a flat tone; Glass is a translucent sheet the compositor blurs behind, with a lit top edge
-    const bool glass = m_internalSettings->variant() == InternalSettings::Glass;
+    const bool glass = m_ngGlass;
     QColor sheet = titleBarColor();
     if (glass) {
         sheet.setAlphaF(0.70);

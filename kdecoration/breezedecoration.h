@@ -97,6 +97,8 @@ private Q_SLOTS:
     void updateScale();
 
 private:
+    bool ngGlass() const; // Breeze NG
+    bool m_ngGlass = false;
     //* return the rect in which caption will be drawn
     QPair<QRectF, Qt::Alignment> captionRect() const;
 

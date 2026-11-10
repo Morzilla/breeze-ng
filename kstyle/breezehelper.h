@@ -107,8 +107,12 @@ public:
         return _contrastBias;
     }
 
-    //* Breeze NG: the variant in use
-    bool isGlass() const;
+    //* Breeze NG: the variant in use. The window decoration theme chosen in KWin ("Breeze NG Glass" / "Breeze NG
+    //* Soft", what a global theme sets) decides; breezengrc [Common] Variant is the fallback.
+    bool isGlass() const
+    {
+        return _glass;
+    }
     bool isSoft() const
     {
         return !isGlass();
@@ -402,6 +406,7 @@ private:
 
     //* KWin configuration
     KSharedConfig::Ptr _kwinConfig;
+    bool _glass = false; // Breeze NG
 
     //* event filter
     PaletteChangedEventFilter *_eventFilter;

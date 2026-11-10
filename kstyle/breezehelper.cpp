@@ -97,6 +97,19 @@ void Helper::loadConfig()
     _kwinConfig->reparseConfiguration();
     _cachedAutoValid = false;
 
+    // Breeze NG: which look
+    {
+        const QString theme = _kwinConfig->group(QStringLiteral("org.kde.kdecoration2")).readEntry("theme", QString());
+        if (theme.compare(QLatin1String("Breeze NG Glass"), Qt::CaseInsensitive) == 0) {
+            _glass = true;
+        } else if (theme.compare(QLatin1String("Breeze NG Soft"), Qt::CaseInsensitive) == 0) {
+            _glass = false;
+        } else {
+            StyleConfigData::self()->load();
+            _glass = StyleConfigData::variant() == StyleConfigData::Glass;
+        }
+    }
+
     KConfigGroup globalGroup(_config->group(QStringLiteral("WM")));
     _activeTitleBarColor = globalGroup.readEntry("activeBackground", palette.color(QPalette::Active, QPalette::Highlight));
     _activeTitleBarTextColor = globalGroup.readEntry("activeForeground", palette.color(QPalette::Active, QPalette::HighlightedText));
@@ -140,10 +153,6 @@ QColor transparentize(const QColor &color, qreal amount)
 }
 
 //____________________________________________________________________
-bool Helper::isGlass() const
-{
-    return StyleConfigData::variant() == StyleConfigData::Glass;
-}
 
 bool Helper::isDark(const QPalette &palette)
 {
