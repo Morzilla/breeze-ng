@@ -4866,11 +4866,11 @@ bool Style::drawPanelMenuPrimitive(const QStyleOption *option, QPainter *painter
     const bool hasAlpha(_helper->hasAlphaChannel(widget));
     const auto seamlessEdges = _helper->menuSeamlessEdges(widget);
     const QRect joinSpan = widget ? widget->property("_breeze_ng_join_span").toRect() : QRect(); // Breeze NG: where the button sits
-    if (qEnvironmentVariableIsSet("BREEZE_NG_DEBUG")) {
-        qWarning("breeze-ng: menu panel paint, alpha %d, span %d,%d %dx%d", hasAlpha, joinSpan.x(), joinSpan.y(), joinSpan.width(), joinSpan.height());
-    }
     QColor outline;
     const QColor background = _helper->menuSheet(palette, hasAlpha, &outline, joinSpan.isValid()); // Breeze NG
+    if (qEnvironmentVariableIsSet("BREEZE_NG_DEBUG")) {
+        qWarning("breeze-ng: menu panel paint, alpha %d, span %d,%d %dx%d, background alpha %d, opacity setting %d", hasAlpha, joinSpan.x(), joinSpan.y(), joinSpan.width(), joinSpan.height(), background.alpha(), StyleConfigData::menuOpacity());
+    }
 
     painter->save();
     if (widget && widget->isWindow()) {
