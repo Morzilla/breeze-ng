@@ -11,6 +11,10 @@ set -e
 W="$(cd "$(dirname "$(readlink -f "$0")")/.." && pwd)"   # the repository
 PREFIX="$HOME/.local/breeze-ng"
 PLUGINS="$PREFIX/lib64/plugins"
+# the plugin folder is lib64 on Fedora and openSUSE, lib on Arch, lib/x86_64-linux-gnu on Debian and Ubuntu
+for candidate in "$PREFIX"/lib64/plugins "$PREFIX"/lib/plugins "$PREFIX"/lib/*/plugins; do
+    [ -e "$candidate/styles/breezeng6.so" ] && PLUGINS="$candidate" && break
+done
 ENVFILE="$HOME/.config/plasma-workspace/env/breeze-ng.sh"
 
 reload() {
