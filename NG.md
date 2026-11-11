@@ -54,6 +54,15 @@ bash <(curl -fsSL https://raw.githubusercontent.com/Morzilla/breeze-ng/ng/ng/ins
 The graphical installer is a small wizard: pick the parts, pick a look (Classic, Soft or Glass), watch it build. It
 needs Python with PyQt6 or PySide6 and offers to install them; without them it falls back to the terminal one.
 
+For every user of the computer instead of only yourself, there is a third script. It builds as you and copies into
+the system with sudo: the style and Dolphin NG under `/opt/ng`, icons, colour scheme and global themes under
+`/usr/local/share`, and one file in `/etc/xdg/plasma-workspace/env` that tells every Plasma session where the style
+is. Nothing of the distribution is overwritten, and `--uninstall` removes it all.
+
+```sh
+bash <(curl -fsSL https://raw.githubusercontent.com/Morzilla/breeze-ng/ng/ng/install-system.sh)
+```
+
 Both can also install the two KWin effects the screenshots rely on, [Better Blur](https://github.com/taj-ny/kwin-effects-forceblur)
 and [KDE Rounded Corners](https://github.com/matinlotfali/KDE-Rounded-Corners). That part is off unless you tick it:
 they are external projects, not part of this one. The installer only builds them from their own repositories, the way
