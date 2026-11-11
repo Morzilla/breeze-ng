@@ -249,7 +249,9 @@ if [ "$DEPS" = 1 ]; then
     say "Build dependencies (sudo)"
     if command -v dnf >/dev/null; then
         $SUDO dnf install -y git cmake gcc-c++ extra-cmake-modules 'dnf-command(builddep)' python3 \
-            poppler-utils qt6-qtmultimedia-devel qt6-qtsvg-devel kf6-frameworkintegration-devel ImageMagick ffmpeg-free
+            poppler-utils qt6-qtmultimedia-devel qt6-qtsvg-devel kf6-frameworkintegration-devel ImageMagick
+        # ffmpeg is only a runtime helper, and ffmpeg-free conflicts with the RPM Fusion ffmpeg many people have
+        command -v ffmpeg >/dev/null || $SUDO dnf install -y ffmpeg-free || echo "ffmpeg not installed: video thumbnails in the preview may be missing"
         $SUDO dnf builddep -y dolphin breeze || $SUDO dnf builddep -y dolphin plasma-breeze
         if want effects; then
             # what the two READMEs list for Fedora; the X11 session needs the X11 flavour of the KWin headers
