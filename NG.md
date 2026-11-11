@@ -54,6 +54,8 @@ bash <(curl -fsSL https://raw.githubusercontent.com/Morzilla/breeze-ng/ng/ng/ins
 The graphical installer is a small wizard: pick the parts, pick a look (Classic, Soft or Glass), watch it build. It
 needs Python with PyQt6 or PySide6 and offers to install them; without them it falls back to the terminal one.
 
+![The graphical installer: choosing the look and the icons](ng/screenshots/06-installer.png)
+
 ## Build and install
 
 Build dependencies are those of Breeze itself (`sudo dnf builddep breeze`, `sudo apt build-dep breeze`,
