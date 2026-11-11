@@ -261,15 +261,31 @@ if [ "$DEPS" = 1 ]; then
     elif command -v apt-get >/dev/null; then
         $SUDO apt-get update
         $SUDO apt-get install -y git cmake g++ extra-cmake-modules python3 poppler-utils qt6-multimedia-dev qt6-svg-dev imagemagick ffmpeg
-        $SUDO apt-get build-dep -y dolphin breeze || die "apt could not install the build dependencies: enable the source repositories (deb-src) and run this again."
+        if ! $SUDO apt-get build-dep -y dolphin breeze; then
+            # "apt build-dep" reads the build dependencies from the source packages, and the list of sources is
+            # off on a fresh Ubuntu or Debian: switch it on (it only adds the source index) and try again
+            warn "the source repositories are off: enabling them (deb-src) to read the build dependencies"
+            for list in /etc/apt/sources.list.d/*.sources; do
+                [ -f "$list" ] && $SUDO sed -i 's/^Types: deb$/Types: deb deb-src/' "$list"
+            done
+            if [ -f /etc/apt/sources.list ] && ! grep -q '^deb-src ' /etc/apt/sources.list; then
+                $SUDO sh -c "sed -n 's/^deb /deb-src /p' /etc/apt/sources.list >> /etc/apt/sources.list"
+            fi
+            $SUDO apt-get update
+            $SUDO apt-get build-dep -y dolphin breeze || die "apt could not install the build dependencies of dolphin and breeze (apt-get build-dep dolphin breeze)."
+        fi
         if want effects; then
             $SUDO apt-get install -y kwin-dev qt6-base-private-dev qt6-base-dev-tools qt6-tools-dev libkf6kcmutils-dev libkf6configwidgets-dev libdrm-dev \
                 gettext libkf6crash-dev libkf6globalaccel-dev libkf6kio-dev libkf6service-dev libkf6notifications-dev || true
             [ "$SESSION" = x11 ] && { $SUDO apt-get install -y kwin-x11-dev || true; }
         fi
     elif command -v pacman >/dev/null; then
-        $SUDO pacman -S --needed --noconfirm git cmake base-devel extra-cmake-modules python poppler qt6-multimedia qt6-svg imagemagick ffmpeg \
-            kio kxmlgui kparts knewstuff kcmutils baloo baloo-widgets kfilemetadata kuserfeedback phonon-qt6 \
+        # Arch has no "build-dep", but its packages carry their headers: installing Dolphin and Breeze themselves
+        # brings every library they are built on. The rest are the tools and the few build-only libraries.
+        $SUDO pacman -Sy --needed --noconfirm git cmake base-devel extra-cmake-modules kdoctools qt6-tools python poppler qt6-multimedia qt6-svg imagemagick ffmpeg \
+            dolphin breeze \
+            kio kxmlgui kparts knewstuff kcmutils baloo baloo-widgets kfilemetadata kuserfeedback phonon-qt6 ktextwidgets kcompletion kcodecs kcrash kdbusaddons \
+            kbookmarks knotifications solid kwidgetsaddons kitemviews kjobwidgets kservice ktexteditor kwallet plasma-activities packagekit-qt6 \
             kdecoration kwindowsystem kconfigwidgets kguiaddons ki18n kiconthemes kcoreaddons kcolorscheme frameworkintegration kirigami
         if want effects; then
             $SUDO pacman -S --needed --noconfirm qt6-tools vulkan-headers kwin || true
@@ -302,26 +318,53 @@ HERE="$(cd "$(dirname "${BASH_SOURCE[0]:-/nonexistent}")" 2>/dev/null && pwd || 
 BREEZE="$SRC/breeze-ng"
 [ -n "$HERE" ] && [ -f "$HERE/breeze-ng" ] && BREEZE="$(cd "$HERE/.." && pwd)"
 
+# Each part is built on its own: one that fails (a library too old on this distribution, say) is reported at the
+# end with its log, and the others are installed all the same.
 DONE=()
+FAILED=()
+LOGS="$SRC/logs"
+mkdir -p "$LOGS"
+part() { # title, log name, command...: runs it, keeps the full output in a log, shows the end of it on failure
+    local title="$1" log="$LOGS/$2.log"
+    shift 2
+    # in the background, with a sign of life every half minute: a build says nothing for a long while
+    "$@" >"$log" 2>&1 &
+    local pid=$! waited=0
+    while kill -0 "$pid" 2>/dev/null; do
+        sleep 1
+        waited=$((waited + 1))
+        [ $((waited % 30)) -eq 0 ] && printf '  %s… still working on %s (%d min %02d s)%s\n' "$D" "$title" $((waited / 60)) $((waited % 60)) "$R"
+    done
+    if wait "$pid"; then
+        return 0
+    fi
+    printf '%s' "$RE"; tail -n 12 "$log" | sed 's/^/    /'; printf '%s' "$R"
+    warn "$title did not install; the rest goes on. Full log: $log"
+    FAILED+=("$title   log: $log")
+    return 1
+}
 if want dolphin; then
-    say "Dolphin NG"
-    fetch dolphin-ng ng
-    bash "$SRC/dolphin-ng/ng/install.sh" --no-deps --no-theme
-    DONE+=("Dolphin NG   start it from the menu or with: dolphin-ng   (cards view: Ctrl+4)")
+    say "Dolphin NG (the longest part: several minutes)"
+    if part "Dolphin NG" dolphin-ng bash -c "$(declare -f fetch ok); SRC='$SRC'; GR='' R=''; fetch dolphin-ng ng && bash '$SRC/dolphin-ng/ng/install.sh' --no-deps --no-theme"; then
+        ok "Dolphin NG installed"
+        DONE+=("Dolphin NG   start it from the menu or with: dolphin-ng   (cards view: Ctrl+4)")
+    fi
 fi
 if want breeze; then
     say "Breeze NG"
     [ "$BREEZE" = "$SRC/breeze-ng" ] && fetch breeze-ng ng
-    "$BREEZE/ng/breeze-ng" build
-    "$BREEZE/ng/breeze-ng" env
-    DONE+=("Breeze NG    log out and in once, then System Settings > Global Theme > Breeze NG Soft / Glass")
-    DONE+=("             or: $BREEZE/ng/breeze-ng use soft|glass   (without logging out: ... now)")
+    if part "Breeze NG" breeze-ng bash -c "'$BREEZE/ng/breeze-ng' build && '$BREEZE/ng/breeze-ng' env"; then
+        ok "Breeze NG installed"
+        DONE+=("Breeze NG    log out and in once, then System Settings > Global Theme > Breeze NG Soft / Glass")
+        DONE+=("             or: $BREEZE/ng/breeze-ng use soft|glass   (without logging out: ... now)")
+    fi
 fi
 if want icons; then
     say "NeoLine icons"
-    fetch neoline-icons master
-    python3 "$SRC/neoline-icons/make-icons.py"
-    DONE+=("NeoLine      System Settings > Icons > NeoLine, NeoLine White or NeoLine Yellow")
+    if part "NeoLine icons" neoline bash -c "$(declare -f fetch ok); SRC='$SRC'; GR='' R=''; fetch neoline-icons master && python3 '$SRC/neoline-icons/make-icons.py'"; then
+        ok "NeoLine installed"
+        DONE+=("NeoLine      System Settings > Icons > NeoLine, NeoLine White or NeoLine Yellow")
+    fi
 fi
 
 # ---- the two external KWin effects: built the way their own READMEs say, installed system-wide
@@ -365,7 +408,8 @@ if want effects; then
 fi
 
 # ---- a preset for the settings of Dolphin NG (the same three as its settings page)
-if [ -n "$PRESET" ] && want dolphin; then
+failed() { local f; for f in "${FAILED[@]:-}"; do case "$f" in "$1"*) return 0 ;; esac; done; return 1; }
+if [ -n "$PRESET" ] && want dolphin && ! failed "Dolphin NG"; then
     say "Dolphin NG preset: $PRESET"
     key() { if [ -n "$2" ]; then kwriteconfig6 --file dolphinrc --group DolphinNG --key "$1" "$2"; else kwriteconfig6 --file dolphinrc --group DolphinNG --key "$1" --delete; fi; }
     for k in SIDEBAR DEVICES SIDEBAR_FILTERS LIST ICONS TILES GLASS_RIM CARDS_MARK RowStyle; do key "$k" ""; done
@@ -380,8 +424,8 @@ fi
 
 if [ -n "$APPLY" ]; then
     say "Switching the desktop"
-    if want breeze; then "$BREEZE/ng/breeze-ng" use "$APPLY" && ok "Breeze NG $APPLY"; fi
-    if want icons; then
+    if want breeze && ! failed "Breeze NG"; then "$BREEZE/ng/breeze-ng" use "$APPLY" && ok "Breeze NG $APPLY"; fi
+    if want icons && ! failed "NeoLine"; then
         if [ -x /usr/libexec/plasma-changeicons ]; then
             /usr/libexec/plasma-changeicons "$ICONS" >/dev/null 2>&1 || true
         else
@@ -392,7 +436,17 @@ if [ -n "$APPLY" ]; then
     want breeze && warn "the window decoration and running applications pick the style up after you log out and in"
 fi
 
-printf '\n%s%sDone.%s\n' "$GR" "$B" "$R"
-for line in "${DONE[@]}"; do printf '  %s\n' "$line"; done
+if [ "${#FAILED[@]}" -gt 0 ]; then
+    printf '\n%s%sDone, but not everything installed.%s\n' "$YE" "$B" "$R"
+else
+    printf '\n%s%sDone.%s\n' "$GR" "$B" "$R"
+fi
+for line in "${DONE[@]:-}"; do [ -n "$line" ] && printf '  %s\n' "$line"; done
+if [ "${#FAILED[@]}" -gt 0 ]; then
+    printf '\n  %sNot installed:%s\n' "$B" "$R"
+    for line in "${FAILED[@]}"; do printf '  %s✗%s %s\n' "$RE" "$R" "$line"; done
+    printf '  %sPlease report it with the log: https://github.com/Morzilla/breeze-ng/issues%s\n' "$D" "$R"
+fi
 printf '\n  %sRun this again at any time to update. Licence and credits: --licence%s\n' "$D" "$R"
 printf '  %sMade by Morzilla with Claude (Anthropic), on the shoulders of the KDE community.%s\n\n' "$D" "$R"
+[ "${#FAILED[@]}" -eq 0 ]

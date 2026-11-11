@@ -3,7 +3,7 @@ project(breeze)
 set(PROJECT_VERSION "6.7.5")
 
 set(KF5_MIN_VERSION "5.102.0")
-set(KF6_MIN_VERSION "6.26.0")
+set(KF6_MIN_VERSION "6.22.0") # Breeze NG: stock Breeze 6.7 asks for 6.26; the code builds on older ones (Ubuntu 26.04 has 6.24)
 set(KDE_COMPILERSETTINGS_LEVEL "5.82")
 set(QT5_MIN_VERSION "5.15.2")
 set(QT_MIN_VERSION "6.10.0")
