@@ -19,10 +19,15 @@
 #   /usr/local/share/plasma/look-and-feel/org.morzilla.breezeng.*    the global themes "Breeze NG Soft / Glass"
 #   /etc/xdg/plasma-workspace/env/ng-desktop.sh     tells every Plasma session where the style and decoration are
 #
+# The distribution's Dolphin stays the default file manager unless you pass --default (or pick "Dolphin NG" in
+# System Settings > Default Applications > File manager).
+#
 # It does not switch anybody's desktop: each user picks "Breeze NG Soft" or "Glass" in System Settings > Global
 # Theme (and NeoLine in Icons) after logging out and in once.
 #
 # Options:
+#   --default        make Dolphin NG the file manager that opens folders: for you now, and for the users of this
+#                    computer who have not chosen one (the distribution's Dolphin stays installed, as "Dolphin")
 #   --only LIST      parts to install, comma separated: breeze,dolphin,icons (default: all three)
 #   --no-deps        do not install the build dependencies
 #   --src DIR        keep the sources in DIR instead of ~/.local/src
@@ -32,18 +37,19 @@
 #   --uninstall      remove everything listed above
 set -euo pipefail
 
-SRC="$HOME/.local/src" DEPS=1 ONLY="breeze,dolphin,icons" YES=0 STAGE="" UNINSTALL=0
+SRC="$HOME/.local/src" DEPS=1 ONLY="breeze,dolphin,icons" YES=0 STAGE="" UNINSTALL=0 DEFAULT=0
 JOBS="${JOBS:-$(( ($(nproc 2>/dev/null || echo 4) + 1) / 2 ))}"
 while [ $# -gt 0 ]; do
     case "$1" in
         --only) ONLY="$2"; shift ;;
         --no-deps) DEPS=0 ;;
+        --default) DEFAULT=1 ;;
         --src) SRC="$2"; shift ;;
         --jobs) JOBS="$2"; shift ;;
         --yes|-y) YES=1 ;;
         --stage) STAGE="$(mkdir -p "$2" && cd "$2" && pwd)"; shift ;;
         --uninstall) UNINSTALL=1 ;;
-        -h|--help) sed -n '5,33p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; exit 0 ;;
+        -h|--help) sed -n '5,37p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; exit 0 ;;
         *) echo "unknown option: $1 (see --help)" >&2; exit 2 ;;
     esac
     shift
@@ -72,6 +78,10 @@ TREES=("$OPT" "$LOCAL/share/icons/NeoLine" "$LOCAL/share/icons/NeoLine-White" "$
 if [ "$UNINSTALL" = 1 ]; then
     say "Removing the NG desktop from ${STAGE:-the system}"
     for f in "${FILES[@]}"; do as_root rm -f "$STAGE$f"; done
+    # the default file manager, if it was set to Dolphin NG system-wide: only that line is taken out
+    if [ -f "$STAGE$LOCAL/share/applications/mimeapps.list" ]; then
+        as_root sed -i '/^inode\/directory=dolphin-ng.desktop;$/d' "$STAGE$LOCAL/share/applications/mimeapps.list"
+    fi
     for t in "${TREES[@]}"; do as_root rm -rf "$STAGE$t"; done
     ok "removed. Users who had switched to Breeze NG go back to their previous theme in System Settings."
     exit 0
@@ -168,7 +178,23 @@ StartupWMClass=dolphin
 ENTRY
     put "$TMP/dolphin-ng.desktop" "$LOCAL/share/applications/dolphin-ng.desktop"
     ok "installed in $OPT/dolphin-ng; command: dolphin-ng; menu entry: Dolphin NG"
-    DONE+=("Dolphin NG   from the menu, or: dolphin-ng   (the distribution's Dolphin is still there, as Dolphin)")
+    if [ "$DEFAULT" = 1 ]; then
+        # for everybody who has not chosen a file manager: the system-wide list of default applications
+        list="$LOCAL/share/applications/mimeapps.list"
+        { [ -f "$STAGE$list" ] && grep -v '^inode/directory=' "$STAGE$list" || true; } > "$TMP/mimeapps.list"
+        grep -q '^\[Default Applications\]' "$TMP/mimeapps.list" || printf '[Default Applications]\n' >> "$TMP/mimeapps.list"
+        sed -i '/^\[Default Applications\]/a inode/directory=dolphin-ng.desktop;' "$TMP/mimeapps.list"
+        put "$TMP/mimeapps.list" "$list"
+        # and for you, whose own choice (if any) comes first
+        if [ -z "$STAGE" ] && [ "$(id -u)" != 0 ] && command -v xdg-mime >/dev/null; then
+            xdg-mime default dolphin-ng.desktop inode/directory || true
+        fi
+        ok "Dolphin NG opens folders now (undo: System Settings > Default Applications > File manager)"
+        DONE+=("Dolphin NG   is the file manager now; the distribution's Dolphin is still in the menu, as Dolphin")
+    else
+        DONE+=("Dolphin NG   from the menu, or: dolphin-ng. To make it the one that opens folders: run again with --default,")
+        DONE+=("             or System Settings > Default Applications > File manager")
+    fi
 fi
 
 # ---- 4. NeoLine
