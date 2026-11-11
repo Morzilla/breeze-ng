@@ -279,7 +279,7 @@ if [ "$DEPS" = 1 ]; then
             $SUDO apt-get update
             $SUDO apt-get build-dep -y dolphin breeze || die "apt could not install the build dependencies of dolphin and breeze (apt-get build-dep dolphin breeze)."
         fi
-        want dialog && { $SUDO apt-get build-dep -y kio || warn "dialog: could not install the build dependencies of KIO"; }
+        want dialog && { $SUDO apt-get install -y qt6-base-dev-tools; $SUDO apt-get build-dep -y kf6-kio || $SUDO apt-get build-dep -y kio || warn "dialog: could not install the build dependencies of KIO"; }
         if want effects; then
             $SUDO apt-get install -y kwin-dev qt6-base-private-dev qt6-base-dev-tools qt6-tools-dev libkf6kcmutils-dev libkf6configwidgets-dev libdrm-dev \
                 gettext libkf6crash-dev libkf6globalaccel-dev libkf6kio-dev libkf6service-dev libkf6notifications-dev || true
