@@ -47,6 +47,13 @@ TEXT = {
     "breeze_d": ("Widget style and window decoration, no separator lines, joined menus", "Stile dei controlli e decorazione delle finestre, senza linee, menu uniti"),
     "icons": ("NeoLine icons", "Icone NeoLine"),
     "icons_d": ("Outline icon theme in three variants", "Tema di icone a contorno in tre varianti"),
+    "effects": ("Blur and rounded corners", "Blur e angoli arrotondati"),
+    "effects_d": ("Better Blur and KDE Rounded Corners, for the look of the screenshots. They are external projects, not part of this one: "
+                  "they are built from their own repositories and installed system-wide (your password is asked). "
+                  "For problems with them, refer to github.com/taj-ny/kwin-effects-forceblur and github.com/matinlotfali/KDE-Rounded-Corners.",
+                  "Better Blur e KDE Rounded Corners, per l'aspetto degli screenshot. Sono progetti esterni, non fanno parte di questo: "
+                  "vengono compilati dai loro repository e installati a livello di sistema (viene chiesta la password). "
+                  "Per problemi con loro, fai riferimento a github.com/taj-ny/kwin-effects-forceblur e github.com/matinlotfali/KDE-Rounded-Corners."),
     "look": ("Choose a look", "Scegli un aspetto"),
     "look_text": ("A starting point: every detail can be changed later in the settings.", "Un punto di partenza: ogni dettaglio si cambia dopo dalle impostazioni."),
     "classic": ("Classic", "Classico"),
@@ -326,9 +333,9 @@ class Installer(QWidget):
         w = QWidget(); v = QVBoxLayout(w); v.setSpacing(12); v.setContentsMargins(0, 8, 0, 0)
         v.addWidget(label(t("parts"), "h1"))
         self.parts = {}
-        for key in ("dolphin", "breeze", "icons"):
+        for key in ("dolphin", "breeze", "icons", "effects"):
             card = Card(); h = QVBoxLayout(card); h.setContentsMargins(16, 12, 16, 12); h.setSpacing(2)
-            box = Check(t(key)); box.setChecked(True); f = box.font(); f.setBold(True); box.setFont(f)
+            box = Check(t(key)); box.setChecked(key != "effects"); f = box.font()  # the external effects are opt-in; f.setBold(True); box.setFont(f)
             card.clicked.connect(box.toggle)
             h.addWidget(box); d = label(t(key + "_d"), "dim"); d.setContentsMargins(28, 0, 0, 0); h.addWidget(d)
             self.parts[key] = box
@@ -454,7 +461,7 @@ class Installer(QWidget):
         self.queue = []
         if self.deps.isChecked():
             elevate = shutil.which("pkexec")
-            self.queue.append((t("step_deps"), ([elevate, "bash", script, "--deps-only"] if elevate else ["bash", script, "--deps-only"])))
+            self.queue.append((t("step_deps"), ([elevate] if elevate else []) + ["env", "XDG_SESSION_TYPE=" + os.environ.get("XDG_SESSION_TYPE", ""), "bash", script, "--deps-only", "--only", ",".join(chosen)]))
         self.queue.append((None, args))
         self.steps_total = (1 if self.deps.isChecked() else 0) + len(chosen) + 1 + (1 if self.apply.isChecked() else 0)
         self.steps_done = 0

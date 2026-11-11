@@ -12,7 +12,8 @@
 #
 # Options (any of them skips the matching question):
 #   --yes                  no questions: install every part, do not switch the desktop
-#   --only LIST            parts to install, comma separated: dolphin,breeze,icons
+#   --only LIST            parts to install, comma separated: dolphin,breeze,icons,effects
+#                          (effects = Better Blur and KDE Rounded Corners, two external projects: see --licence)
 #   --apply [soft|glass]   switch the desktop to Breeze NG (default soft) and to the NeoLine icons
 #   --icons NAME           icon theme used when applying: NeoLine, NeoLine-White (default), NeoLine-Yellow
 #   --no-deps              do not install build dependencies (no sudo)
@@ -59,9 +60,22 @@ NOTICES
   (ImageMagick, FFmpeg, Poppler, Ark, bsdtar). Package repositories of some distributions ship FFmpeg builds
   without patented codecs.
 
+  EXTERNAL PROJECTS (the optional part "effects")
+
+  Better Blur                   https://github.com/taj-ny/kwin-effects-forceblur         GPL-3.0
+  KDE Rounded Corners           https://github.com/matinlotfali/KDE-Rounded-Corners      GPL-3.0
+
+  These two KWin effects give the look of the screenshots (blur behind translucent windows, rounded window
+  corners). They are NOT part of this project and are not written or maintained by its authors: this script
+  only downloads them from their own repositories and builds them the way their READMEs describe. They are
+  KWin plugins, so unlike everything else here they are installed system-wide (under /usr, as root), they
+  must match your KWin version and they need rebuilding after a KWin update. For anything about them - a
+  build that fails, a bug, a newer Plasma - refer to their repositories, not to this one.
+
   What this script does to your system: it installs build dependencies with your package manager (that step
   asks for sudo and is the only one that runs as root), downloads sources into ~/.local/src and installs into
   ~/.local. With "apply" it changes the widget style, window decoration, colours and icons of your session.
+  Only the optional "effects" part installs outside your home folder (see above).
 
 MIT License
 
@@ -108,17 +122,18 @@ done
 export JOBS
 
 # ---- the parts
-KEYS=(dolphin breeze icons)
-NAMES=("Dolphin NG" "Breeze NG" "NeoLine icons")
-NOTES=("the file manager: cards view, two-line list, glass sidebar, previews" "widget style and window decoration, Soft and Glass" "outline icon theme: colour, white, yellow")
-PICK=(1 1 1)
+KEYS=(dolphin breeze icons effects)
+NAMES=("Dolphin NG" "Breeze NG" "NeoLine icons" "Blur + corners")
+NOTES=("the file manager: cards view, two-line list, glass sidebar, previews" "widget style and window decoration, Soft and Glass" "outline icon theme: colour, white, yellow"
+       "Better Blur and KDE Rounded Corners: EXTERNAL projects, installed system-wide (sudo)")
+PICK=(1 1 1 0) # the external effects are opt-in
 if [ -n "$ONLY" ]; then
-    PICK=(0 0 0)
+    PICK=(0 0 0 0)
     IFS=',' read -ra wanted <<<"$ONLY"
     for w in "${wanted[@]}"; do
         found=0
         for i in "${!KEYS[@]}"; do [ "${KEYS[$i]}" = "$w" ] && PICK[$i]=1 && found=1; done
-        [ "$found" = 1 ] || die "unknown part: $w (dolphin, breeze, icons)"
+        [ "$found" = 1 ] || die "unknown part: $w (dolphin, breeze, icons, effects)"
     done
 fi
 
@@ -157,8 +172,8 @@ checklist() {
             k) cur=$(( (cur + n - 1) % n )) ;;
             j) cur=$(( (cur + 1) % n )) ;;
             ' ') PICK[$cur]=$(( 1 - PICK[$cur] )) ;;
-            a) PICK=(1 1 1) ;;
-            n) PICK=(0 0 0) ;;
+            a) PICK=(1 1 1 1) ;;
+            n) PICK=(0 0 0 0) ;;
             '') break ;;
         esac
         printf '\e[%dA' "$n"
@@ -195,7 +210,12 @@ if [ -n "$TTY" ]; then
     printf '  · This installer and NeoLine are MIT; Dolphin NG and Breeze NG are GPL forks of KDE software,\n'
     printf '    not affiliated with KDE. No warranty of any kind. Full notices: %s--licence%s\n' "$B" "$R"
     [ -z "$ONLY" ] && checklist
-    [ "${PICK[0]}${PICK[1]}${PICK[2]}" = 000 ] && { echo; echo "Nothing selected: nothing to do."; exit 0; }
+    [ "${PICK[0]}${PICK[1]}${PICK[2]}${PICK[3]}" = 0000 ] && { echo; echo "Nothing selected: nothing to do."; exit 0; }
+    if [ "${PICK[3]}" = 1 ]; then
+        printf '\n%sBlur + corners%s are two external projects, not part of this one: Better Blur (taj-ny) and\n' "$B" "$R"
+        printf 'KDE Rounded Corners (matinlotfali). They are built from their own repositories and installed\n'
+        printf 'system-wide with sudo; problems with them belong to their repositories. Details: %s--licence%s\n' "$B" "$R"
+    fi
     if [ "$DEPS" = 1 ] && ! ask $'\nInstall the build dependencies now (sudo)?' y; then DEPS=0; fi
     if [ "$APPLY_SET" = 0 ] && { [ "${PICK[1]}" = 1 ] || [ "${PICK[2]}" = 1 ]; }; then
         if ask "Switch the desktop to it when done (style, decoration, colours, icons)?" n; then
@@ -215,6 +235,13 @@ if [ -n "$TTY" ]; then
     printf '  dependencies: %s   switch the desktop: %s   compile jobs: %s\n' "$([ "$DEPS" = 1 ] && echo yes || echo no)" "${APPLY:-no}${APPLY:+ + $ICONS}" "$JOBS"
     ask $'\nGo?' y || { echo "Nothing was changed."; exit 0; }
 fi
+SESSION="${XDG_SESSION_TYPE:-}"; [ -n "$SESSION" ] || { [ -n "${WAYLAND_DISPLAY:-}" ] && SESSION=wayland || SESSION=x11; }
+# a command as root: sudo on a terminal, the graphical prompt when there is none (the graphical installer)
+as_root() {
+    if [ -z "$SUDO" ]; then "$@"
+    elif [ ! -t 0 ] && command -v pkexec >/dev/null; then pkexec "$@"
+    else $SUDO "$@"; fi
+}
 want() { local i; for i in "${!KEYS[@]}"; do [ "${KEYS[$i]}" = "$1" ] && [ "${PICK[$i]}" = 1 ] && return 0; done; return 1; }
 
 # ---- 1. dependencies
@@ -224,17 +251,34 @@ if [ "$DEPS" = 1 ]; then
         $SUDO dnf install -y git cmake gcc-c++ extra-cmake-modules 'dnf-command(builddep)' python3 \
             poppler-utils qt6-qtmultimedia-devel qt6-qtsvg-devel kf6-frameworkintegration-devel ImageMagick ffmpeg-free
         $SUDO dnf builddep -y dolphin breeze || $SUDO dnf builddep -y dolphin plasma-breeze
+        if want effects; then
+            # what the two READMEs list for Fedora; the X11 session needs the X11 flavour of the KWin headers
+            $SUDO dnf install -y kwin-devel libepoxy-devel wayland-devel libdrm-devel plasma-workspace-devel libplasma-devel kdecoration-devel \
+                qt6-qtbase-private-devel kf6-kwindowsystem-devel kf6-kconfigwidgets-devel kf6-kcmutils-devel kf6-ki18n-devel kf6-kio-devel \
+                kf6-kcrash-devel kf6-kguiaddons-devel kf6-kglobalaccel-devel kf6-knotifications-devel kf6-kdeclarative-devel || true
+            [ "$SESSION" = x11 ] && { $SUDO dnf install -y kwin-x11-devel || true; }
+        fi
     elif command -v apt-get >/dev/null; then
         $SUDO apt-get update
         $SUDO apt-get install -y git cmake g++ extra-cmake-modules python3 poppler-utils qt6-multimedia-dev qt6-svg-dev imagemagick ffmpeg
         $SUDO apt-get build-dep -y dolphin breeze || die "apt could not install the build dependencies: enable the source repositories (deb-src) and run this again."
+        if want effects; then
+            $SUDO apt-get install -y kwin-dev qt6-base-private-dev qt6-base-dev-tools qt6-tools-dev libkf6kcmutils-dev libkf6configwidgets-dev libdrm-dev \
+                gettext libkf6crash-dev libkf6globalaccel-dev libkf6kio-dev libkf6service-dev libkf6notifications-dev || true
+            [ "$SESSION" = x11 ] && { $SUDO apt-get install -y kwin-x11-dev || true; }
+        fi
     elif command -v pacman >/dev/null; then
         $SUDO pacman -S --needed --noconfirm git cmake base-devel extra-cmake-modules python poppler qt6-multimedia qt6-svg imagemagick ffmpeg \
             kio kxmlgui kparts knewstuff kcmutils baloo baloo-widgets kfilemetadata kuserfeedback phonon-qt6 \
             kdecoration kwindowsystem kconfigwidgets kguiaddons ki18n kiconthemes kcoreaddons kcolorscheme frameworkintegration kirigami
+        if want effects; then
+            $SUDO pacman -S --needed --noconfirm qt6-tools vulkan-headers kwin || true
+            [ "$SESSION" = x11 ] && { $SUDO pacman -S --needed --noconfirm kwin-x11 || true; }
+        fi
     elif command -v zypper >/dev/null; then
         $SUDO zypper install -y git cmake gcc-c++ extra-cmake-modules python3 poppler-tools qt6-multimedia-devel qt6-svg-devel ImageMagick ffmpeg
         $SUDO zypper source-install --build-deps-only dolphin breeze6-style || true
+        want effects && warn "effects: install the KWin development packages listed in the two projects' READMEs if the build fails"
     else
         die "No known package manager (dnf, apt, pacman, zypper): install the build dependencies of Dolphin and Breeze by hand, then use --no-deps."
     fi
@@ -278,6 +322,46 @@ if want icons; then
     fetch neoline-icons master
     python3 "$SRC/neoline-icons/make-icons.py"
     DONE+=("NeoLine      System Settings > Icons > NeoLine, NeoLine White or NeoLine Yellow")
+fi
+
+# ---- the two external KWin effects: built the way their own READMEs say, installed system-wide
+effect_present() { # file name pattern of the plugin
+    # (not a pipeline: find fails on the folders that do not exist, and with pipefail that read as "not installed")
+    local found
+    found=$(find /usr/lib /usr/lib64 /usr/local/lib /usr/local/lib64 -path '*kwin*/effects/plugins/*' -name "$1" -print -quit 2>/dev/null || true)
+    [ -n "$found" ]
+}
+build_effect() { # title, repository, plugin pattern, kwinrc key, cmake options...
+    local title="$1" repo="$2" pattern="$3" key="$4" dir="$SRC/external/$(basename "$2")"
+    shift 4
+    if effect_present "$pattern"; then
+        ok "$title is already installed: left as it is"
+    else
+        mkdir -p "$SRC/external"
+        if [ -d "$dir/.git" ]; then git -C "$dir" pull --ff-only --quiet || true; else git clone --quiet --depth 1 "$repo" "$dir" || { warn "$title: could not download $repo"; return 0; }; fi
+        if ! { cmake -S "$dir" -B "$dir/build" "$@" >"$dir/build.log" 2>&1 && cmake --build "$dir/build" -j"$JOBS" >>"$dir/build.log" 2>&1; }; then
+            warn "$title did not build (log: $dir/build.log). It is an external project: see $repo"
+            return 0
+        fi
+        say "$title: installing system-wide (asks for your password)"
+        as_root cmake --install "$dir/build" || { warn "$title was built but not installed"; return 0; }
+        ok "$title installed from $repo"
+    fi
+    kwriteconfig6 --file kwinrc --group Plugins --key "${key}Enabled" true 2>/dev/null || true
+}
+if want effects; then
+    say "Blur and rounded corners (external projects)"
+    printf '  %sBetter Blur and KDE Rounded Corners are not part of this project. Problems with them: their repositories.%s\n' "$D" "$R"
+    if [ "$SESSION" = x11 ]; then
+        build_effect "Better Blur" https://github.com/taj-ny/kwin-effects-forceblur 'forceblur*.so' forceblur_x11 -DCMAKE_INSTALL_PREFIX=/usr
+        build_effect "KDE Rounded Corners" https://github.com/matinlotfali/KDE-Rounded-Corners 'kwin4_effect_shapecorners.so' kwin4_effect_shapecorners -DCMAKE_INSTALL_PREFIX=/usr -DKWIN_X11=ON
+    else
+        build_effect "Better Blur" https://github.com/taj-ny/kwin-effects-forceblur 'forceblur*.so' forceblur -DCMAKE_INSTALL_PREFIX=/usr
+        build_effect "KDE Rounded Corners" https://github.com/matinlotfali/KDE-Rounded-Corners 'kwin4_effect_shapecorners.so' kwin4_effect_shapecorners -DCMAKE_INSTALL_PREFIX=/usr
+    fi
+    kwriteconfig6 --file kwinrc --group Plugins --key blurEnabled false 2>/dev/null || true # KWin's own blur and Better Blur do not go together
+    DONE+=("Effects      log out and in (or restart KWin); settings in System Settings > Window Management > Desktop Effects")
+    DONE+=("             they need rebuilding after a KWin update: run this installer again with --only effects")
 fi
 
 # ---- a preset for the settings of Dolphin NG (the same three as its settings page)
