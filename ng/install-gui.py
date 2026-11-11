@@ -47,6 +47,9 @@ TEXT = {
     "breeze_d": ("Widget style and window decoration, no separator lines, joined menus", "Stile dei controlli e decorazione delle finestre, senza linee, menu uniti"),
     "icons": ("NeoLine icons", "Icone NeoLine"),
     "icons_d": ("Outline icon theme in three variants", "Tema di icone a contorno in tre varianti"),
+    "dialog": ("Dialog NG", "Dialog NG"),
+    "dialog_d": ("The file dialog of every KDE app: quick filters by kind of file, roomier places",
+                 "La finestra di scelta file di ogni app KDE: filtri rapidi per tipo di file, risorse più ariose"),
     "effects": ("Blur and rounded corners", "Blur e angoli arrotondati"),
     "effects_d": ("Better Blur and KDE Rounded Corners, for the look of the screenshots. They are external projects, not part of this one: "
                   "they are built from their own repositories and installed system-wide (your password is asked). "
@@ -333,7 +336,7 @@ class Installer(QWidget):
         w = QWidget(); v = QVBoxLayout(w); v.setSpacing(12); v.setContentsMargins(0, 8, 0, 0)
         v.addWidget(label(t("parts"), "h1"))
         self.parts = {}
-        for key in ("dolphin", "breeze", "icons", "effects"):
+        for key in ("dolphin", "breeze", "icons", "dialog", "effects"):
             card = Card(); h = QVBoxLayout(card); h.setContentsMargins(16, 12, 16, 12); h.setSpacing(2)
             box = Check(t(key)); box.setChecked(key != "effects"); f = box.font()  # the external effects are opt-in; f.setBold(True); box.setFont(f)
             card.clicked.connect(box.toggle)

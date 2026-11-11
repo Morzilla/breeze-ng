@@ -25,6 +25,7 @@ and a menu opened from a button that joins it into one shape.
 
 - [Dolphin NG](https://github.com/Morzilla/dolphin-ng) – the file manager with cards view, glass sidebar and quick actions ([KDE Store](https://store.kde.org/p/2381561/))
 - [NeoLine](https://github.com/Morzilla/neoline-icons) – the outline icon theme in the screenshots ([KDE Store](https://store.kde.org/p/2381562/))
+- [Dialog NG](https://github.com/Morzilla/dialog-ng) – KDE's file dialog with quick filters by kind of file and a roomier places sidebar
 - Breeze NG on the KDE Store: https://store.kde.org/p/2381557/
 
 ## Parts
@@ -42,7 +43,7 @@ fallback. `WindowOpacity` (Glass, default 70) and `MenuOpacity` are there too.
 ## Everything at once
 
 `ng/install-desktop.sh` installs the whole desktop this style belongs to: [Dolphin NG](https://github.com/Morzilla/dolphin-ng),
-Breeze NG and the [NeoLine icons](https://github.com/Morzilla/neoline-icons), dependencies included. It asks what to
+Breeze NG, the [NeoLine icons](https://github.com/Morzilla/neoline-icons) and the [NG file dialog](https://github.com/Morzilla/dialog-ng), dependencies included. It asks what to
 install and whether to switch the desktop to it; `--yes` runs it without questions, `--help` lists the options,
 `--licence` prints the notices (the installer is MIT; Breeze NG and Dolphin NG stay GPL).
 

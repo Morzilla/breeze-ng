@@ -2,7 +2,8 @@
 # SPDX-License-Identifier: MIT
 # Copyright (c) 2026 Morzilla
 #
-# The NG desktop installer: Dolphin NG, the Breeze NG style and window decoration, the NeoLine icons.
+# The NG desktop installer: Dolphin NG, the Breeze NG style and window decoration, the NeoLine icons,
+# the NG file dialog.
 #
 #   ng/install-desktop.sh                 from a clone of breeze-ng
 #   bash <(curl -fsSL https://raw.githubusercontent.com/Morzilla/breeze-ng/ng/ng/install-desktop.sh)
@@ -12,7 +13,7 @@
 #
 # Options (any of them skips the matching question):
 #   --yes                  no questions: install every part, do not switch the desktop
-#   --only LIST            parts to install, comma separated: dolphin,breeze,icons,effects
+#   --only LIST            parts to install, comma separated: dolphin,breeze,icons,dialog,effects
 #                          (effects = Better Blur and KDE Rounded Corners, two external projects: see --licence)
 #   --apply [soft|glass]   switch the desktop to Breeze NG (default soft) and to the NeoLine icons
 #   --icons NAME           icon theme used when applying: NeoLine, NeoLine-White (default), NeoLine-Yellow
@@ -122,18 +123,19 @@ done
 export JOBS
 
 # ---- the parts
-KEYS=(dolphin breeze icons effects)
-NAMES=("Dolphin NG" "Breeze NG" "NeoLine icons" "Blur + corners")
+KEYS=(dolphin breeze icons dialog effects)
+NAMES=("Dolphin NG" "Breeze NG" "NeoLine icons" "Dialog NG" "Blur + corners")
 NOTES=("the file manager: cards view, two-line list, glass sidebar, previews" "widget style and window decoration, Soft and Glass" "outline icon theme: colour, white, yellow"
+       "the file dialog of every KDE app: quick filters by kind of file, roomier places"
        "Better Blur and KDE Rounded Corners: EXTERNAL projects, installed system-wide (sudo)")
-PICK=(1 1 1 0) # the external effects are opt-in
+PICK=(1 1 1 1 0) # the external effects are opt-in
 if [ -n "$ONLY" ]; then
-    PICK=(0 0 0 0)
+    PICK=(0 0 0 0 0)
     IFS=',' read -ra wanted <<<"$ONLY"
     for w in "${wanted[@]}"; do
         found=0
         for i in "${!KEYS[@]}"; do [ "${KEYS[$i]}" = "$w" ] && PICK[$i]=1 && found=1; done
-        [ "$found" = 1 ] || die "unknown part: $w (dolphin, breeze, icons, effects)"
+        [ "$found" = 1 ] || die "unknown part: $w (dolphin, breeze, icons, dialog, effects)"
     done
 fi
 
@@ -172,8 +174,8 @@ checklist() {
             k) cur=$(( (cur + n - 1) % n )) ;;
             j) cur=$(( (cur + 1) % n )) ;;
             ' ') PICK[$cur]=$(( 1 - PICK[$cur] )) ;;
-            a) PICK=(1 1 1 1) ;;
-            n) PICK=(0 0 0 0) ;;
+            a) PICK=(1 1 1 1 1) ;;
+            n) PICK=(0 0 0 0 0) ;;
             '') break ;;
         esac
         printf '\e[%dA' "$n"
@@ -253,6 +255,7 @@ if [ "$DEPS" = 1 ]; then
         # ffmpeg is only a runtime helper, and ffmpeg-free conflicts with the RPM Fusion ffmpeg many people have
         command -v ffmpeg >/dev/null || $SUDO dnf install -y ffmpeg-free || echo "ffmpeg not installed: video thumbnails in the preview may be missing"
         $SUDO dnf builddep -y dolphin breeze || $SUDO dnf builddep -y dolphin plasma-breeze
+        want dialog && { $SUDO dnf builddep -y kf6-kio || warn "dialog: could not install the build dependencies of KIO"; }
         if want effects; then
             # what the two READMEs list for Fedora; the X11 session needs the X11 flavour of the KWin headers
             $SUDO dnf install -y kwin-devel libepoxy-devel wayland-devel libdrm-devel plasma-workspace-devel libplasma-devel kdecoration-devel \
@@ -276,6 +279,7 @@ if [ "$DEPS" = 1 ]; then
             $SUDO apt-get update
             $SUDO apt-get build-dep -y dolphin breeze || die "apt could not install the build dependencies of dolphin and breeze (apt-get build-dep dolphin breeze)."
         fi
+        want dialog && { $SUDO apt-get build-dep -y kio || warn "dialog: could not install the build dependencies of KIO"; }
         if want effects; then
             $SUDO apt-get install -y kwin-dev qt6-base-private-dev qt6-base-dev-tools qt6-tools-dev libkf6kcmutils-dev libkf6configwidgets-dev libdrm-dev \
                 gettext libkf6crash-dev libkf6globalaccel-dev libkf6kio-dev libkf6service-dev libkf6notifications-dev || true
@@ -366,6 +370,15 @@ if want icons; then
     if part "NeoLine icons" neoline bash -c "$(declare -f fetch ok); SRC='$SRC'; GR='' R=''; fetch neoline-icons master && python3 '$SRC/neoline-icons/make-icons.py'"; then
         ok "NeoLine installed"
         DONE+=("NeoLine      System Settings > Icons > NeoLine, NeoLine White or NeoLine Yellow")
+    fi
+fi
+
+if want dialog; then
+    say "Dialog NG (builds one KIO library: a few minutes)"
+    if part "Dialog NG" dialog-ng bash -c "$(declare -f fetch ok); SRC='$SRC'; GR='' R=''; fetch dialog-ng main && JOBS='$JOBS' SRC='$SRC/dialog-ng-src' '$SRC/dialog-ng/dialog-ng' build && '$SRC/dialog-ng/dialog-ng' on"; then
+        ok "Dialog NG installed"
+        DONE+=("Dialog NG    active from the next login in every KDE app's file dialog; off with: $SRC/dialog-ng/dialog-ng off")
+        DONE+=("             after an update of KDE Frameworks the stock dialog is back until: $SRC/dialog-ng/dialog-ng build")
     fi
 fi
 
