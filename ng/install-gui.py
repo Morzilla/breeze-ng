@@ -13,13 +13,13 @@ import sys
 import urllib.request
 
 try:
-    from PyQt6.QtCore import QProcess, QProcessEnvironment, QRectF, QSize, Qt, pyqtSignal as Signal
-    from PyQt6.QtGui import QColor, QFont, QLinearGradient, QPainter, QPainterPath, QPen, QPixmap, QTextCursor
+    from PyQt6.QtCore import QProcess, QProcessEnvironment, QRectF, QSize, Qt, QUrl, pyqtSignal as Signal
+    from PyQt6.QtGui import QColor, QDesktopServices, QFont, QLinearGradient, QPainter, QPainterPath, QPen, QPixmap, QTextCursor
     from PyQt6.QtWidgets import (QApplication, QCheckBox, QComboBox, QFrame, QHBoxLayout, QLabel, QPlainTextEdit, QProgressBar,
                                  QPushButton, QSpinBox, QStackedWidget, QVBoxLayout, QWidget)
 except ImportError:
-    from PySide6.QtCore import QProcess, QProcessEnvironment, QRectF, QSize, Qt, Signal
-    from PySide6.QtGui import QColor, QFont, QLinearGradient, QPainter, QPainterPath, QPen, QPixmap, QTextCursor
+    from PySide6.QtCore import QProcess, QProcessEnvironment, QRectF, QSize, Qt, QUrl, Signal
+    from PySide6.QtGui import QColor, QDesktopServices, QFont, QLinearGradient, QPainter, QPainterPath, QPen, QPixmap, QTextCursor
     from PySide6.QtWidgets import (QApplication, QCheckBox, QComboBox, QFrame, QHBoxLayout, QLabel, QPlainTextEdit, QProgressBar,
                                    QPushButton, QSpinBox, QStackedWidget, QVBoxLayout, QWidget)
 
@@ -88,6 +88,11 @@ TEXT = {
         "Dolphin NG è nel menu delle applicazioni. Per Breeze NG esci e rientra dalla sessione una volta, così vengono trovati i nuovi plugin; "
         "poi sceglilo in Impostazioni di sistema › Tema globale. Rilancia questo installer quando vuoi per aggiornare."),
     "failed": ("Something went wrong", "Qualcosa è andato storto"),
+    "report": ("Report the problem on GitHub", "Segnala il problema su GitHub"),
+    "report_text": ("Every report helps the project grow and get better. The form opens already filled in with your versions and the end "
+                    "of the log (your home folder and user name taken out): read it, add a line if you like, and send it.",
+                    "Ogni segnalazione aiuta il progetto a crescere e migliorare. Il modulo si apre già compilato con le versioni e la fine "
+                    "del log (senza la tua cartella home né il nome utente): rileggilo, aggiungi una riga se vuoi, e invialo."),
     "failed_text": ("The details below show where it stopped. Nothing of your system was replaced.", "I dettagli qui sotto mostrano dove si è fermato. Nulla del sistema è stato sostituito."),
     "launch": ("Start Dolphin NG", "Avvia Dolphin NG"),
     "nothing": ("Select at least one part.", "Seleziona almeno una parte."),
@@ -406,6 +411,11 @@ class Installer(QWidget):
         self.toggle.toggled.connect(lambda on: self.filler.setVisible(not on))
         self.launch = QPushButton(t("launch")); self.launch.hide(); self.launch.clicked.connect(self.start_dolphin)
         v.addWidget(self.launch, 0, Qt.AlignmentFlag.AlignLeft)
+        # when a part fails: an invitation and a button that opens the pre-filled GitHub issue(s)
+        self.report_note = label(t("report_text"), "dim"); self.report_note.setWordWrap(True); self.report_note.hide()
+        v.addWidget(self.report_note)
+        self.report = QPushButton(t("report")); self.report.hide(); self.report.clicked.connect(self.open_reports)
+        v.addWidget(self.report, 0, Qt.AlignmentFlag.AlignLeft)
         return w
 
     def pick_icons(self, name):
@@ -519,6 +529,19 @@ class Installer(QWidget):
             self.launch.setVisible(self.parts["dolphin"].isChecked() and os.path.exists(os.path.expanduser("~/.local/bin/dolphin-ng")))
         else:
             self.toggle.setChecked(True)
+        # the installer writes one "title<TAB>link" line per part that did not install
+        self.reports = []
+        try:
+            with open(os.path.expanduser("~/.local/src/logs/issues.txt"), encoding="utf-8") as f:
+                self.reports = [l.rstrip("\n").split("\t", 1)[1] for l in f if "\t" in l]
+        except OSError:
+            pass
+        self.report_note.setVisible(bool(self.reports))
+        self.report.setVisible(bool(self.reports))
+
+    def open_reports(self):
+        for url in self.reports:
+            QDesktopServices.openUrl(QUrl(url))
 
     def start_dolphin(self):
         QProcess.startDetached(os.path.expanduser("~/.local/bin/dolphin-ng"), [])

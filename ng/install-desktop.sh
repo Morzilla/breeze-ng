@@ -330,6 +330,38 @@ DONE=()
 FAILED=()
 LOGS="$SRC/logs"
 mkdir -p "$LOGS"
+rm -f "$LOGS/issues.txt"   # one "title<TAB>link" line per part that fails: the graphical installer offers them
+
+# A pre-filled GitHub issue for a part that failed: system versions and the end of its log. The home folder and
+# the user name are taken out; nothing is sent, the link only opens the form, to read and submit by hand.
+issue_url() { # title log
+    local repo=breeze-ng
+    case "$1" in "Dolphin NG"*) repo=dolphin-ng ;; "NeoLine"*) repo=neoline-icons ;; "Dialog NG"*) repo=dialog-ng ;; esac
+    command -v python3 >/dev/null || { echo "https://github.com/Morzilla/$repo/issues/new"; return; }
+    local distro plasma kf qt
+    distro=$(. /etc/os-release 2>/dev/null; echo "${PRETTY_NAME:-unknown}")
+    plasma=$(plasmashell --version 2>/dev/null | awk '{print $2}')
+    kf=$(basename "$(readlink -f /usr/lib*/libKF6CoreAddons.so.6 /usr/lib/*/libKF6CoreAddons.so.6 2>/dev/null | head -1)" 2>/dev/null | sed -n 's/.*\.so\.//p')
+    qt=$(qtpaths6 --qt-version 2>/dev/null || qtpaths --qt-version 2>/dev/null)
+    TITLE="$1" LOGFILE="$2" REPO="$repo" DISTRO="$distro" PLASMA="${plasma:-?}" KF="${kf:-?}" QT="${qt:-?}" SESS="${XDG_SESSION_TYPE:-?}" python3 - <<'END'
+import os, urllib.parse
+home, user = os.path.expanduser('~'), os.environ.get('USER', '')
+try:
+    tail = open(os.environ['LOGFILE'], errors='replace').read().splitlines()[-60:]
+except OSError:
+    tail = ['(no log)']
+log = '\n'.join(tail).replace(home, '~')
+if len(user) > 2:
+    log = log.replace(user, 'user')
+body = (f"**What failed:** {os.environ['TITLE']}, installed with `ng/install-desktop.sh`\n\n"
+        f"| | |\n|---|---|\n| Distribution | {os.environ['DISTRO']} |\n| Session | {os.environ['SESS']} |\n"
+        f"| Plasma | {os.environ['PLASMA']} |\n| KDE Frameworks | {os.environ['KF']} |\n| Qt | {os.environ['QT']} |\n\n"
+        f"**End of the log** (home folder and user name removed):\n\n```\n{log[-5000:]}\n```\n\n"
+        "**Anything else** (what you were doing, what you expected):\n\n")
+title = f"Installer: {os.environ['TITLE']} did not install on {os.environ['DISTRO']}"
+print(f"https://github.com/Morzilla/{os.environ['REPO']}/issues/new?" + urllib.parse.urlencode({'title': title, 'body': body}))
+END
+}
 part() { # title, log name, command...: runs it, keeps the full output in a log, shows the end of it on failure
     local title="$1" log="$LOGS/$2.log"
     shift 2
@@ -347,6 +379,7 @@ part() { # title, log name, command...: runs it, keeps the full output in a log,
     printf '%s' "$RE"; tail -n 12 "$log" | sed 's/^/    /'; printf '%s' "$R"
     warn "$title did not install; the rest goes on. Full log: $log"
     FAILED+=("$title   log: $log")
+    printf '%s\t%s\n' "$title" "$(issue_url "$title" "$log")" >> "$LOGS/issues.txt"
     return 1
 }
 if want dolphin; then
@@ -460,7 +493,11 @@ for line in "${DONE[@]:-}"; do [ -n "$line" ] && printf '  %s\n' "$line"; done
 if [ "${#FAILED[@]}" -gt 0 ]; then
     printf '\n  %sNot installed:%s\n' "$B" "$R"
     for line in "${FAILED[@]}"; do printf '  %s✗%s %s\n' "$RE" "$R" "$line"; done
-    printf '  %sPlease report it with the log: https://github.com/Morzilla/breeze-ng/issues%s\n' "$D" "$R"
+    printf '\n  %sA report for each, already filled in with the versions and the end of the log (your home folder and\n  user name are taken out; it is only a form to read and submit, nothing is sent): %s/issues.txt%s\n' "$D" "$LOGS" "$R"
+    printf '  %sEvery report helps the NG desktop grow and get better: it is how problems on other systems get found and fixed.%s\n' "$B" "$R"
+    if [ -n "$TTY" ] && command -v xdg-open >/dev/null && ask "Open the report in the browser, to send it to GitHub?" y; then
+        while IFS=$'\t' read -r title url; do xdg-open "$url" >/dev/null 2>&1 & done < "$LOGS/issues.txt"
+    fi
 fi
 printf '\n  %sRun this again at any time to update. Licence and credits: --licence%s\n' "$D" "$R"
 printf '  %sMade by Morzilla with Claude (Anthropic), on the shoulders of the KDE community.%s\n\n' "$D" "$R"
