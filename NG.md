@@ -64,7 +64,7 @@ is. Nothing of the distribution is overwritten, and `--uninstall` removes it all
 bash <(curl -fsSL https://raw.githubusercontent.com/Morzilla/breeze-ng/ng/ng/install-system.sh)
 ```
 
-Both can also install the two KWin effects the screenshots rely on, [Better Blur](https://github.com/taj-ny/kwin-effects-forceblur)
+Both can also install the two KWin effects the screenshots rely on, [Better Blur DX](https://github.com/xarblu/kwin-effects-better-blur-dx)
 and [KDE Rounded Corners](https://github.com/matinlotfali/KDE-Rounded-Corners). That part is off unless you tick it:
 they are external projects, not part of this one. The installer only builds them from their own repositories, the way
 their READMEs describe, and installs them system-wide (the one step outside your home folder). For anything about

@@ -15,12 +15,12 @@ import urllib.request
 try:
     from PyQt6.QtCore import QProcess, QProcessEnvironment, QRectF, QSize, Qt, QUrl, pyqtSignal as Signal
     from PyQt6.QtGui import QColor, QDesktopServices, QFont, QLinearGradient, QPainter, QPainterPath, QPen, QPixmap, QTextCursor
-    from PyQt6.QtWidgets import (QApplication, QCheckBox, QComboBox, QFrame, QHBoxLayout, QLabel, QPlainTextEdit, QProgressBar,
+    from PyQt6.QtWidgets import (QApplication, QCheckBox, QComboBox, QFrame, QHBoxLayout, QLabel, QMessageBox, QPlainTextEdit, QProgressBar,
                                  QPushButton, QSpinBox, QStackedWidget, QVBoxLayout, QWidget)
 except ImportError:
     from PySide6.QtCore import QProcess, QProcessEnvironment, QRectF, QSize, Qt, QUrl, Signal
     from PySide6.QtGui import QColor, QDesktopServices, QFont, QLinearGradient, QPainter, QPainterPath, QPen, QPixmap, QTextCursor
-    from PySide6.QtWidgets import (QApplication, QCheckBox, QComboBox, QFrame, QHBoxLayout, QLabel, QPlainTextEdit, QProgressBar,
+    from PySide6.QtWidgets import (QApplication, QCheckBox, QComboBox, QFrame, QHBoxLayout, QLabel, QMessageBox, QPlainTextEdit, QProgressBar,
                                    QPushButton, QSpinBox, QStackedWidget, QVBoxLayout, QWidget)
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -51,12 +51,30 @@ TEXT = {
     "dialog_d": ("The file dialog of every KDE app: quick filters by kind of file, roomier places",
                  "La finestra di scelta file di ogni app KDE: filtri rapidi per tipo di file, risorse più ariose"),
     "effects": ("Blur and rounded corners", "Blur e angoli arrotondati"),
-    "effects_d": ("Better Blur and KDE Rounded Corners, for the look of the screenshots. They are external projects, not part of this one: "
+    "effects_d": ("Better Blur DX and KDE Rounded Corners: external projects, installed system-wide. Details when you tick it.",
+                  "Better Blur DX e KDE Rounded Corners: progetti esterni, installati a livello di sistema. Dettagli quando lo spunti."),
+    "effects_n": ("Better Blur DX and KDE Rounded Corners, for the look of the screenshots. They are external projects, not part of this one: "
                   "they are built from their own repositories and installed system-wide (your password is asked). "
-                  "For problems with them, refer to github.com/taj-ny/kwin-effects-forceblur and github.com/matinlotfali/KDE-Rounded-Corners.",
-                  "Better Blur e KDE Rounded Corners, per l'aspetto degli screenshot. Sono progetti esterni, non fanno parte di questo: "
+                  "For problems with them, refer to github.com/xarblu/kwin-effects-better-blur-dx and github.com/matinlotfali/KDE-Rounded-Corners.",
+                  "Better Blur DX e KDE Rounded Corners, per l'aspetto degli screenshot. Sono progetti esterni, non fanno parte di questo: "
                   "vengono compilati dai loro repository e installati a livello di sistema (viene chiesta la password). "
-                  "Per problemi con loro, fai riferimento a github.com/taj-ny/kwin-effects-forceblur e github.com/matinlotfali/KDE-Rounded-Corners."),
+                  "Per problemi con loro, fai riferimento a github.com/xarblu/kwin-effects-better-blur-dx e github.com/matinlotfali/KDE-Rounded-Corners."),
+    "transcribe": ("Transcription (speech to text)", "Trascrizione (dalla voce al testo)"),
+    "transcribe_d": ("Offline speech to text for Dolphin NG (whisper.cpp and a 550 MB model). Details when you tick it.",
+                     "Dalla voce al testo, offline, per Dolphin NG (whisper.cpp e un modello da 550 MB). Dettagli quando lo spunti."),
+    "transcribe_n": ("For the \"Transcribe\" action of Dolphin NG, on audio and video files. It builds whisper.cpp (MIT) and downloads "
+                     "OpenAI's Whisper large-v3-turbo model (MIT) from Hugging Face: about 550 MB, 1 GB of disk. It runs only on this "
+                     "computer, nothing is uploaded; it uses the processor, about as long as the recording. Transcripts can be wrong "
+                     "and can contain words nobody said: check them, and do not rely on them where a mistake matters (legal, medical, "
+                     "financial). Recording or transcribing other people may need their consent. Not affiliated with OpenAI or whisper.cpp.",
+                     "Per l'azione \"Trascrivi\" di Dolphin NG, sui file audio e video. Compila whisper.cpp (MIT) e scarica il modello "
+                     "Whisper large-v3-turbo di OpenAI (MIT) da Hugging Face: circa 550 MB, 1 GB di disco. Funziona solo su questo "
+                     "computer, non viene caricato niente; usa il processore, più o meno quanto dura la registrazione. Le trascrizioni "
+                     "possono essere sbagliate e contenere parole mai dette: controllale, e non usarle dove un errore conta (legale, "
+                     "medico, finanziario). Registrare o trascrivere altre persone può richiedere il loro consenso. Non affiliato a OpenAI "
+                     "o a whisper.cpp."),
+    "n_ok": ("Install it", "Installa"),
+    "n_cancel": ("Cancel", "Annulla"),
     "look": ("Choose a look", "Scegli un aspetto"),
     "look_text": ("A starting point: every detail can be changed later in the settings.", "Un punto di partenza: ogni dettaglio si cambia dopo dalle impostazioni."),
     "classic": ("Classic", "Classico"),
@@ -341,12 +359,15 @@ class Installer(QWidget):
         w = QWidget(); v = QVBoxLayout(w); v.setSpacing(12); v.setContentsMargins(0, 8, 0, 0)
         v.addWidget(label(t("parts"), "h1"))
         self.parts = {}
-        for key in ("dolphin", "breeze", "icons", "dialog", "effects"):
+        for key in ("dolphin", "breeze", "icons", "dialog", "effects", "transcribe"):
             card = Card(); h = QVBoxLayout(card); h.setContentsMargins(16, 12, 16, 12); h.setSpacing(2)
-            box = Check(t(key)); box.setChecked(key != "effects"); f = box.font()  # the external effects are opt-in; f.setBold(True); box.setFont(f)
+            box = Check(t(key)); box.setChecked(key not in ("effects", "transcribe")); f = box.font()  # the external effects and the transcription are opt-in; f.setBold(True); box.setFont(f)
             card.clicked.connect(box.toggle)
             h.addWidget(box); d = label(t(key + "_d"), "dim"); d.setContentsMargins(28, 0, 0, 0); h.addWidget(d)
             self.parts[key] = box
+            if key in ("effects", "transcribe"):
+                # ticking it shows what it is and what it is not, to accept or cancel
+                box.toggled.connect(lambda on, k=key, b=box: on and self.confirm_part(k, b))
             v.addWidget(card)
         self.deps = Check(t("deps")); self.deps.setChecked(True)
         v.addSpacing(6); v.addWidget(self.deps)
@@ -358,6 +379,19 @@ class Installer(QWidget):
         row.addWidget(minus); row.addWidget(self.jobs); row.addWidget(plus); row.addStretch(); v.addLayout(row)
         v.addStretch(1)
         return w
+
+    def confirm_part(self, key, box):
+        box_ = QMessageBox(self)
+        box_.setWindowTitle(t(key))
+        box_.setText(t(key + "_n"))
+        box_.setIcon(QMessageBox.Icon.Information)
+        ok = box_.addButton(t("n_ok"), QMessageBox.ButtonRole.AcceptRole)
+        box_.addButton(t("n_cancel"), QMessageBox.ButtonRole.RejectRole)
+        box_.exec()
+        if box_.clickedButton() is not ok:
+            box.blockSignals(True)
+            box.setChecked(False)
+            box.blockSignals(False)
 
     def page_look(self):
         w = QWidget(); v = QVBoxLayout(w); v.setSpacing(12); v.setContentsMargins(0, 8, 0, 0)

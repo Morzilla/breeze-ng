@@ -3,7 +3,7 @@
 # Copyright (c) 2026 Morzilla
 #
 # The NG desktop installer: Dolphin NG, the Breeze NG style and window decoration, the NeoLine icons,
-# the NG file dialog.
+# the NG file dialog, and (optional) speech to text on this computer for Dolphin NG's "Transcribe".
 #
 #   ng/install-desktop.sh                 from a clone of breeze-ng
 #   bash <(curl -fsSL https://raw.githubusercontent.com/Morzilla/breeze-ng/ng/ng/install-desktop.sh)
@@ -13,8 +13,9 @@
 #
 # Options (any of them skips the matching question):
 #   --yes                  no questions: install every part, do not switch the desktop
-#   --only LIST            parts to install, comma separated: dolphin,breeze,icons,dialog,effects
-#                          (effects = Better Blur and KDE Rounded Corners, two external projects: see --licence)
+#   --only LIST            parts to install, comma separated: dolphin,breeze,icons,dialog,effects,transcribe
+#                          (effects = Better Blur and KDE Rounded Corners, two external projects: see --licence;
+#                          transcribe = whisper.cpp and a 550 MB speech model, run on this computer: see --licence)
 #   --apply [soft|glass]   switch the desktop to Breeze NG (default soft) and to the NeoLine icons
 #   --icons NAME           icon theme used when applying: NeoLine, NeoLine-White (default), NeoLine-Yellow
 #   --no-deps              do not install build dependencies (no sudo)
@@ -61,9 +62,23 @@ NOTICES
   (ImageMagick, FFmpeg, Poppler, Ark, bsdtar). Package repositories of some distributions ship FFmpeg builds
   without patented codecs.
 
+  TRANSCRIPTION (the optional part "transcribe")
+
+  whisper.cpp                   https://github.com/ggml-org/whisper.cpp                   MIT
+  Whisper large-v3-turbo        OpenAI's speech model, MIT licence; downloaded as ggml-large-v3-turbo-q5_0.bin
+                                from https://huggingface.co/ggerganov/whisper.cpp (converted by whisper.cpp)
+
+  This part builds whisper.cpp in ~/.local/src and downloads the model (about 550 MB) into
+  ~/.local/share/ng-transcribe. Transcription runs only on this computer: nothing is uploaded. Its output can
+  be wrong (names, numbers, technical terms) and it may write words that were never said, on silence or music:
+  check transcripts before relying on them and do not use them where a mistake matters (legal, medical,
+  financial). Recording or transcribing other people may require their consent where you live. Neither
+  project is written by or affiliated with the authors of this installer; there is no warranty of any kind.
+
   EXTERNAL PROJECTS (the optional part "effects")
 
-  Better Blur                   https://github.com/taj-ny/kwin-effects-forceblur         GPL-3.0
+  Better Blur DX                https://github.com/xarblu/kwin-effects-better-blur-dx    GPL-3.0
+                                (the maintained continuation of Better Blur by taj-ny, which does not build on Plasma 6.8)
   KDE Rounded Corners           https://github.com/matinlotfali/KDE-Rounded-Corners      GPL-3.0
 
   These two KWin effects give the look of the screenshots (blur behind translucent windows, rounded window
@@ -123,19 +138,22 @@ done
 export JOBS
 
 # ---- the parts
-KEYS=(dolphin breeze icons dialog effects)
-NAMES=("Dolphin NG" "Breeze NG" "NeoLine icons" "Dialog NG" "Blur + corners")
+KEYS=(dolphin breeze icons dialog effects transcribe)
+NAMES=("Dolphin NG" "Breeze NG" "NeoLine icons" "Dialog NG" "Blur + corners" "Transcription")
 NOTES=("the file manager: cards view, two-line list, glass sidebar, previews" "widget style and window decoration, Soft and Glass" "outline icon theme: colour, white, yellow"
        "the file dialog of every KDE app: quick filters by kind of file, roomier places"
-       "Better Blur and KDE Rounded Corners: EXTERNAL projects, installed system-wide (sudo)")
-PICK=(1 1 1 1 0) # the external effects are opt-in
+       "Better Blur and KDE Rounded Corners: EXTERNAL projects, installed system-wide (sudo)"
+       "speech to text for Dolphin NG, offline (whisper.cpp): a 550 MB model download")
+PICK=(1 1 1 1 0 0) # the external effects and the transcription (a large download) are opt-in
+pick() { local i; for i in "${!KEYS[@]}"; do [ "${KEYS[$i]}" = "$1" ] && { [ "${PICK[$i]}" = 1 ]; return; }; done; return 1; }
+any_pick() { local p; for p in "${PICK[@]}"; do [ "$p" = 1 ] && return 0; done; return 1; }
 if [ -n "$ONLY" ]; then
-    PICK=(0 0 0 0 0)
+    PICK=(0 0 0 0 0 0)
     IFS=',' read -ra wanted <<<"$ONLY"
     for w in "${wanted[@]}"; do
         found=0
         for i in "${!KEYS[@]}"; do [ "${KEYS[$i]}" = "$w" ] && PICK[$i]=1 && found=1; done
-        [ "$found" = 1 ] || die "unknown part: $w (dolphin, breeze, icons, dialog, effects)"
+        [ "$found" = 1 ] || die "unknown part: $w (dolphin, breeze, icons, dialog, effects, transcribe)"
     done
 fi
 
@@ -156,6 +174,22 @@ END
     printf '  %sby Morzilla, built with Claude (Anthropic) on top of KDE software%s\n' "$D" "$R"
 }
 
+# what the transcription part is, and what it is not: shown before it is installed
+transcribe_notice() {
+    printf '\n%sTranscription%s (optional): speech to text for the "Transcribe" quick action of Dolphin NG.\n' "$B" "$R"
+    printf '  · It builds %swhisper.cpp%s (MIT, github.com/ggml-org/whisper.cpp) in ~/.local/src and downloads the speech\n' "$B" "$R"
+    printf '    model %sggml-large-v3-turbo-q5_0%s from Hugging Face: about %s550 MB%s, about 1 GB of disk with the build.\n' "$B" "$R" "$B" "$R"
+    printf '    The model is OpenAI'"'"'s Whisper large-v3-turbo (MIT licence), converted by the whisper.cpp project.\n'
+    printf '  · It runs only on this computer: your recordings are not uploaded anywhere.\n'
+    printf '  · It uses the processor: a recording takes about as long as it lasts to transcribe (half of the\n'
+    printf '    cores, low priority, so the desktop stays usable). No graphics card is needed or used.\n'
+    printf '  · Transcripts can be wrong: names, numbers and technical words especially, and on silence or music it\n'
+    printf '    can write words nobody said. Check them before you rely on them; do not use them where a mistake\n'
+    printf '    matters (legal, medical, financial).\n'
+    printf '  · Recording or transcribing other people may need their consent where you live: that is up to you.\n'
+    printf '  · Not affiliated with OpenAI or with the whisper.cpp project. No warranty of any kind.\n'
+}
+
 # a checklist: arrows or j/k move, space toggles, a = all, n = none, enter confirms
 checklist() {
     local cur=0 key rest n=${#KEYS[@]} i
@@ -174,8 +208,8 @@ checklist() {
             k) cur=$(( (cur + n - 1) % n )) ;;
             j) cur=$(( (cur + 1) % n )) ;;
             ' ') PICK[$cur]=$(( 1 - PICK[$cur] )) ;;
-            a) PICK=(1 1 1 1 1) ;;
-            n) PICK=(0 0 0 0 0) ;;
+            a) PICK=(1 1 1 1 1 1) ;;
+            n) PICK=(0 0 0 0 0 0) ;;
             '') break ;;
         esac
         printf '\e[%dA' "$n"
@@ -212,21 +246,25 @@ if [ -n "$TTY" ]; then
     printf '  · This installer and NeoLine are MIT; Dolphin NG and Breeze NG are GPL forks of KDE software,\n'
     printf '    not affiliated with KDE. No warranty of any kind. Full notices: %s--licence%s\n' "$B" "$R"
     [ -z "$ONLY" ] && checklist
-    [ "${PICK[0]}${PICK[1]}${PICK[2]}${PICK[3]}" = 0000 ] && { echo; echo "Nothing selected: nothing to do."; exit 0; }
-    if [ "${PICK[3]}" = 1 ]; then
-        printf '\n%sBlur + corners%s are two external projects, not part of this one: Better Blur (taj-ny) and\n' "$B" "$R"
+    any_pick || { echo; echo "Nothing selected: nothing to do."; exit 0; }
+    if pick effects; then
+        printf '\n%sBlur + corners%s are two external projects, not part of this one: Better Blur DX (xarblu) and\n' "$B" "$R"
         printf 'KDE Rounded Corners (matinlotfali). They are built from their own repositories and installed\n'
         printf 'system-wide with sudo; problems with them belong to their repositories. Details: %s--licence%s\n' "$B" "$R"
     fi
+    if pick transcribe; then
+        transcribe_notice
+        ask "Install the transcription part, with the notes above?" n || PICK[5]=0
+    fi
     if [ "$DEPS" = 1 ] && ! ask $'\nInstall the build dependencies now (sudo)?' y; then DEPS=0; fi
-    if [ "$APPLY_SET" = 0 ] && { [ "${PICK[1]}" = 1 ] || [ "${PICK[2]}" = 1 ]; }; then
+    if [ "$APPLY_SET" = 0 ] && { pick breeze || pick icons; }; then
         if ask "Switch the desktop to it when done (style, decoration, colours, icons)?" n; then
             APPLY=soft
-            if [ "${PICK[1]}" = 1 ]; then
+            if pick breeze; then
                 choose "Which look of Breeze NG?" "Soft: opaque sheets told apart by tone" "Glass: translucent windows blurred by the compositor"
                 [ "$CHOICE" = 2 ] && APPLY=glass
             fi
-            if [ "${PICK[2]}" = 1 ]; then
+            if pick icons; then
                 choose "Which icons?" "NeoLine White: white places, file types in colour" "NeoLine: everything in the colour of its kind" "NeoLine Yellow: yellow places, file types in colour"
                 case "$CHOICE" in 2) ICONS=NeoLine ;; 3) ICONS=NeoLine-Yellow ;; *) ICONS=NeoLine-White ;; esac
             fi
@@ -336,7 +374,7 @@ rm -f "$LOGS/issues.txt"   # one "title<TAB>link" line per part that fails: the 
 # the user name are taken out; nothing is sent, the link only opens the form, to read and submit by hand.
 issue_url() { # title log
     local repo=breeze-ng
-    case "$1" in "Dolphin NG"*) repo=dolphin-ng ;; "NeoLine"*) repo=neoline-icons ;; "Dialog NG"*) repo=dialog-ng ;; esac
+    case "$1" in "Dolphin NG"*|"Transcription"*) repo=dolphin-ng ;; "NeoLine"*) repo=neoline-icons ;; "Dialog NG"*) repo=dialog-ng ;; esac
     command -v python3 >/dev/null || { echo "https://github.com/Morzilla/$repo/issues/new"; return; }
     local distro plasma kf qt
     distro=$(. /etc/os-release 2>/dev/null; echo "${PRETTY_NAME:-unknown}")
@@ -415,6 +453,21 @@ if want dialog; then
     fi
 fi
 
+if want transcribe; then
+    say "Transcription (builds whisper.cpp and downloads a 550 MB speech model: a while)"
+    [ -n "$TTY" ] || transcribe_notice
+    # the script lives in Dolphin NG's sources; whisper.cpp goes where ng-transcribe looks for it (~/.local/src)
+    if part "Transcription" whisper bash -c "$(declare -f fetch ok); SRC='$SRC'; GR='' R=''; [ -x '$SRC/dolphin-ng/ng/ng-transcribe' ] || fetch dolphin-ng ng
+            mkdir -p '$HOME/.local/bin'
+            ln -sf '$SRC/dolphin-ng/ng/ng-transcribe' '$HOME/.local/bin/ng-transcribe'
+            ln -sf '$SRC/dolphin-ng/ng/ng-job' '$HOME/.local/bin/ng-job'
+            JOBS='$JOBS' '$SRC/dolphin-ng/ng/ng-transcribe' --setup"; then
+        ok "Transcription installed"
+        DONE+=("Transcription  in Dolphin NG, on an audio or video file: Transcribe (the text is written next to it)")
+        DONE+=("               runs on this computer; check what it writes. Remove: ~/.local/src/whisper.cpp, ~/.local/share/ng-transcribe")
+    fi
+fi
+
 # ---- the two external KWin effects: built the way their own READMEs say, installed system-wide
 effect_present() { # file name pattern of the plugin
     # (not a pipeline: find fails on the folders that do not exist, and with pipefail that read as "not installed")
@@ -444,10 +497,10 @@ if want effects; then
     say "Blur and rounded corners (external projects)"
     printf '  %sBetter Blur and KDE Rounded Corners are not part of this project. Problems with them: their repositories.%s\n' "$D" "$R"
     if [ "$SESSION" = x11 ]; then
-        build_effect "Better Blur" https://github.com/taj-ny/kwin-effects-forceblur 'forceblur*.so' forceblur_x11 -DCMAKE_INSTALL_PREFIX=/usr
+        build_effect "Better Blur DX" https://github.com/xarblu/kwin-effects-better-blur-dx 'better_blur_dx*.so' better_blur_dx -DCMAKE_INSTALL_PREFIX=/usr -DBBDX_X11=ON
         build_effect "KDE Rounded Corners" https://github.com/matinlotfali/KDE-Rounded-Corners 'kwin4_effect_shapecorners.so' kwin4_effect_shapecorners -DCMAKE_INSTALL_PREFIX=/usr -DKWIN_X11=ON
     else
-        build_effect "Better Blur" https://github.com/taj-ny/kwin-effects-forceblur 'forceblur*.so' forceblur -DCMAKE_INSTALL_PREFIX=/usr
+        build_effect "Better Blur DX" https://github.com/xarblu/kwin-effects-better-blur-dx 'better_blur_dx*.so' better_blur_dx -DCMAKE_INSTALL_PREFIX=/usr
         build_effect "KDE Rounded Corners" https://github.com/matinlotfali/KDE-Rounded-Corners 'kwin4_effect_shapecorners.so' kwin4_effect_shapecorners -DCMAKE_INSTALL_PREFIX=/usr
     fi
     kwriteconfig6 --file kwinrc --group Plugins --key blurEnabled false 2>/dev/null || true # KWin's own blur and Better Blur do not go together
