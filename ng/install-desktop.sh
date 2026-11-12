@@ -141,7 +141,7 @@ export JOBS
 KEYS=(dolphin breeze icons dialog effects transcribe)
 NAMES=("Dolphin NG" "Breeze NG" "NeoLine icons" "Dialog NG" "Blur + corners" "Transcription")
 NOTES=("the file manager: cards view, two-line list, glass sidebar, previews" "widget style and window decoration, Soft and Glass" "outline icon theme: colour, white, yellow"
-       "the file dialog of every KDE app: quick filters by kind of file, roomier places"
+       "the file dialog of every KDE app, like Dolphin NG: rows, quick preview, filters, glass sidebar"
        "Better Blur and KDE Rounded Corners: EXTERNAL projects, installed system-wide (sudo)"
        "speech to text for Dolphin NG, offline (whisper.cpp): a 550 MB model download")
 PICK=(1 1 1 1 0 0) # the external effects and the transcription (a large download) are opt-in
