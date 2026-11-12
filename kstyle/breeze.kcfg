@@ -111,7 +111,7 @@
 
     <!-- toolbars -->
     <entry name="ToolBarDrawItemSeparator" type="Bool">
-      <default>true</default>
+      <default>false</default>
     </entry>
 
     <!-- views -->

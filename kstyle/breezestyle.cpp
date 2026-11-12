@@ -5504,9 +5504,26 @@ bool Style::drawIndicatorToolBarSeparatorPrimitive(const QStyleOption *option, Q
     const State &state(option->state);
     const bool separatorIsVertical(state & State_Horizontal);
 
-    // define color and render
-    const auto color(_helper->separatorColor(palette));
-    _helper->renderSeparator(painter, rect, color, separatorIsVertical);
+    // Breeze NG: no lines anywhere; the separators of a toolbar, when asked for in the settings, are a short faint
+    // rounded mark instead (the combo box hack keeps drawing nothing)
+    if (!qobject_cast<const QComboBox *>(widget)) {
+        const QRectF area(rect);
+        QRectF mark;
+        if (separatorIsVertical) {
+            const qreal height = area.height() * 0.5;
+            mark = QRectF(area.center().x() - 1, area.center().y() - height / 2, 2, height);
+        } else {
+            const qreal width = area.width() * 0.5;
+            mark = QRectF(area.center().x() - width / 2, area.center().y() - 1, width, 2);
+        }
+        painter->save();
+        painter->setRenderHint(QPainter::Antialiasing, true);
+        painter->setPen(Qt::NoPen);
+        painter->setBrush(_helper->alphaColor(_helper->ink(palette), 0.22));
+        painter->drawRoundedRect(mark, 1, 1);
+        painter->restore();
+    }
+    Q_UNUSED(state)
 
     return true;
 }
