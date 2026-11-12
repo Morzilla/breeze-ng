@@ -133,6 +133,7 @@ if want breeze; then
         || { tail -n 20 "$TMP/breeze.log"; die "Breeze NG did not configure (are the build dependencies installed?)"; }
     nice -n 10 cmake --build "$BREEZE/build-system" -j"$JOBS" >>"$TMP/breeze.log" 2>&1 || { tail -n 30 "$TMP/breeze.log"; die "Breeze NG did not build"; }
     as_root env DESTDIR="$STAGE" cmake --install "$BREEZE/build-system" >/dev/null
+    as_root rm -f "$BREEZE/build-system/install_manifest.txt" # written as root: the next build as you could not replace it
     put "$BREEZE/ng/color-schemes/BreezeNG.colors" "$LOCAL/share/color-schemes/BreezeNG.colors"
     put "$BREEZE/kstyle/breezeng.themerc" "$LOCAL/share/kstyle/themes/breezeng.themerc"   # the style's name and Configure button in System Settings
     for v in soft glass; do put_tree "$BREEZE/ng/look-and-feel/org.morzilla.breezeng.$v" "$LOCAL/share/plasma/look-and-feel"; done
@@ -160,6 +161,7 @@ if want dolphin; then
         || { tail -n 20 "$TMP/dolphin.log"; die "Dolphin NG did not configure (are the build dependencies installed?)"; }
     nice -n 10 cmake --build "$DOLPHIN/build-system" -j"$JOBS" >>"$TMP/dolphin.log" 2>&1 || { tail -n 30 "$TMP/dolphin.log"; die "Dolphin NG did not build"; }
     as_root env DESTDIR="$STAGE" cmake --install "$DOLPHIN/build-system" >/dev/null
+    as_root rm -f "$DOLPHIN/build-system/install_manifest.txt" # written as root: the next build as you could not replace it
     # the launcher of the fork (it sets the paths of the private prefix), then the command and the menu entry
     put "$DOLPHIN/ng/dolphin-ng" "$OPT/dolphin-ng/bin/dolphin-ng-launch" 755
     printf '#!/bin/sh\nDOLPHIN_NG_PREFIX=%s exec %s/bin/dolphin-ng-launch "$@"\n' "$OPT/dolphin-ng" "$OPT/dolphin-ng" > "$TMP/dolphin-ng"
