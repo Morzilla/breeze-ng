@@ -17,7 +17,7 @@ Both looks share: no separator lines anywhere, menus with padded rounded panels 
 current item, tabs that are one sheet with their panel, a neon glow inside fields and buttons that have the focus,
 and a menu opened from a button that joins it into one shape.
 
-![Dolphin NG and the controls in Breeze NG Soft](ng/screenshots/01-desktop.png)
+![Dolphin NG and, on the right, a demo window showing the controls in Breeze NG Soft (not a settings window)](ng/screenshots/01-desktop.png)
 
 ![Dolphin NG in Breeze NG, its sidebar showing the compositor's blur of the desktop](ng/screenshots/05-dolphin-live-blur.png)
 
@@ -36,9 +36,23 @@ and a menu opened from a button that joins it into one shape.
 - `ng/look-and-feel/` – the two global themes (System Settings › Global Theme)
 - `ng/color-schemes/BreezeNG.colors` – the colour scheme both looks were designed on
 
-Settings live in `breezengrc`. The variant follows the decoration theme chosen in KWin (`Breeze NG Soft` or
-`Breeze NG Glass`), which is what the global themes set; `[Common] Variant=Soft|Glass` in `breezengrc` is the
-fallback. `WindowOpacity` (Glass, default 70) and `MenuOpacity` are there too.
+## Settings
+
+System Settings › Appearance › Application Style › Breeze NG › Configure (or `./ng/breeze-ng settings`) opens the
+settings of the style, in pages:
+
+- **Look** – Soft or Glass; choosing one also applies the Breeze NG window decoration and the BreezeNG colour
+  scheme (each can be left out).
+- **Transparency** – how see-through windows (Glass) and menus are, with a live preview.
+- **Controls and animations** – animation speed, keyboard shortcut underlines, scroll bar arrows, centred tabs, the
+  glow inside the focused field or button (off: a thin outline), menus joining the button they open from.
+- **Windows** – where windows can be dragged from, the shadow of menus and tooltips, frames and tree lines.
+- **KWin effects** – whether the two external effects the screenshots rely on (Better Blur DX for the blur, KDE
+  Rounded Corners for the window corners) are installed and on, with links to them.
+
+Everything is stored in `breezengrc`. The variant follows the decoration theme chosen in KWin (`Breeze NG Soft` or
+`Breeze NG Glass`), which is what the global themes and the Look page set; `[Common] Variant=Soft|Glass` is the
+fallback.
 
 ## Everything at once
 

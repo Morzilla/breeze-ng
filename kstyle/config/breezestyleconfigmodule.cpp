@@ -7,8 +7,9 @@
 #include "breezestyleconfigmodule.h"
 
 #include <KPluginFactory>
+#include <QVBoxLayout>
 
-K_PLUGIN_CLASS_WITH_JSON(Breeze::ConfigurationModule, "breezestyleconfig.json")
+K_PLUGIN_CLASS_WITH_JSON(Breeze::ConfigurationModule, "breezengstyleconfig.json")
 
 #include "breezestyleconfigmodule.moc"
 

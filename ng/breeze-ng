@@ -6,6 +6,7 @@
 #   ./ng/breeze-ng themes         install the two global themes (System Settings > Global Theme)
 #   ./ng/breeze-ng use soft|glass select the look: widget style, window decoration, colours; applies at once
 #   ./ng/breeze-ng off            back to the stock Breeze
+#   ./ng/breeze-ng settings       the settings window (also: System Settings > Application Style > Breeze NG > Configure)
 #   ./ng/breeze-ng status         what is active now
 set -e
 W="$(cd "$(dirname "$(readlink -f "$0")")/.." && pwd)"   # the repository
@@ -37,7 +38,14 @@ build)
     cmake "$W" -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX="$PREFIX" -DBUILD_QT5=OFF -DBUILD_QT6=ON -DWITH_WALLPAPERS=OFF -DBUILD_CURSOR=OFF -DBUILD_TESTING=OFF "${EXTRA[@]}"
     nice -n 10 cmake --build . -j"${JOBS:-4}"
     cmake --install .
-    "$0" themes
+    # earlier builds installed the settings under the stock Breeze names, where they stood in for Breeze's own
+    for stale in "$PREFIX"/lib*/plugins/kstyle_config/breezestyleconfig.so "$PREFIX"/lib*/*/plugins/kstyle_config/breezestyleconfig.so \
+        "$PREFIX"/lib*/plugins/org.kde.kdecoration3.kcm/kcm_breezedecoration.so "$PREFIX"/lib*/*/plugins/org.kde.kdecoration3.kcm/kcm_breezedecoration.so \
+        "$PREFIX/share/kstyle/themes/breeze.themerc" "$PREFIX/share/applications/breezestyleconfig.desktop" \
+        "$PREFIX/share/applications/kcm_breezedecoration.desktop" "$PREFIX/bin/breeze-settings6"; do
+        [ -e "$stale" ] && rm -f -- "$stale"
+    done
+    "$W/ng/breeze-ng" themes
     echo "==> installed in $PREFIX; now: $0 env (once), then $0 use soft|glass"
     ;;
 env)
@@ -71,6 +79,9 @@ themes)
     # The themes keep whatever icon theme is in use.
     mkdir -p "$HOME/.local/share/color-schemes" "$HOME/.local/share/plasma/look-and-feel"
     cp "$W/ng/color-schemes/BreezeNG.colors" "$HOME/.local/share/color-schemes/"
+    # the style's entry for System Settings > Application Style: its name and its Configure button
+    mkdir -p "$HOME/.local/share/kstyle/themes"
+    cp "$W/kstyle/breezeng.themerc" "$HOME/.local/share/kstyle/themes/"
     cp -r "$W/ng/look-and-feel/org.morzilla.breezeng.soft" "$W/ng/look-and-feel/org.morzilla.breezeng.glass" "$HOME/.local/share/plasma/look-and-feel/"
     ICONS="$(kreadconfig6 --file kdeglobals --group Icons --key Theme 2>/dev/null || true)"
     if [ -n "$ICONS" ]; then
@@ -99,6 +110,9 @@ off)
     kwriteconfig6 --file kwinrc --group org.kde.kdecoration2 --key theme Breeze
     reload
     echo "==> back to Breeze"
+    ;;
+settings)
+    exec env QT_PLUGIN_PATH="$PLUGINS${QT_PLUGIN_PATH:+:$QT_PLUGIN_PATH}" "$PREFIX/bin/breezeng-settings"
     ;;
 status)
     echo "widget style:  $(kreadconfig6 --file kdeglobals --group KDE --key widgetStyle)"

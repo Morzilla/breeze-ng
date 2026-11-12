@@ -193,6 +193,15 @@ void Helper::renderNgGlow(QPainter *painter, const QRectF &rect, const QColor &c
     painter->save();
     painter->setRenderHint(QPainter::Antialiasing, true);
     painter->setBrush(Qt::NoBrush);
+    if (!StyleConfigData::focusGlow()) {
+        // the glow switched off in the settings: a thin outline in the same colour says it instead
+        QColor ring = color;
+        ring.setAlphaF(qBound(0.0, 0.9 * strength, 1.0));
+        painter->setPen(QPen(ring, 1.5));
+        painter->drawRoundedRect(rect.adjusted(0.75, 0.75, -0.75, -0.75), qMax(0.0, radius - 0.5), qMax(0.0, radius - 0.5));
+        painter->restore();
+        return;
+    }
     // four rings, from the edge inwards, each fainter: the light bleeds into the field
     const qreal alphas[4] = {0.95, 0.45, 0.22, 0.10};
     for (int i = 0; i < 4; ++i) {

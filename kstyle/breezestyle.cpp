@@ -2041,6 +2041,9 @@ bool Style::eventFilterNgPopup(QWidget *popup, QEvent *event)
     static const char joinedProperty[] = "_breeze_ng_joined";
     static const bool debug = qEnvironmentVariableIsSet("BREEZE_NG_DEBUG");
     if (event->type() == QEvent::Show) {
+        if (!StyleConfigData::menuJoin()) {
+            return false; // switched off in the settings
+        }
         if (popup->property(PropertyNames::menuSeamlessEdges).isValid()) {
             return false; // the application decided the edges itself
         }

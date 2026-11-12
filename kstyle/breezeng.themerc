@@ -1,0 +1,8 @@
+[Misc]
+Name=Breeze NG
+Comment=Breeze with soft surfaces or glass, for the NG desktop
+Comment[it]=Breeze con superfici morbide o di vetro, per il desktop NG
+ConfigPage=kstyle_config/breezengstyleconfig
+
+[KDE]
+WidgetStyle=BreezeNG

@@ -22,13 +22,13 @@ int main(int argc, char *argv[])
     KLocalizedString::setApplicationDomain("breeze_style_config");
 
     QApplication app(argc, argv);
-    app.setApplicationName(i18n("Breeze Settings"));
+    app.setApplicationName(QStringLiteral("Breeze NG"));
     app.setWindowIcon(QIcon::fromTheme(QStringLiteral("breeze-settings")));
 
     KCMultiDialog dialog;
-    dialog.setWindowTitle(i18n("Breeze Settings"));
-    dialog.addModule(KPluginMetaData(QStringLiteral("kstyle_config/breezestyleconfig")));
-    dialog.addModule(KPluginMetaData(QStringLiteral("org.kde.kdecoration3.kcm/kcm_breezedecoration.so")));
+    dialog.setWindowTitle(QStringLiteral("Breeze NG"));
+    dialog.addModule(KPluginMetaData(QStringLiteral("kstyle_config/breezengstyleconfig")));
+    dialog.addModule(KPluginMetaData(QStringLiteral("org.kde.kdecoration3.kcm/kcm_breezengdecoration.so")));
     dialog.show();
 
     const auto children = dialog.findChildren<QAbstractScrollArea *>();

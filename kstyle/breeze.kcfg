@@ -48,6 +48,14 @@
     <entry name="WindowOpacity" type="Int">
       <default>70</default>
     </entry>
+    <!-- Breeze NG: a neon glow inside the field or button that has the focus (off: a thin outline) -->
+    <entry name="FocusGlow" type="Bool">
+      <default>true</default>
+    </entry>
+    <!-- Breeze NG: a popup opened right under (or over) its button joins it into one shape -->
+    <entry name="MenuJoin" type="Bool">
+      <default>true</default>
+    </entry>
 
   </group>
 

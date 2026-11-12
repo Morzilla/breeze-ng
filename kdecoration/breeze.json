@@ -4,7 +4,7 @@
         "EnabledByDefault": true,
         "Name": "Breeze NG"
     },
-    "X-KDE-ConfigModule": "kcm_breezedecoration",
+    "X-KDE-ConfigModule": "kcm_breezengdecoration",
     "org.kde.kdecoration3": {
         "blur": true,
         "recommendedBorderSize": "None"

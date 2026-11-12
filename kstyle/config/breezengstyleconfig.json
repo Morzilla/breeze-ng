@@ -1,0 +1,14 @@
+{
+    "KPlugin": {
+        "Description": "Look, transparency, controls and windows of the Breeze NG style",
+        "Description[it]": "Aspetto, trasparenza, controlli e finestre dello stile Breeze NG",
+        "Icon": "preferences-desktop-theme",
+        "Name": "Breeze NG",
+        "ServiceTypes": [
+            "KCModule"
+        ]
+    },
+    "X-KDE-Keywords": "breeze,ng,widget,style,glass,soft,transparency",
+    "X-KDE-ParentApp": "kcontrol",
+    "X-KDE-Weight": 50
+}
