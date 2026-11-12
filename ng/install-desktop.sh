@@ -285,26 +285,73 @@ as_root() {
 want() { local i; for i in "${!KEYS[@]}"; do [ "${KEYS[$i]}" = "$1" ] && [ "${PICK[$i]}" = 1 ] && return 0; done; return 1; }
 
 # ---- 1. dependencies
+# A package transaction is never run blindly. It is simulated first, and if it would remove packages, downgrade
+# them, or upgrade the desktop itself (Plasma, KWin, KDE Frameworks, Qt, the display stack), it does not go
+# ahead: from a terminal you see what would change and decide (default: no), otherwise the step is skipped with
+# a warning. (On Fedora, installing kwin-devel once pulled a whole newer Plasma that no longer has the X11
+# session, and removed the X11 packages of the running desktop.)
+CORE='^(plasma|kwin|kf6-|libkf6|kf5-|qt6|libqt6|qt5|libqt5|libplasma|kdecoration|libkdecorations|libkworkspace|kscreen|powerdevil|sddm|breeze|kde-|xorg|xwayland|mesa|systemd|glibc|dbus)'
+risky_changes() { # manager, simulated output -> one "name  what" line per change that needs a decision
+    case "$1" in
+        dnf) awk -v core="$CORE" '
+                /^[A-Z][A-Za-z ]*:$/ { sec = $0; next }
+                /^$/ { sec = ""; next }
+                /^ [^ ]/ && sec != "" {
+                    name = $1
+                    if (sec ~ /^(Removing|Downgrading|Replacing)/) print name "  " tolower(substr(sec, 1, length(sec) - 1))
+                    else if (sec ~ /^Upgrading/ && name ~ core) print name "  upgrading"
+                }' <<<"$2" ;;
+        apt) awk -v core="$CORE" '
+                /^Remv / { print $2 "  removing" }
+                /^Inst [^ ]+ \[/ && $2 ~ core { print $2 "  upgrading" }' <<<"$2" ;;
+    esac
+}
+safe_pkgs() { # manager (dnf or apt-get), command and packages (without -y)
+    local manager="$1" sim changes
+    shift
+    if [ "$manager" = dnf ]; then
+        sim=$(LC_ALL=C $SUDO dnf "$@" --assumeno 2>&1 || true)
+        changes=$(risky_changes dnf "$sim")
+    else
+        sim=$(LC_ALL=C $SUDO apt-get -s "$@" 2>&1 || true)
+        changes=$(risky_changes apt "$sim")
+    fi
+    if [ -n "$changes" ]; then
+        warn "\"$manager $*\" would change packages of the desktop itself:"
+        printf '%s\n' "$changes" | head -n 25 | sed 's/^/      /'
+        [ "$(printf '%s\n' "$changes" | wc -l)" -gt 25 ] && echo "      ..."
+        if [ -n "$TTY" ] && [ "$YES" = 0 ]; then
+            printf '  It is safer to update the whole system first (then run this again), or to install by hand.\n'
+            ask "  Go on with this anyway?" n || { warn "skipped: $manager $*"; return 1; }
+        else
+            warn "skipped (nothing was changed). Update the system first, or run the installer from a terminal to decide."
+            return 1
+        fi
+    fi
+    if [ "$manager" = dnf ]; then $SUDO dnf "$@" -y; else $SUDO apt-get "$@" -y; fi
+}
+
 if [ "$DEPS" = 1 ]; then
     say "Build dependencies (sudo)"
     if command -v dnf >/dev/null; then
-        $SUDO dnf install -y git cmake gcc-c++ extra-cmake-modules 'dnf-command(builddep)' python3 \
-            poppler-utils qt6-qtmultimedia-devel qt6-qtsvg-devel kf6-frameworkintegration-devel ImageMagick
+        safe_pkgs dnf install git cmake gcc-c++ extra-cmake-modules 'dnf-command(builddep)' python3 \
+            poppler-utils qt6-qtmultimedia-devel qt6-qtsvg-devel kf6-frameworkintegration-devel ImageMagick || warn "some build tools were not installed"
         # ffmpeg is only a runtime helper, and ffmpeg-free conflicts with the RPM Fusion ffmpeg many people have
-        command -v ffmpeg >/dev/null || $SUDO dnf install -y ffmpeg-free || echo "ffmpeg not installed: video thumbnails in the preview may be missing"
-        $SUDO dnf builddep -y dolphin breeze || $SUDO dnf builddep -y dolphin plasma-breeze
-        want dialog && { $SUDO dnf builddep -y kf6-kio || warn "dialog: could not install the build dependencies of KIO"; }
+        command -v ffmpeg >/dev/null || safe_pkgs dnf install ffmpeg-free || echo "ffmpeg not installed: video thumbnails in the preview may be missing"
+        safe_pkgs dnf builddep dolphin breeze || safe_pkgs dnf builddep dolphin plasma-breeze || warn "the build dependencies of Dolphin and Breeze were not installed"
+        want dialog && { safe_pkgs dnf builddep kf6-kio || warn "dialog: could not install the build dependencies of KIO"; }
         if want effects; then
-            # what the two READMEs list for Fedora; the X11 session needs the X11 flavour of the KWin headers
-            $SUDO dnf install -y kwin-devel libepoxy-devel wayland-devel libdrm-devel plasma-workspace-devel libplasma-devel kdecoration-devel \
+            # what the two READMEs list for Fedora; the X11 session needs the X11 flavour of the KWin headers.
+            # (kwin-devel must match the installed KWin: if it needs a newer one, safe_pkgs stops here)
+            safe_pkgs dnf install kwin-devel libepoxy-devel wayland-devel libdrm-devel plasma-workspace-devel libplasma-devel kdecoration-devel \
                 qt6-qtbase-private-devel kf6-kwindowsystem-devel kf6-kconfigwidgets-devel kf6-kcmutils-devel kf6-ki18n-devel kf6-kio-devel \
                 kf6-kcrash-devel kf6-kguiaddons-devel kf6-kglobalaccel-devel kf6-knotifications-devel kf6-kdeclarative-devel || true
-            [ "$SESSION" = x11 ] && { $SUDO dnf install -y kwin-x11-devel || true; }
+            [ "$SESSION" = x11 ] && command -v kwin_x11 >/dev/null && { safe_pkgs dnf install kwin-x11-devel || true; }
         fi
     elif command -v apt-get >/dev/null; then
         $SUDO apt-get update
-        $SUDO apt-get install -y git cmake g++ extra-cmake-modules python3 poppler-utils qt6-multimedia-dev qt6-svg-dev imagemagick ffmpeg
-        if ! $SUDO apt-get build-dep -y dolphin breeze; then
+        safe_pkgs apt-get install git cmake g++ extra-cmake-modules python3 poppler-utils qt6-multimedia-dev qt6-svg-dev imagemagick ffmpeg || warn "some build tools were not installed"
+        if ! safe_pkgs apt-get build-dep dolphin breeze; then
             # "apt build-dep" reads the build dependencies from the source packages, and the list of sources is
             # off on a fresh Ubuntu or Debian: switch it on (it only adds the source index) and try again
             warn "the source repositories are off: enabling them (deb-src) to read the build dependencies"
@@ -315,25 +362,27 @@ if [ "$DEPS" = 1 ]; then
                 $SUDO sh -c "sed -n 's/^deb /deb-src /p' /etc/apt/sources.list >> /etc/apt/sources.list"
             fi
             $SUDO apt-get update
-            $SUDO apt-get build-dep -y dolphin breeze || die "apt could not install the build dependencies of dolphin and breeze (apt-get build-dep dolphin breeze)."
+            safe_pkgs apt-get build-dep dolphin breeze || die "the build dependencies of dolphin and breeze were not installed (apt-get build-dep dolphin breeze)."
         fi
-        want dialog && { $SUDO apt-get install -y qt6-base-dev-tools; $SUDO apt-get build-dep -y kf6-kio || $SUDO apt-get build-dep -y kio || warn "dialog: could not install the build dependencies of KIO"; }
+        want dialog && { safe_pkgs apt-get install qt6-base-dev-tools; safe_pkgs apt-get build-dep kf6-kio || safe_pkgs apt-get build-dep kio || warn "dialog: could not install the build dependencies of KIO"; }
         if want effects; then
-            $SUDO apt-get install -y kwin-dev qt6-base-private-dev qt6-base-dev-tools qt6-tools-dev libkf6kcmutils-dev libkf6configwidgets-dev libdrm-dev \
+            safe_pkgs apt-get install kwin-dev qt6-base-private-dev qt6-base-dev-tools qt6-tools-dev libkf6kcmutils-dev libkf6configwidgets-dev libdrm-dev \
                 gettext libkf6crash-dev libkf6globalaccel-dev libkf6kio-dev libkf6service-dev libkf6notifications-dev || true
-            [ "$SESSION" = x11 ] && { $SUDO apt-get install -y kwin-x11-dev || true; }
+            [ "$SESSION" = x11 ] && command -v kwin_x11 >/dev/null && { safe_pkgs apt-get install kwin-x11-dev || true; }
         fi
     elif command -v pacman >/dev/null; then
         # Arch has no "build-dep", but its packages carry their headers: installing Dolphin and Breeze themselves
         # brings every library they are built on. The rest are the tools and the few build-only libraries.
-        $SUDO pacman -Sy --needed --noconfirm git cmake base-devel extra-cmake-modules kdoctools qt6-tools python poppler qt6-multimedia qt6-svg imagemagick ffmpeg \
+        # No "-Sy": refreshing the package lists without upgrading is a partial upgrade, which can break the desktop.
+        # If a package is not found, update the system first (sudo pacman -Syu) and run this again.
+        $SUDO pacman -S --needed --noconfirm git cmake base-devel extra-cmake-modules kdoctools qt6-tools python poppler qt6-multimedia qt6-svg imagemagick ffmpeg \
             dolphin breeze \
             kio kxmlgui kparts knewstuff kcmutils baloo baloo-widgets kfilemetadata kuserfeedback phonon-qt6 ktextwidgets kcompletion kcodecs kcrash kdbusaddons \
             kbookmarks knotifications solid kwidgetsaddons kitemviews kjobwidgets kservice ktexteditor kwallet plasma-activities packagekit-qt6 \
             kdecoration kwindowsystem kconfigwidgets kguiaddons ki18n kiconthemes kcoreaddons kcolorscheme frameworkintegration kirigami
         if want effects; then
             $SUDO pacman -S --needed --noconfirm qt6-tools vulkan-headers kwin || true
-            [ "$SESSION" = x11 ] && { $SUDO pacman -S --needed --noconfirm kwin-x11 || true; }
+            [ "$SESSION" = x11 ] && command -v kwin_x11 >/dev/null && { $SUDO pacman -S --needed --noconfirm kwin-x11 || true; }
         fi
     elif command -v zypper >/dev/null; then
         $SUDO zypper install -y git cmake gcc-c++ extra-cmake-modules python3 poppler-tools qt6-multimedia-devel qt6-svg-devel ImageMagick ffmpeg

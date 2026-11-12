@@ -2,7 +2,7 @@
 # Breeze NG: a fork of KDE's Breeze widget style and window decoration with two looks, Soft and Glass.
 #   ./ng/breeze-ng build          configure, build and install into ~/.local/breeze-ng (needs the Breeze build deps)
 #   ./ng/breeze-ng env            make the plugins visible to the session (QT_PLUGIN_PATH; log out and in once)
-#   ./ng/breeze-ng now            same, for the running session: restarts KWin and Plasma with the path (X11)
+#   ./ng/breeze-ng now            same, for the running session: restarts Plasma (and KWin on X11) with the path
 #   ./ng/breeze-ng themes         install the two global themes (System Settings > Global Theme)
 #   ./ng/breeze-ng use soft|glass select the look: widget style, window decoration, colours; applies at once
 #   ./ng/breeze-ng off            back to the stock Breeze
@@ -21,7 +21,8 @@ reload() {
     # the style re-reads breezengrc on this signal; KWin re-reads kwinrc on reconfigure
     dbus-send --session --type=signal /BreezeStyle org.kde.Breeze.Style.reparseConfiguration 2>/dev/null || true
     dbus-send --session --type=signal /KGlobalSettings org.kde.KGlobalSettings.notifyChange int32:2 int32:0 2>/dev/null || true
-    qdbus org.kde.KWin /KWin reconfigure 2>/dev/null || true
+    # (dbus-send, not qdbus: on some distributions "qdbus" is the old Qt 4 tool and qdbus6 is missing)
+    dbus-send --session --type=method_call --dest=org.kde.KWin /KWin org.kde.KWin.reconfigure 2>/dev/null || true
 }
 
 case "$1" in
@@ -53,11 +54,14 @@ now)
     export QT_PLUGIN_PATH="$PLUGINS${QT_PLUGIN_PATH:+:$QT_PLUGIN_PATH}"
     systemctl --user set-environment "QT_PLUGIN_PATH=$QT_PLUGIN_PATH" 2>/dev/null || true
     dbus-update-activation-environment --systemd "QT_PLUGIN_PATH=$QT_PLUGIN_PATH" 2>/dev/null || dbus-update-activation-environment "QT_PLUGIN_PATH=$QT_PLUGIN_PATH" 2>/dev/null || true
-    if [ "${XDG_SESSION_TYPE:-x11}" = "x11" ]; then
+    # KWin can be replaced in place only on X11 (and Plasma 6.8 has no X11 session any more)
+    session="${XDG_SESSION_TYPE:-}"
+    [ -n "$session" ] || { [ -n "${WAYLAND_DISPLAY:-}" ] && session=wayland || session=x11; }
+    if [ "$session" = x11 ] && command -v kwin_x11 >/dev/null; then
         (setsid kwin_x11 --replace >/dev/null 2>&1 &)
         sleep 2
     else
-        echo "Wayland: KWin cannot be replaced in place; the decoration arrives after logging out and in." >&2
+        echo "Wayland: KWin cannot be replaced in place; the window decoration arrives after logging out and in." >&2
     fi
     (kquitapp6 plasmashell 2>/dev/null; sleep 1; setsid plasmashell >/dev/null 2>&1 &)
     echo "==> done. Applications opened from now on get the style; those already open keep theirs until restarted."
