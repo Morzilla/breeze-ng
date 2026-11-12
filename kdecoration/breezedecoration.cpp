@@ -243,7 +243,11 @@ bool Decoration::init()
     connect(window(), &KDecoration3::DecoratedWindow::adjacentScreenEdgesChanged, this, &Decoration::updateTitleBar);
     connect(window(), &KDecoration3::DecoratedWindow::widthChanged, this, &Decoration::updateTitleBar);
     connect(window(), &KDecoration3::DecoratedWindow::maximizedChanged, this, &Decoration::updateTitleBar);
-    connect(window(), &KDecoration3::DecoratedWindow::maximizedChanged, this, &Decoration::setOpaque);
+    // a maximized decoration is opaque, so KWin need not paint what is behind it. Breeze NG Glass: never, its title
+    // bar stays translucent; declared opaque, what was behind it last (old buttons, cursors) shows through in trails
+    connect(window(), &KDecoration3::DecoratedWindow::maximizedChanged, this, [this](bool maximized) {
+        setOpaque(maximized && !m_ngGlass);
+    });
 
     connect(window(), &KDecoration3::DecoratedWindow::widthChanged, this, &Decoration::updateButtonsGeometry);
     connect(window(), &KDecoration3::DecoratedWindow::maximizedChanged, this, &Decoration::updateButtonsGeometry);
@@ -391,6 +395,7 @@ void Decoration::reconfigure()
 {
     m_internalSettings = SettingsProvider::self()->internalSettings(this);
     m_ngGlass = ngGlass();
+    setOpaque(isMaximized() && !m_ngGlass); // (the look may have changed: Glass is never opaque)
 
     setScaledCornerRadius();
 
