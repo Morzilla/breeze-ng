@@ -1,4 +1,5 @@
 #!/bin/bash
+# SPDX-License-Identifier: GPL-2.0-or-later
 # Breeze NG: a fork of KDE's Breeze widget style and window decoration with two looks, Soft and Glass.
 #   ./ng/breeze-ng build          configure, build and install into ~/.local/breeze-ng (needs the Breeze build deps)
 #   ./ng/breeze-ng env            make the plugins visible to the session (QT_PLUGIN_PATH; log out and in once)

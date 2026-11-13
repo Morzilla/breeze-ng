@@ -118,5 +118,39 @@ a widget style. Applications that bundle their own Qt (Telegram) or are not Qt a
 
 `BREEZE_NG_DEBUG=1` prints a trace of the button-to-menu joining logic.
 
-Breeze NG is GPL-2.0-or-later, like Breeze. The Soft and Glass work is by Morzilla; the mockups it follows are
-in the repository history of the sibling project [dolphin-ng](https://github.com/Morzilla/dolphin-ng).
+## What the installers change on your system
+
+- **Build dependencies** are installed with your distribution's package manager. That step asks for root (sudo, or
+  pkexec in the graphical installer) and is the only one that runs as root.
+- **Sources** go into `~/.local/src`, and **everything is installed into `~/.local`**, next to the stock Breeze and
+  Dolphin, which stay as they are. Nothing of your distribution is overwritten.
+- **Applying a look** (only if you choose it) changes the widget style, window decoration, colours and icons of your
+  session; `./ng/breeze-ng off` goes back to Breeze.
+- **The two optional KWin effects** (off unless you tick them) are the one exception: they are built from their own
+  repositories and installed system-wide, under `/usr`.
+- `install-system.sh` (for every user of the computer) is the other exception, by design: it copies into `/opt/ng`,
+  `/usr/local/share` and one file in `/etc/xdg`, and `--uninstall` removes them.
+
+## Licence
+
+Breeze NG is an independent fork of KDE's [Breeze](https://invent.kde.org/plasma/breeze) and keeps its licences.
+Every file states its own in an SPDX header, and the full texts are in [`LICENSES/`](LICENSES/):
+
+| What | Licence |
+|---|---|
+| The widget style and the window decoration (`kstyle/`, `kdecoration/`), as in Breeze | mostly GPL-2.0-or-later; a few files GPL-2.0-only OR GPL-3.0-only OR a later version accepted by KDE e.V., or MIT, as they came from Breeze |
+| The Soft and Glass work, by Morzilla | the licence of the file it is in; new files GPL-2.0-or-later |
+| `ng/breeze-ng`, the global themes and the colour scheme | GPL-2.0-or-later |
+| The installers (`ng/install-gui.sh`, `install-gui.py`, `install-desktop.sh`, `install-system.sh`) | MIT |
+
+The installers build other projects, each under its own licence: Dolphin NG (GPL-2.0-or-later, a fork of Dolphin),
+the NeoLine icons (MIT), Dialog NG (LGPL-2.0-or-later, a patch on KDE's KIO), and, only if you choose them, Better Blur DX and KDE
+Rounded Corners (both GPL-3.0, external projects not written or maintained here). `ng/install-desktop.sh --licence`
+prints all the notices.
+
+Breeze NG, Dolphin NG and Dialog NG are not affiliated with or endorsed by KDE e.V.; "KDE", "Plasma", "Dolphin" and
+"Breeze" are names and trademarks of their respective owners. The software comes with no warranty of any kind, as
+the GPL and MIT licences say.
+
+The mockups the Soft and Glass work follows are in the repository history of the sibling project
+[dolphin-ng](https://github.com/Morzilla/dolphin-ng).
