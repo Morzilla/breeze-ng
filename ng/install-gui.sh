@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: MIT
 # Copyright (c) 2026 Morzilla
 #
-# Starts the graphical installer of the NG desktop (Dolphin NG, Breeze NG, NeoLine).
+# Starts the graphical installer of the NG desktop (Dolphin NG, Breeze NG, NeoLine, Dialog NG).
 #
 #   ng/install-gui.sh              from a clone of breeze-ng
 #   bash <(curl -fsSL https://raw.githubusercontent.com/Morzilla/breeze-ng/ng/ng/install-gui.sh)
