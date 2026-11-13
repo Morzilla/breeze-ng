@@ -25,9 +25,9 @@ Both looks share: no separator lines anywhere, menus with padded rounded panels 
 current item, tabs that are one sheet with their panel, a neon glow inside fields and buttons that have the focus,
 and a menu opened from a button that joins it into one shape.
 
-![Dolphin NG and, on the right, a small demo window with the common controls in Breeze NG Soft (ng/demo-controls.py)](ng/screenshots/01-desktop.png)
+![Dolphin NG and, on the right, a small demo window with the common controls in Breeze NG Soft (ng/demo-controls.py)](ng/screenshots/desktop.png)
 
-![Dolphin NG in Breeze NG, its glass sidebar showing the compositor's blur of the desktop](ng/screenshots/05-dolphin-live-blur.png)
+![Dolphin NG in Breeze NG, its glass sidebar showing the compositor's blur of the desktop](ng/screenshots/dolphin-live-blur.png)
 
 ## Part of the NG desktop
 
@@ -94,7 +94,7 @@ them, refer to their repositories.
 
 | What to install | Choose a look |
 |---|---|
-| <img src="ng/screenshots/07-installer-parts.png" width="420" alt="The graphical installer: the parts to install"> | <img src="ng/screenshots/06-installer.png" width="420" alt="The graphical installer: choosing the look and the icons"> |
+| <img src="ng/screenshots/installer-parts.png" width="420" alt="The graphical installer: the parts to install"> | <img src="ng/screenshots/installer-look.png" width="420" alt="The graphical installer: choosing the look and the icons"> |
 
 `ng/demo-controls.py` opens the small window of the first screenshot, with the common controls, to see the style at a
 glance.
