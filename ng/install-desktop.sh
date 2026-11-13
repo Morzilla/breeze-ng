@@ -486,9 +486,51 @@ part() { # title, log name, command...: runs it, keeps the full output in a log,
     printf '%s\t%s\n' "$title" "$(issue_url "$title" "$log")" >> "$LOGS/issues.txt"
     return 1
 }
+# Before building a part: are its development files there? When the dependency step was skipped (it does not install
+# anything that would upgrade the running desktop: the system is not fully up to date) or failed, the build would stop
+# much later with a cryptic CMake error. Then the part stops here and says what is missing and what to do.
+missing_cmake() { # CMake package names: prints those not found on the system
+    local name dir found
+    for name in "$@"; do
+        found=0
+        for dir in /usr/lib64/cmake /usr/lib/cmake /usr/lib/*/cmake /usr/share/cmake /usr/local/lib64/cmake /usr/local/lib/cmake; do
+            [ -d "$dir/$name" ] && { found=1; break; }
+        done
+        [ "$found" = 1 ] || printf '%s ' "$name"
+    done
+}
+update_command() {
+    if command -v dnf >/dev/null; then echo "sudo dnf upgrade --refresh"
+    elif command -v apt-get >/dev/null; then echo "sudo apt update && sudo apt full-upgrade"
+    elif command -v pacman >/dev/null; then echo "sudo pacman -Syu"
+    elif command -v zypper >/dev/null; then echo "sudo zypper dup"
+    else echo "your distribution's system update"; fi
+}
+ready() { # title, log name, CMake package names: true when they are all there; otherwise the part fails with the reason
+    local title="$1" log="$LOGS/$2.log" miss
+    shift 2
+    miss=$(missing_cmake "$@")
+    [ -z "$miss" ] && return 0
+    {
+        echo "Missing development files: ${miss% }"
+        echo
+        echo "The build dependencies were not installed. Most often the dependency step skipped them on purpose: installing"
+        echo "them would also have upgraded parts of the running desktop (Plasma, KDE Frameworks, Qt), which happens when"
+        echo "the system is not fully up to date. Update it, restart, and run the installer again:"
+        echo
+        echo "    $(update_command)"
+    } > "$log"
+    printf '%s' "$RE"; sed 's/^/    /' "$log"; printf '%s' "$R"
+    warn "$title was not built: its development files are missing (see above)."
+    FAILED+=("$title   log: $log")
+    printf '%s\t%s\n' "$title" "$(issue_url "$title" "$log")" >> "$LOGS/issues.txt"
+    return 1
+}
+
 if want dolphin; then
     say "Dolphin NG (the longest part: several minutes)"
-    if part "Dolphin NG" dolphin-ng bash -c "$(declare -f fetch ok); SRC='$SRC'; GR='' R=''; fetch dolphin-ng ng && bash '$SRC/dolphin-ng/ng/install.sh' --no-deps --no-theme"; then
+    if ready "Dolphin NG" dolphin-ng KF6KIO KF6Parts KF6NewStuff KF6TextWidgets KF6KCMUtils KF6Bookmarks KF6Notifications \
+        && part "Dolphin NG" dolphin-ng bash -c "$(declare -f fetch ok); SRC='$SRC'; GR='' R=''; fetch dolphin-ng ng && bash '$SRC/dolphin-ng/ng/install.sh' --no-deps --no-theme"; then
         ok "Dolphin NG installed"
         DONE+=("Dolphin NG   start it from the menu or with: dolphin-ng   (cards view: Ctrl+4)")
     fi
@@ -496,7 +538,8 @@ fi
 if want breeze; then
     say "Breeze NG"
     [ "$BREEZE" = "$SRC/breeze-ng" ] && fetch breeze-ng ng
-    if part "Breeze NG" breeze-ng bash -c "'$BREEZE/ng/breeze-ng' build && '$BREEZE/ng/breeze-ng' env"; then
+    if ready "Breeze NG" breeze-ng KDecoration3 KF6FrameworkIntegration KF6KCMUtils KF6ColorScheme \
+        && part "Breeze NG" breeze-ng bash -c "'$BREEZE/ng/breeze-ng' build && '$BREEZE/ng/breeze-ng' env"; then
         ok "Breeze NG installed"
         DONE+=("Breeze NG    log out and in once, then System Settings > Global Theme > Breeze NG Soft / Glass")
         DONE+=("             or: $BREEZE/ng/breeze-ng use soft|glass   (without logging out: ... now)")
@@ -512,7 +555,8 @@ fi
 
 if want dialog; then
     say "Dialog NG (builds one KIO library: a few minutes)"
-    if part "Dialog NG" dialog-ng bash -c "$(declare -f fetch ok); SRC='$SRC'; GR='' R=''; fetch dialog-ng main && JOBS='$JOBS' SRC='$SRC/dialog-ng-src' '$SRC/dialog-ng/dialog-ng' build && '$SRC/dialog-ng/dialog-ng' on"; then
+    if ready "Dialog NG" dialog-ng KF6KIO KF6Service KF6ItemViews KF6JobWidgets \
+        && part "Dialog NG" dialog-ng bash -c "$(declare -f fetch ok); SRC='$SRC'; GR='' R=''; fetch dialog-ng main && JOBS='$JOBS' SRC='$SRC/dialog-ng-src' '$SRC/dialog-ng/dialog-ng' build && '$SRC/dialog-ng/dialog-ng' on"; then
         ok "Dialog NG installed"
         DONE+=("Dialog NG    active from the next login in every KDE app's file dialog; off with: $SRC/dialog-ng/dialog-ng off")
         DONE+=("             after an update of KDE Frameworks the stock dialog is back until: $SRC/dialog-ng/dialog-ng build")
