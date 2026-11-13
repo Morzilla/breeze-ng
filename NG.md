@@ -40,13 +40,16 @@ and a menu opened from a button that joins it into one shape.
 
 - `kstyle/` – the widget style, plugin key `BreezeNG`
 - `kdecoration/` – the KWin decoration `org.kde.breezeng`, themes `Breeze NG Soft` and `Breeze NG Glass`
-- `ng/breeze-ng` – build, install and switch script
-- `ng/look-and-feel/` – the two global themes (System Settings › Global Theme)
-- `ng/color-schemes/BreezeNG.colors` – the colour scheme both looks were designed on
+- [`ng/breeze-ng`](ng/breeze-ng) – build, install and switch script
+- [`ng/look-and-feel/`](ng/look-and-feel/) – the two global themes (System Settings › Global Theme)
+- [`ng/color-schemes/BreezeNG.colors`](ng/color-schemes/BreezeNG.colors) – the colour scheme both looks were designed on
+- [`ng/demo-controls.py`](ng/demo-controls.py) – a small window with the common controls, to see the style at a glance
+
+The installers keep the sources in `~/.local/src/breeze-ng`, so the commands below use that path.
 
 ## Settings
 
-System Settings › Appearance › Application Style › Breeze NG › Configure (or `./ng/breeze-ng settings`) opens the
+System Settings › Appearance › Application Style › Breeze NG › Configure (or `~/.local/src/breeze-ng/ng/breeze-ng settings`) opens the
 settings of the style, in pages:
 
 - **Look** – Soft or Glass; choosing one also applies the Breeze NG window decoration and the BreezeNG colour
@@ -62,9 +65,17 @@ Everything is stored in `breezengrc`. The variant follows the decoration theme c
 `Breeze NG Glass`), which is what the global themes and the Look page set; `[Common] Variant=Soft|Glass` is the
 fallback.
 
+<img src="ng/screenshots/settings-look.png" width="640" alt="Breeze NG settings: Look (Soft or Glass, with the decoration and the colour scheme)">
+
+| Transparency | Controls and animations |
+|---|---|
+| <img src="ng/screenshots/settings-transparency.png" width="400" alt="Breeze NG settings: Transparency, with a live preview"> | <img src="ng/screenshots/settings-controls.png" width="400" alt="Breeze NG settings: Controls and animations"> |
+| **Windows** | **KWin effects** |
+| <img src="ng/screenshots/settings-windows.png" width="400" alt="Breeze NG settings: Windows"> | <img src="ng/screenshots/settings-effects.png" width="400" alt="Breeze NG settings: whether the two external KWin effects are installed and on"> |
+
 ## Everything at once
 
-`ng/install-desktop.sh` installs the whole desktop this style belongs to: [Dolphin NG](https://github.com/Morzilla/dolphin-ng),
+[`ng/install-desktop.sh`](ng/install-desktop.sh) installs the whole desktop this style belongs to: [Dolphin NG](https://github.com/Morzilla/dolphin-ng),
 Breeze NG, the [NeoLine icons](https://github.com/Morzilla/neoline-icons) and the [NG file dialog](https://github.com/Morzilla/dialog-ng), dependencies included. It asks what to
 install and whether to switch the desktop to it; `--yes` runs it without questions, `--help` lists the options,
 `--licence` prints the notices (the installer is MIT; Breeze NG and Dolphin NG stay GPL).
@@ -96,22 +107,24 @@ them, refer to their repositories.
 |---|---|
 | <img src="ng/screenshots/installer-parts.png" width="420" alt="The graphical installer: the parts to install"> | <img src="ng/screenshots/installer-look.png" width="420" alt="The graphical installer: choosing the look and the icons"> |
 
-`ng/demo-controls.py` opens the small window of the first screenshot, with the common controls, to see the style at a
+`python3 ~/.local/src/breeze-ng/ng/demo-controls.py` opens the small window of the first screenshot, with the common controls, to see the style at a
 glance.
 
 ## Build and install
 
 Build dependencies are those of Breeze itself (`sudo dnf builddep breeze`, `sudo apt build-dep breeze`,
-`sudo pacman -S --needed base-devel extra-cmake-modules kdecoration kwindowsystem …`). Then:
+`sudo pacman -S --needed base-devel extra-cmake-modules kdecoration kwindowsystem …`). Then, with the sources where
+the installers keep them:
 
 ```
-./ng/breeze-ng build        # cmake + install into ~/.local/breeze-ng, plus the global themes
-./ng/breeze-ng env          # QT_PLUGIN_PATH for the session: log out and in once
-./ng/breeze-ng use glass    # or: use soft — style, decoration and colours, applied at once
-./ng/breeze-ng off          # back to Breeze
+git clone --branch ng https://github.com/Morzilla/breeze-ng.git ~/.local/src/breeze-ng
+~/.local/src/breeze-ng/ng/breeze-ng build        # cmake + install into ~/.local/breeze-ng, plus the global themes
+~/.local/src/breeze-ng/ng/breeze-ng env          # QT_PLUGIN_PATH for the session: log out and in once
+~/.local/src/breeze-ng/ng/breeze-ng use glass    # or: use soft — style, decoration and colours, applied at once
+~/.local/src/breeze-ng/ng/breeze-ng off          # back to Breeze
 ```
 
-`./ng/breeze-ng now` applies the plugin path to the running session without logging out (X11: it restarts KWin
+`~/.local/src/breeze-ng/ng/breeze-ng now` applies the plugin path to the running session without logging out (X11: it restarts KWin
 and Plasma). Applications already open keep their style until restarted. Choosing a global theme from System
 Settings also works: pick *Breeze NG Soft* or *Breeze NG Glass*.
 
@@ -130,10 +143,10 @@ a widget style. Applications that bundle their own Qt (Telegram) or are not Qt a
 - **Sources** go into `~/.local/src`, and **everything is installed into `~/.local`**, next to the stock Breeze and
   Dolphin, which stay as they are. Nothing of your distribution is overwritten.
 - **Applying a look** (only if you choose it) changes the widget style, window decoration, colours and icons of your
-  session; `./ng/breeze-ng off` goes back to Breeze.
+  session; `~/.local/src/breeze-ng/ng/breeze-ng off` goes back to Breeze.
 - **The two optional KWin effects** (off unless you tick them) are the one exception: they are built from their own
   repositories and installed system-wide, under `/usr`.
-- `install-system.sh` (for every user of the computer) is the other exception, by design: it copies into `/opt/ng`,
+- [`install-system.sh`](ng/install-system.sh) (for every user of the computer) is the other exception, by design: it copies into `/opt/ng`,
   `/usr/local/share` and one file in `/etc/xdg`, and `--uninstall` removes them.
 
 ## Licence
@@ -145,12 +158,12 @@ Every file states its own in an SPDX header, and the full texts are in [`LICENSE
 |---|---|
 | The widget style and the window decoration (`kstyle/`, `kdecoration/`), as in Breeze | mostly GPL-2.0-or-later; a few files GPL-2.0-only OR GPL-3.0-only OR a later version accepted by KDE e.V., or MIT, as they came from Breeze |
 | The Soft and Glass work, by Morzilla | the licence of the file it is in; new files GPL-2.0-or-later |
-| `ng/breeze-ng`, the global themes and the colour scheme | GPL-2.0-or-later |
-| The installers (`ng/install-gui.sh`, `install-gui.py`, `install-desktop.sh`, `install-system.sh`) | MIT |
+| [`ng/breeze-ng`](ng/breeze-ng), the global themes and the colour scheme | GPL-2.0-or-later |
+| The installers ([`ng/install-gui.sh`](ng/install-gui.sh), [`install-gui.py`](ng/install-gui.py), [`install-desktop.sh`](ng/install-desktop.sh), [`install-system.sh`](ng/install-system.sh)) | MIT |
 
 The installers build other projects, each under its own licence: Dolphin NG (GPL-2.0-or-later, a fork of Dolphin),
 the NeoLine icons (MIT), Dialog NG (LGPL-2.0-or-later, a patch on KDE's KIO), and, only if you choose them, Better Blur DX and KDE
-Rounded Corners (both GPL-3.0, external projects not written or maintained here). `ng/install-desktop.sh --licence`
+Rounded Corners (both GPL-3.0, external projects not written or maintained here). `bash ~/.local/src/breeze-ng/ng/install-desktop.sh --licence`
 prints all the notices.
 
 Breeze NG, Dolphin NG and Dialog NG are not affiliated with or endorsed by KDE e.V.; "KDE", "Plasma", "Dolphin" and
