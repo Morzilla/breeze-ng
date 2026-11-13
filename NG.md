@@ -6,6 +6,14 @@ A fork of KDE's [Breeze](https://invent.kde.org/plasma/breeze) widget style and 
 that go further than the original: **Soft** and **Glass**. It installs next to the stock Breeze, under its own
 names, and leaves it untouched.
 
+**Try it with the graphical installer: [what it does, step by step](#everything-at-once).** Pick the parts of the NG
+desktop (Breeze NG, [Dolphin NG](https://github.com/Morzilla/dolphin-ng), the NeoLine icons, Dialog NG), pick a look,
+and watch it build. Everything goes into your home folder, next to the stock applications, and nothing is replaced:
+
+```sh
+bash <(curl -fsSL https://raw.githubusercontent.com/Morzilla/breeze-ng/ng/ng/install-gui.sh)
+```
+
 | | Soft | Glass |
 |---|---|---|
 | surfaces | told apart by tone, no outlines at rest | translucent sheets the compositor blurs behind |
@@ -23,9 +31,9 @@ and a menu opened from a button that joins it into one shape.
 
 ## Part of the NG desktop
 
-- [Dolphin NG](https://github.com/Morzilla/dolphin-ng) – the file manager with cards view, glass sidebar and quick actions ([KDE Store](https://store.kde.org/p/2381561/))
+- [Dolphin NG](https://github.com/Morzilla/dolphin-ng) – the file manager with cards and drawn rows, groups and filters one click away, quick actions and work in progress shown on the files ([KDE Store](https://store.kde.org/p/2381561/))
 - [NeoLine](https://github.com/Morzilla/neoline-icons) – the outline icon theme in the screenshots ([KDE Store](https://store.kde.org/p/2381562/))
-- [Dialog NG](https://github.com/Morzilla/dialog-ng) – KDE's file dialog with quick filters by kind of file and a roomier places sidebar
+- [Dialog NG](https://github.com/Morzilla/dialog-ng) – the Open/Save window of every KDE app in Dolphin NG's look: drawn rows, a quick preview on hover, filters with their counts, the glass sidebar
 - Breeze NG on the KDE Store: https://store.kde.org/p/2381557/
 
 ## Parts
