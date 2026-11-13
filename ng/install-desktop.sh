@@ -385,8 +385,25 @@ if [ "$DEPS" = 1 ]; then
             [ "$SESSION" = x11 ] && command -v kwin_x11 >/dev/null && { $SUDO pacman -S --needed --noconfirm kwin-x11 || true; }
         fi
     elif command -v zypper >/dev/null; then
-        $SUDO zypper install -y git cmake gcc-c++ extra-cmake-modules python3 poppler-tools qt6-multimedia-devel qt6-svg-devel ImageMagick ffmpeg
-        $SUDO zypper source-install --build-deps-only dolphin breeze6-style || true
+        $SUDO zypper install -y git cmake gcc-c++ extra-cmake-modules python3 poppler-tools qt6-multimedia-devel qt6-svg-devel ImageMagick ffmpeg \
+            || warn "some build tools were not installed"
+        # what the CMakeLists of Dolphin and Breeze ask for, as cmake() capabilities: "zypper source-install" would need the
+        # source repositories, which are off by default
+        $SUDO zypper install -y 'cmake(Qt6Core)' 'cmake(Qt6Concurrent)' 'cmake(Qt6Widgets)' 'cmake(Qt6Gui)' 'cmake(Qt6DBus)' \
+            'cmake(Qt6GuiPrivate)' 'cmake(Qt6Multimedia)' 'cmake(Qt6MultimediaWidgets)' 'cmake(Qt6Quick)' 'cmake(Qt6Svg)' \
+            'cmake(KF6KCMUtils)' 'cmake(KF6NewStuff)' 'cmake(KF6CoreAddons)' 'cmake(KF6I18n)' 'cmake(KF6DBusAddons)' 'cmake(KF6Bookmarks)' \
+            'cmake(KF6Config)' 'cmake(KF6KIO)' 'cmake(KF6Parts)' 'cmake(KF6Solid)' 'cmake(KF6IconThemes)' 'cmake(KF6Completion)' \
+            'cmake(KF6TextWidgets)' 'cmake(KF6Notifications)' 'cmake(KF6Crash)' 'cmake(KF6WindowSystem)' 'cmake(KF6WidgetsAddons)' \
+            'cmake(KF6Codecs)' 'cmake(KF6GuiAddons)' 'cmake(KF6ColorScheme)' 'cmake(KF6FileMetaData)' 'cmake(KF6Baloo)' 'cmake(KF6BalooWidgets)' \
+            'cmake(KF6FrameworkIntegration)' 'cmake(KDecoration3)' \
+            || die "the build dependencies of Dolphin and Breeze were not installed (see above)."
+        for optional in 'cmake(KF6DocTools)' 'cmake(KF6UserFeedback)' 'cmake(PackageKitQt6)'; do
+            $SUDO zypper install -y "$optional" || true
+        done
+        # the KIO library of Dialog NG
+        want dialog && { $SUDO zypper install -y 'cmake(Qt6Network)' 'cmake(Qt6Xml)' 'cmake(Qt6Test)' 'cmake(KF6KDED)' 'cmake(KF6Service)' \
+            'cmake(KF6ItemViews)' 'cmake(KF6JobWidgets)' 'cmake(KF6DocTools)' 'pkgconfig(mount)' libacl-devel \
+            || warn "dialog: could not install the build dependencies of KIO"; }
         want effects && warn "effects: install the KWin development packages listed in the two projects' READMEs if the build fails"
     else
         die "No known package manager (dnf, apt, pacman, zypper): install the build dependencies of Dolphin and Breeze by hand, then use --no-deps."

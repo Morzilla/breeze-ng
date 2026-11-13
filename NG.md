@@ -88,6 +88,12 @@ bash <(curl -fsSL https://raw.githubusercontent.com/Morzilla/breeze-ng/ng/ng/ins
 The graphical installer is a small wizard: pick the parts, pick a look (Classic, Soft or Glass), watch it build. It
 needs Python with PyQt6 or PySide6 and offers to install them; without them it falls back to the terminal one.
 
+Tested from a fresh install, as a normal user with sudo, in November 2026, with the parts it picks by default
+(Dolphin NG, Breeze NG, NeoLine, Dialog NG): Fedora 44, Arch, openSUSE Tumbleweed, Debian sid and Ubuntu 26.10 all
+build, install, and open the wizard. On Debian and Ubuntu it switches on the source repositories (deb-src) to read
+the build dependencies of Breeze and KIO, and says so. They need KDE Frameworks 6.23 or newer, so older releases
+(Debian stable, Ubuntu LTS) cannot build them yet.
+
 For every user of the computer instead of only yourself, there is a third script. It builds as you and copies into
 the system with sudo: the style and Dolphin NG under `/opt/ng`, icons, colour scheme and global themes under
 `/usr/local/share`, and one file in `/etc/xdg/plasma-workspace/env` that tells every Plasma session where the style
