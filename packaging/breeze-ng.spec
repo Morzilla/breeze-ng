@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: GPL-2.0-or-later
-%global commit      c65b3a952d0857306a15e3eea1e34b673c6bd880
+%global commit      f8df1b28c38a0bc8e729f60da06205921a2a5c99
 %global shortcommit %(c=%{commit}; echo ${c:0:7})
-%global snapdate    202611140926
+%global snapdate    202611141032
 # snapdate: date and time of the commit (YYYYMMDDHHMM), so that two snapshots of one day sort in order
 # installed apart from the system, next to Fedora's own Breeze
 %global ngprefix    /opt/ng/breeze-ng
@@ -88,6 +88,9 @@ done
 %{_qt6_plugindir}/org.kde.kdecoration3.kcm/kcm_breezengdecoration.so
 
 %changelog
+* Sat Nov 14 2026 Morzilla <3956663+Morzilla@users.noreply.github.com> - 6.7.5^202611141032gitf8df1b2-1
+- Joined menus on Wayland are anchored to the button's rectangle: exactly lined up
+
 * Sat Nov 14 2026 Morzilla <3956663+Morzilla@users.noreply.github.com> - 6.7.5^202611140926gitc65b3a9-1
 - A joined menu lines up with its button on Wayland (one pixel off before)
 - Snapshot versions carry the time of the commit, so builds of the same day sort right
