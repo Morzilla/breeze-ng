@@ -124,6 +124,11 @@ public:
     {
         return _aurora;
     }
+    //* the thin rims and lit top edges of Glass. Aurora has none: its surfaces are soft, as in Soft, only see-through
+    bool hasRims() const
+    {
+        return _glass && !_aurora;
+    }
     //* how opaque the sheet of a Glass window is (0-1): the setting, capped lower in Aurora
     qreal windowSheetAlpha() const;
     //* Aurora: the lights behind a window. windowRect is the whole window in the painter's coordinates, so that
@@ -135,6 +140,10 @@ public:
     //* Breeze NG: the sheet of a tab panel and of its current tab, a tone lifted from the window
     QColor tabPanelColor(const QPalette &palette) const
     {
+        if (_aurora) {
+            // Aurora: a veil, not a solid panel: the lights behind the window show through the tab pages too
+            return alphaColor(ink(palette), isDark(palette) ? 0.07 : 0.05);
+        }
         return KColorUtils::mix(palette.color(QPalette::Window), ink(palette), isDark(palette) ? 0.08 : 0.05);
     }
     //* Breeze NG: background of text fields

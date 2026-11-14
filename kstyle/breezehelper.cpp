@@ -224,7 +224,8 @@ void Helper::renderNgGlow(QPainter *painter, const QRectF &rect, const QColor &c
 qreal Helper::windowSheetAlpha() const
 {
     const int opacity = qBound(20, StyleConfigData::windowOpacity(), 100);
-    return (_aurora ? qMin(opacity, 52) : opacity) / 100.0;
+    // Aurora: more see-through; less so under a light scheme, where a dark desktop behind would turn the window grey
+    return (_aurora ? qMin(opacity, isDark(QApplication::palette()) ? 52 : 70) : opacity) / 100.0;
 }
 
 void Helper::renderAuroraLights(QPainter *painter, const QRectF &windowRect, const QPalette &palette) const
@@ -232,9 +233,13 @@ void Helper::renderAuroraLights(QPainter *painter, const QRectF &windowRect, con
     // three soft lights: the accent from the top left corner, a neighbouring hue from the top right, the accent again
     // from the bottom right. The window decoration draws the same two top ones in the title bar, from the same
     // centres (the top corners of the window's contents), so they run on without a seam.
-    const QColor accent = palette.color(QPalette::Active, QPalette::Highlight);
-    const qreal hue = accent.hslHueF() < 0 ? 0.58 : accent.hslHueF();
-    const QColor second = QColor::fromHslF(std::fmod(hue + 0.17, 1.0), qMin(1.0, accent.hslSaturationF() * 1.1 + 0.1), qBound(0.45, accent.lightnessF(), 0.70));
+    // lights, not paint: the hue of the accent, but always luminous (a scheme's highlight may be a dark blue, which
+    // would dim the window instead of lighting it)
+    const QColor highlight = palette.color(QPalette::Active, QPalette::Highlight);
+    const qreal hue = highlight.hslHueF() < 0 ? 0.58 : highlight.hslHueF();
+    const qreal saturation = qBound(0.60, highlight.hslSaturationF() * 1.4, 0.95);
+    const QColor accent = QColor::fromHslF(hue, saturation, 0.62);
+    const QColor second = QColor::fromHslF(std::fmod(hue + 0.17, 1.0), saturation, 0.64);
     const qreal strength = isDark(palette) ? 1.0 : 0.70;
     const qreal radius = qBound(260.0, windowRect.width() * 0.55, 620.0);
     auto light = [&](const QPointF &centre, qreal r, QColor colour, qreal alpha) {
@@ -353,13 +358,13 @@ void Helper::clearUnder(QPainter *painter, const QRectF &rect) const
 QColor Helper::inputBackground(const QPalette &palette) const
 {
     const QColor base = palette.color(QPalette::Base);
-    return isGlass() ? alphaColor(base, 0.62) : base;
+    return _aurora ? alphaColor(base, 0.40) : isGlass() ? alphaColor(base, 0.62) : base;
 }
 
 QColor Helper::frameOutlineColor(const QPalette &palette, bool mouseOver, bool hasFocus, qreal opacity, AnimationMode mode) const
 {
     // Breeze NG: Soft has no outline at rest; Glass has a faint edge of the ink colour
-    QColor outline = isGlass() ? alphaColor(ink(palette), 0.13) : QColor(0, 0, 0, 0);
+    QColor outline = hasRims() ? alphaColor(ink(palette), 0.13) : QColor(0, 0, 0, 0);
 
     // focus takes precedence over hover
     if (mode == AnimationFocus) {
@@ -1021,12 +1026,13 @@ void Helper::renderNgButtonFrame(QPainter *painter,
     }
 
     QColor edge(0, 0, 0, 0);
-    if (glass && (!flat || checked || hovered || down)) {
+    const bool rims = hasRims(); // Aurora: the fills of Glass, without its rims
+    if (rims && (!flat || checked || hovered || down)) {
         edge = alphaColor(inkColor, checked ? 0.26 : (hovered ? 0.22 : 0.14));
     }
     if (visualFocus) {
         // the glow below says it
-    } else if (penAnimation != AnimationData::OpacityInvalid && glass) {
+    } else if (penAnimation != AnimationData::OpacityInvalid && rims) {
         edge = KColorUtils::mix(edge, alphaColor(inkColor, 0.22), penAnimation);
     }
 
@@ -1073,7 +1079,7 @@ void Helper::renderNgButtonFrame(QPainter *painter,
     } else {
         path.addRoundedRect(frameRect, radius, radius);
     }
-    if (glass && !flat) {
+    if (rims && !flat) {
         // a sheet of glass: lighter towards the top
         QLinearGradient sheet(frameRect.topLeft(), frameRect.bottomLeft());
         sheet.setColorAt(0.0, alphaColor(inkColor, qMin(bg.alphaF() + 0.06, 0.5)));
@@ -1084,7 +1090,7 @@ void Helper::renderNgButtonFrame(QPainter *painter,
     }
     painter->setPen(edge.alpha() > 0 ? QPen(edge, PenWidth::Frame) : QPen(Qt::NoPen));
     painter->drawPath(path);
-    if (glass && !flat && !down) {
+    if (rims && !flat && !down) {
         // the bright hairline on the top edge, as on the panels
         painter->setClipPath(path);
         painter->setPen(QPen(alphaColor(inkColor, dark ? 0.16 : 0.5), 1));
@@ -1216,7 +1222,7 @@ void Helper::renderCheckBoxBackground(QPainter *painter,
 {
     // Breeze NG: Soft fills the box with a tone (the accent when checked); Glass with a sheet of ink and an edge
     {
-        const bool glass = isGlass();
+        const bool glass = hasRims(); // Aurora: as Soft
         const QColor inkColor = ink(palette);
         const qreal on = (state == CheckOn || state == CheckPartial) ? 1.0 : (state == CheckAnimated ? animation : 0.0);
         const QColor off = alphaColor(inkColor, glass ? 0.10 : 0.18); // an empty box must still read as a box
@@ -1398,7 +1404,7 @@ void Helper::renderRadioButtonBackground(QPainter *painter,
 {
     // Breeze NG: as the check box, round
     {
-        const bool glass = isGlass();
+        const bool glass = hasRims(); // Aurora: as Soft
         const QColor inkColor = ink(palette);
         const qreal on = state == RadioOn ? 1.0 : (state == RadioAnimated ? animation : 0.0);
         const QColor off = alphaColor(inkColor, glass ? 0.10 : 0.18); // an empty box must still read as a box
@@ -1810,9 +1816,9 @@ void Helper::renderStaticTabBarTab(QPainter *painter,
         const QRectF pill = frameRect.adjusted(2, 3, -2, -3);
         const qreal radius = pill.height() / 2.0;
         painter->setBrush(alphaColor(inkColor, alpha));
-        painter->setPen(selected ? QPen(alphaColor(inkColor, 0.22), PenWidth::Frame) : QPen(Qt::NoPen));
+        painter->setPen(selected && hasRims() ? QPen(alphaColor(inkColor, 0.22), PenWidth::Frame) : QPen(Qt::NoPen));
         painter->drawRoundedRect(pill, radius, radius);
-        if (selected) {
+        if (selected && hasRims()) {
             painter->setPen(QPen(alphaColor(inkColor, isDark(palette) ? 0.18 : 0.5), 1));
             painter->drawLine(QPointF(pill.left() + radius, pill.top() + 1.5), QPointF(pill.right() - radius, pill.top() + 1.5));
         }

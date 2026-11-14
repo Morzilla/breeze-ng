@@ -5257,7 +5257,7 @@ bool Style::drawPanelItemViewItemPrimitive(const QStyleOption *option, QPainter 
     if (_helper->isGlass() && !hasCustomBackground) {
         const QColor inkColor = _helper->ink(palette);
         color = _helper->alphaColor(inkColor, selected ? (mouseOver ? 0.21 : 0.16) : 0.07);
-        focusColor = _helper->alphaColor(inkColor, selected ? 0.22 : 0.0);
+        focusColor = _helper->alphaColor(inkColor, selected && _helper->hasRims() ? 0.22 : 0.0);
     } else if (sidePanel && !hasCustomBackground) {
         const QColor inkColor = _helper->ink(palette);
         color = _helper->alphaColor(inkColor, selected ? (mouseOver ? 0.15 : 0.11) : 0.06);

@@ -623,7 +623,7 @@ void Decoration::paint(QPainter *painter, const QRectF &repaintRegion)
         painter->setPen(Qt::NoPen);
         QColor frameColor = window()->color(window()->isActive() ? ColorGroup::Active : ColorGroup::Inactive, ColorRole::Frame);
         if (m_ngGlass) {
-            frameColor.setAlphaF(m_ngAurora ? 0.52 : 0.70); // Breeze NG
+            frameColor.setAlphaF(m_ngAurora && frameColor.lightnessF() < 0.5 ? 0.52 : 0.70); // Breeze NG
             painter->setCompositionMode(QPainter::CompositionMode_Source);
         }
         painter->setBrush(frameColor);
@@ -681,7 +681,7 @@ void Decoration::paintTitleBar(QPainter *painter, const QRectF &repaintRegion)
     const bool glass = m_ngGlass;
     QColor sheet = titleBarColor();
     if (glass) {
-        sheet.setAlphaF(m_ngAurora ? 0.52 : 0.70);
+        sheet.setAlphaF(m_ngAurora && sheet.lightnessF() < 0.5 ? 0.52 : 0.70);
         painter->setCompositionMode(QPainter::CompositionMode_Source);
     }
     backBrush = sheet;
@@ -733,9 +733,11 @@ void Decoration::paintTitleBar(QPainter *painter, const QRectF &repaintRegion)
             clip.setFillRule(Qt::WindingFill);
         }
         painter->setClipPath(clip.simplified());
-        const QColor accent = QGuiApplication::palette().color(QPalette::Active, QPalette::Highlight);
-        const qreal hue = accent.hslHueF() < 0 ? 0.58 : accent.hslHueF();
-        const QColor second = QColor::fromHslF(std::fmod(hue + 0.17, 1.0), qMin(1.0, accent.hslSaturationF() * 1.1 + 0.1), qBound(0.45, accent.lightnessF(), 0.70));
+        const QColor highlight = QGuiApplication::palette().color(QPalette::Active, QPalette::Highlight);
+        const qreal hue = highlight.hslHueF() < 0 ? 0.58 : highlight.hslHueF();
+        const qreal saturation = qBound(0.60, highlight.hslSaturationF() * 1.4, 0.95);
+        const QColor accent = QColor::fromHslF(hue, saturation, 0.62); // luminous, as in the widget style
+        const QColor second = QColor::fromHslF(std::fmod(hue + 0.17, 1.0), saturation, 0.64);
         const qreal strength = (titleBarColor().lightnessF() < 0.5 ? 1.0 : 0.70) * (window()->isActive() ? 1.0 : 0.6);
         const qreal radius = qBound(260.0, rect.width() * 0.55, 620.0);
         auto light = [&](const QPointF &centre, qreal r, QColor colour, qreal alpha) {
