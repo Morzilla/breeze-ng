@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: GPL-2.0-or-later
-%global commit      f1da5a9d3b24932ce3cd78b5089ed453a8699642
+%global commit      5d5757bc30541beeeed1ee0cf17b8a1749d22fdd
 %global shortcommit %(c=%{commit}; echo ${c:0:7})
-%global snapdate    202611141043
+%global snapdate    202611141143
 # snapdate: date and time of the commit (YYYYMMDDHHMM), so that two snapshots of one day sort in order
 # installed apart from the system, next to Fedora's own Breeze
 %global ngprefix    /opt/ng/breeze-ng
@@ -13,12 +13,15 @@ Name:           breeze-ng
 Version:        6.7.5^%{snapdate}git%{shortcommit}
 Release:        1%{?dist}
 Summary:        Breeze widget style and window decoration with two looks, Soft and Glass
-License:        GPL-2.0-or-later AND MIT
+License:        GPL-2.0-or-later AND MIT AND LGPL-2.0-or-later
 URL:            https://github.com/Morzilla/breeze-ng
 Source0:        %{url}/archive/%{commit}/breeze-ng-%{shortcommit}.tar.gz
 
 BuildRequires:  cmake
 BuildRequires:  qt6-rpm-macros
+# the Plasma styles are drawn from Plasma's default style
+BuildRequires:  libplasma
+BuildRequires:  python3
 BuildRequires:  extra-cmake-modules
 BuildRequires:  gcc-c++
 BuildRequires:  gettext
@@ -46,8 +49,12 @@ two looks: Soft (surfaces told apart by tone, no separator lines) and Glass
 %{ngprefix}, next to the stock Breeze, which stays untouched, with links
 to its plugins in Qt's plugin folder.
 
+It also brings two Plasma styles in the same looks, for what Plasma draws
+itself: the panel's popups, the launcher, their buttons, lists and fields.
+
 After installing, pick "Breeze NG Soft" or "Breeze NG Glass" in System
-Settings > Global Theme. Applications already open keep their old style
+Settings > Global Theme: it sets the widget style, the window decoration,
+the colours and the Plasma style together. Applications already open keep their old style
 until restarted.
 
 %prep
@@ -61,6 +68,10 @@ cmake --build build -j%{?_smp_build_ncpus}
 
 %install
 DESTDIR=%{buildroot} cmake --install build
+# the Plasma styles (panel popups, launcher, their buttons and lists), from Fedora's default style
+for v in soft glass; do
+    python3 ng/plasma-style/make-plasma-style.py $v %{buildroot}%{_datadir}/plasma/desktoptheme/breeze-ng-$v
+done
 install -Dm644 ng/color-schemes/BreezeNG.colors %{buildroot}%{_datadir}/color-schemes/BreezeNG.colors
 install -Dm644 kstyle/breezeng.themerc %{buildroot}%{_datadir}/kstyle/themes/breezeng.themerc
 mkdir -p %{buildroot}%{_datadir}/plasma/look-and-feel
@@ -82,12 +93,17 @@ done
 %{_datadir}/kstyle/themes/breezeng.themerc
 %{_datadir}/plasma/look-and-feel/org.morzilla.breezeng.soft
 %{_datadir}/plasma/look-and-feel/org.morzilla.breezeng.glass
+%{_datadir}/plasma/desktoptheme/breeze-ng-soft
+%{_datadir}/plasma/desktoptheme/breeze-ng-glass
 %{_qt6_plugindir}/styles/breezeng6.so
 %{_qt6_plugindir}/kstyle_config/breezengstyleconfig.so
 %{_qt6_plugindir}/org.kde.kdecoration3/org.kde.breezeng.so
 %{_qt6_plugindir}/org.kde.kdecoration3.kcm/kcm_breezengdecoration.so
 
 %changelog
+* Sat Nov 14 2026 Morzilla <3956663+Morzilla@users.noreply.github.com> - 6.7.5^202611141143git5d5757b-1
+- Plasma styles Breeze NG Soft and Glass, chosen by the global themes
+
 * Sat Nov 14 2026 Morzilla <3956663+Morzilla@users.noreply.github.com> - 6.7.5^202611141043gitf1da5a9-1
 - Radio button dot antialiased and centred
 
