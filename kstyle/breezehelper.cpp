@@ -413,6 +413,7 @@ void Helper::clearUnder(QPainter *painter, const QRectF &rect) const
             painter->fillRect(rect, panel);
         }
         painter->restore();
+        cutCorners(painter, widget);
         return;
     }
     const QColor sheet = glassSheet(painter);
@@ -423,6 +424,28 @@ void Helper::clearUnder(QPainter *painter, const QRectF &rect) const
     painter->setCompositionMode(QPainter::CompositionMode_Source);
     painter->setRenderHint(QPainter::Antialiasing, false);
     painter->fillRect(rect, sheet);
+    painter->restore();
+}
+
+void Helper::cutCorners(QPainter *painter, const QWidget *widget) const
+{
+    const QWidget *window = widget ? widget->window() : nullptr;
+    const int radius = window ? window->property("_breeze_ng_radius").toInt() : 0;
+    if (radius <= 0) {
+        return;
+    }
+    const QRectF frame(widget->mapFrom(window, QPoint(0, 0)), QSizeF(window->size()));
+    QPainterPath outside;
+    outside.addRect(frame);
+    QPainterPath shape;
+    shape.addRoundedRect(frame, radius, radius);
+    outside = outside.subtracted(shape);
+    painter->save();
+    painter->setRenderHint(QPainter::Antialiasing, true);
+    painter->setCompositionMode(QPainter::CompositionMode_DestinationOut);
+    painter->setPen(Qt::NoPen);
+    painter->setBrush(Qt::black);
+    painter->drawPath(outside);
     painter->restore();
 }
 

@@ -161,6 +161,10 @@ public:
     //* Breeze NG: fill the shape of a button (or menu bar title) joined to its open menu with the menu's sheet (see-through
     //* in Aurora, laid over the window's glass).
     void joinedFill(QPainter *painter, const QPainterPath &path, const QColor &sheet, const QPen &pen = QPen(Qt::NoPen)) const;
+    //* Breeze NG: a window without a frame that rounds its own corners (property "_breeze_ng_radius" on the window,
+    //* as Dolphin NG sets with its tabs in the title bar): take away what was painted outside the rounded shape.
+    //* `widget` is the widget being painted on (the window itself or a child).
+    void cutCorners(QPainter *painter, const QWidget *widget) const;
     //* Breeze NG: background of text fields
     QColor inputBackground(const QPalette &palette) const;
     //* Breeze NG: background and outline of a menu panel (`alpha`: the menu window has an alpha channel)

@@ -1768,6 +1768,7 @@ bool Style::drawWidgetPrimitive(const QStyleOption *option, QPainter *painter, c
             _helper->renderAuroraLights(painter, widget->rect(), widget->palette(), widget->isActiveWindow());
         }
         painter->restore();
+        _helper->cutCorners(painter, widget);
     }
 
     auto mw = qobject_cast<const QMainWindow *>(widget);
@@ -2298,6 +2299,7 @@ bool Style::eventFilter(QObject *object, QEvent *event)
                 painter.fillRect(widget->rect(), _helper->alphaColor(widget->palette().color(QPalette::Window), _helper->windowSheetAlpha()));
                 painter.setCompositionMode(QPainter::CompositionMode_SourceOver);
                 _helper->renderAuroraLights(&painter, widget->rect(), widget->palette(), widget->isActiveWindow());
+                _helper->cutCorners(&painter, widget);
                 return false;
             }
             painter.setCompositionMode(QPainter::CompositionMode_DestinationOver);
