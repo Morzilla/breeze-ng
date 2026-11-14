@@ -8344,6 +8344,12 @@ bool Style::drawTabBarTabShapeControl(const QStyleOption *option, QPainter *pain
         break;
     }
 
+    if (tabOption->documentMode && !isStatic && !isQtQuickControl) {
+        // Breeze NG: pills stand side by side, each in its own rectangle. The adjustments above tuck classic tabs
+        // under the current one (and the current one over its neighbours): pills overlapped by a few pixels.
+        rect = option->rect;
+    }
+
     QHash<QByteArray, bool> stateProperties;
     stateProperties["enabled"] = enabled;
     stateProperties["visualFocus"] = visualFocus;
