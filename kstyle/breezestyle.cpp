@@ -5694,7 +5694,10 @@ bool Style::drawPanelItemViewItemPrimitive(const QStyleOption *option, QPainter 
     // store flags
     const State &state(option->state);
     const bool mouseOver((state & State_MouseOver) && (!abstractItemView || abstractItemView->selectionMode() != QAbstractItemView::NoSelection));
-    const bool selected(state & State_Selected);
+    // (a view that gave itself a clear highlight colour draws its own selection, as the Places panel of Dolphin NG
+    // does, pill and slide: nothing of ours under it. Aurora takes its selection from the accent, not from the
+    // palette, and painted a second pill at once on the entry the panel's own was still sliding to.)
+    const bool selected((state & State_Selected) && palette.color(QPalette::Highlight).alpha() != 0);
     const bool enabled(state & State_Enabled);
     const bool active(state & State_Active);
 
