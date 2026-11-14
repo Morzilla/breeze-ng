@@ -241,15 +241,15 @@ void Helper::renderAuroraLights(QPainter *painter, const QRectF &windowRect, con
         QRadialGradient gradient(centre, r);
         colour.setAlphaF(alpha * strength);
         gradient.setColorAt(0.0, colour);
-        colour.setAlphaF(alpha * strength * 0.42);
+        colour.setAlphaF(alpha * strength * 0.46);
         gradient.setColorAt(0.45, colour);
         colour.setAlphaF(0.0);
         gradient.setColorAt(1.0, colour);
         painter->fillRect(windowRect, gradient);
     };
-    light(windowRect.topLeft(), radius, accent, 0.34);
-    light(windowRect.topRight(), radius * 0.8, second, 0.22);
-    light(windowRect.bottomRight(), radius * 0.9, accent, 0.20);
+    light(windowRect.topLeft(), radius, accent, 0.52);
+    light(windowRect.topRight(), radius * 0.8, second, 0.36);
+    light(windowRect.bottomRight(), radius * 0.9, accent, 0.32);
 }
 
 bool Helper::glassLayers(const QPainter *painter, QColor *base, QList<QColor> *panels, const QWidget **widgetOut, const QWidget **windowOut) const

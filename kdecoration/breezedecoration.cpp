@@ -742,14 +742,14 @@ void Decoration::paintTitleBar(QPainter *painter, const QRectF &repaintRegion)
             QRadialGradient gradient(centre, r);
             colour.setAlphaF(alpha * strength);
             gradient.setColorAt(0.0, colour);
-            colour.setAlphaF(alpha * strength * 0.42);
+            colour.setAlphaF(alpha * strength * 0.46);
             gradient.setColorAt(0.45, colour);
             colour.setAlphaF(0.0);
             gradient.setColorAt(1.0, colour);
             painter->fillRect(rect, gradient);
         };
-        light(QPointF(rect.left(), rect.bottom() + 1), radius, accent, 0.34);
-        light(QPointF(rect.right() + 1, rect.bottom() + 1), radius * 0.8, second, 0.22);
+        light(QPointF(rect.left(), rect.bottom() + 1), radius, accent, 0.52);
+        light(QPointF(rect.right() + 1, rect.bottom() + 1), radius * 0.8, second, 0.36);
         painter->restore();
     }
 
