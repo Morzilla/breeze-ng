@@ -94,6 +94,9 @@ public:
     //* polish scrollarea
     void polishScrollArea(QAbstractScrollArea *);
 
+    //* Breeze NG Aurora: Qt Quick content inside a glass window (settings modules, Kirigami pages) becomes glass too
+    void ngGlassQuick();
+
     //* pixel metrics
     int pixelMetric(PixelMetric, const QStyleOption * = nullptr, const QWidget * = nullptr) const override;
 

@@ -102,6 +102,7 @@ private:
     bool m_ngAurora = false; // Aurora is Glass pushed further: m_ngGlass is true as well
     int m_ngAuroraBody = 52;
     qreal m_ngAuroraLights = 1.0;
+    int m_ngAuroraGrain = 50;
     QString m_ngBlurMode = QStringLiteral("full");
     bool ngAurora() const;
     qreal ngSheetAlpha(const QColor &sheet) const;

@@ -250,10 +250,15 @@ QColor Helper::auroraAccent(const QPalette &palette, qreal alpha) const
 
 // Breeze NG Aurora: a fine grain for the lights. Their gradients are faint (a few levels of alpha over hundreds of
 // pixels) and showed bands, as if the screen had 16 bits; a noise of two or three levels breaks the bands up.
-static const QPixmap &ngGrainTile()
+static const QPixmap &ngGrainTile(int grain)
 {
+    // grain 0-100: the noise spans from 2 to 12 levels of alpha either way (a 6 bit panel needs about 4 levels of the
+    // picture to hide its steps)
     static QPixmap tile;
-    if (tile.isNull()) {
+    static int tileGrain = -1;
+    if (tile.isNull() || tileGrain != grain) {
+        tileGrain = grain;
+        const int reach = 2 + grain / 10;
         QImage image(128, 128, QImage::Format_ARGB32_Premultiplied);
         quint32 seed = 0x9e3779b9u;
         for (int y = 0; y < image.height(); ++y) {
@@ -262,7 +267,7 @@ static const QPixmap &ngGrainTile()
                 seed ^= seed << 13;
                 seed ^= seed >> 17;
                 seed ^= seed << 5;
-                const int value = int(seed % 9) - 4; // -4..4: white above zero, black below, as alpha
+                const int value = int(seed % quint32(2 * reach + 1)) - reach; // white above zero, black below, as alpha
                 line[x] = value >= 0 ? qPremultiply(qRgba(255, 255, 255, value)) : qPremultiply(qRgba(0, 0, 0, -value));
             }
         }
@@ -301,7 +306,9 @@ void Helper::renderAuroraLights(QPainter *painter, const QRectF &windowRect, con
     light(windowRect.topLeft(), radius, accent, 0.52);
     light(windowRect.topRight(), radius * 0.8, second, 0.36);
     light(windowRect.bottomRight(), radius * 0.9, accent, 0.32);
-    painter->drawTiledPixmap(windowRect, ngGrainTile(), windowRect.topLeft()); // (the same grain at the same place at every repaint)
+    if (const int grain = qBound(0, StyleConfigData::auroraGrain(), 100); grain > 0) {
+        painter->drawTiledPixmap(windowRect, ngGrainTile(grain), windowRect.topLeft());
+    } // (the same grain at the same place at every repaint)
 }
 
 bool Helper::glassLayers(const QPainter *painter, QColor *base, QList<QColor> *panels, const QWidget **widgetOut, const QWidget **windowOut) const

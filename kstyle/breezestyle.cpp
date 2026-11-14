@@ -27,6 +27,9 @@
 
 #include <QApplication>
 #include <QWindow>
+#include <QMetaMethod>
+#include <functional>
+#include <QTimer>
 #include <QSurfaceFormat>
 #include <QBitmap>
 #include <QCheckBox>
@@ -368,7 +371,13 @@ void Style::polish(QWidget *widget)
         // the compositor took the glass for a solid window: it did not repaint what lies behind it, and the blur under
         // it showed stale pictures (title bar and glass parts flashing at every small repaint). Not shown yet: drop
         // the native window, Qt makes it again at show, with the alpha channel and no opaque region.
-        if (QWindow *handle = widget->windowHandle(); handle && handle->handle() && !handle->isVisible() && handle->format().alphaBufferSize() <= 0) {
+        if (qEnvironmentVariableIsSet("BREEZE_NG_DEBUG_QUICK")) {
+            QWindow *h = widget->windowHandle();
+            qWarning("breeze-ng glass: polish %s handle %d native %d visible %d alpha %d surface %d", widget->metaObject()->className(), h != nullptr, h && h->handle(), h && h->isVisible(), h ? h->format().alphaBufferSize() : -9, h ? int(h->surfaceType()) : -9);
+        }
+        // (whatever format Qt says it asked for: with a Qt Quick view inside, the window asked for alpha and was
+        // still declared opaque)
+        if (QWindow *handle = widget->windowHandle(); handle && handle->handle() && !handle->isVisible()) {
             QSurfaceFormat format = handle->format();
             format.setAlphaBufferSize(8);
             handle->destroy();
@@ -377,6 +386,17 @@ void Style::polish(QWidget *widget)
         widget->setProperty("_breeze_ng_glass", true);
         addEventFilter(widget); // paints the sheet, see eventFilter()
         _blurHelper->registerWidget(widget);
+    }
+
+    // Breeze NG Aurora: a Qt Quick view inside a window (System Settings, Info Centre: their pages are Kirigami) is an
+    // opaque block of the scheme's colours. Let the window's glass show through it, see ngGlassQuick()
+    if (_helper->isAurora() && widget->inherits("QQuickWidget") && !qEnvironmentVariableIsSet("BREEZE_NG_NO_QUICK")) {
+        widget->setAttribute(Qt::WA_AlwaysStackOnTop);
+        widget->setAttribute(Qt::WA_TranslucentBackground);
+        addEventFilter(widget);
+        for (int delay : {0, 300, 1000, 2500}) {
+            QTimer::singleShot(delay, this, &Style::ngGlassQuick);
+        }
     }
 
     // scrollarea polishing is somewhat complex. It is moved to a dedicated method
@@ -568,6 +588,109 @@ void Style::polish(QApplication *application)
 void Style::unpolish(QApplication *application)
 {
     _helper->removeEventFilter(application);
+}
+
+// Kirigami's theme objects (one attached to every item that asks for colours) take custom colours through their
+// properties; set on each, they hold whatever colour set the item uses. The style reaches them by name, without
+// linking Qt Quick or Kirigami: it only meets them inside applications that use both.
+static void ngGlassQuickWalk(QObject *object, const QColor &ground, const QColor &veil, int depth)
+{
+    if (!object || depth > 64) {
+        return;
+    }
+    const QByteArray name = object->metaObject()->className();
+    if (name.contains("Popup") || name.contains("Dialog") || name.contains("Drawer") || name.contains("Menu") || name.contains("ToolTip") || name.contains("Overlay")) {
+        return; // what floats over the page keeps its solid sheet
+    }
+    if (object->inherits("Kirigami::Platform::PlatformTheme") && !object->property("_breeze_ng_glass").toBool()) {
+        object->setProperty("_breeze_ng_glass", true);
+        // the View set is what lists and fields stand on (a veil); every other set is the page itself (the glass)
+        const bool view = object->property("colorSet").toInt() == 0;
+        object->setProperty("backgroundColor", view ? veil : ground);
+        object->setProperty("alternateBackgroundColor", veil);
+    }
+    const auto children = object->children();
+    for (QObject *child : children) {
+        ngGlassQuickWalk(child, ground, veil, depth + 1);
+    }
+    // a Qt Quick item's visual children are not always its QObject children: read its "children" list property. The
+    // style does not link Qt Qml: the value is a QQmlListProperty<QQuickItem>, whose first fields (the same since
+    // Qt 6.0) are the object, a data pointer, then the append, count and at functions.
+    if (object->inherits("QQuickItem")) {
+        const QVariant list = object->property("children");
+        if (list.isValid() && qstrncmp(list.typeName(), "QQmlListProperty<", 17) == 0) {
+            struct ListProperty {
+                QObject *object;
+                void *data;
+                void *append;
+                qsizetype (*count)(ListProperty *);
+                QObject *(*at)(ListProperty *, qsizetype);
+            };
+            ListProperty property = *static_cast<const ListProperty *>(list.constData());
+            if (property.count && property.at) {
+                const qsizetype count = qMin<qsizetype>(property.count(&property), 4096);
+                for (qsizetype i = 0; i < count; ++i) {
+                    QObject *child = property.at(&property, i);
+                    if (child && child->parent() != object) { // (QObject children were walked above)
+                        ngGlassQuickWalk(child, ground, veil, depth + 1);
+                    }
+                }
+            }
+        }
+    }
+}
+
+void Style::ngGlassQuick()
+{
+    if (!_helper->isAurora()) {
+        return;
+    }
+    const QPalette palette = QApplication::palette();
+    const QColor ground(0, 0, 0, 0);
+    const QColor veil = _helper->alphaColor(_helper->ink(palette), _helper->auroraVeil(palette, false));
+    const auto windows = QGuiApplication::allWindows();
+    static const bool debug = qEnvironmentVariableIsSet("BREEZE_NG_DEBUG_QUICK");
+    for (QWindow *window : windows) {
+        if (debug) {
+            int themes = 0, objects = 0;
+            std::function<void(QObject *, int)> count = [&](QObject *o, int d) {
+                ++objects;
+                if (o->inherits("Kirigami::Platform::PlatformTheme")) {
+                    ++themes;
+                    if (themes <= 3) {
+                        qWarning("breeze-ng quick:   theme %s set %d background %s", o->metaObject()->className(), o->property("colorSet").toInt(), qPrintable(o->property("backgroundColor").value<QColor>().name(QColor::HexArgb)));
+                    }
+                }
+                if (d < 64) {
+                    for (QObject *c : o->children()) {
+                        count(c, d + 1);
+                    }
+                }
+            };
+            count(window, 0);
+            qWarning("breeze-ng quick: window %s visible %d objects %d themes %d color %s", window->metaObject()->className(), window->isVisible(), objects, themes, qPrintable(window->property("color").value<QColor>().name(QColor::HexArgb)));
+        }
+        if (!window->inherits("QQuickWindow") || window->isVisible()) {
+            continue; // (a Qt Quick window of its own is not handled here: only the views inside glass windows)
+        }
+        window->setProperty("color", QColor(Qt::transparent));
+        ngGlassQuickWalk(window, ground, veil, 0);
+        // the root item of the view is not a QObject child of the window: ask the content item for what lies at its
+        // corner (QQuickItem::childAt, by name)
+        if (QObject *content = window->property("contentItem").value<QObject *>()) {
+            void *root = nullptr;
+            root = content;
+            if (root) {
+                QObject *rootObject = static_cast<QObject *>(root);
+                if (debug) {
+                    qWarning("breeze-ng quick:   root %s children %d", rootObject->metaObject()->className(), int(rootObject->children().size()));
+                }
+                ngGlassQuickWalk(rootObject, ground, veil, 0);
+            } else if (debug) {
+                qWarning("breeze-ng quick:   no root item (content %s)", content->metaObject()->className());
+            }
+        }
+    }
 }
 
 namespace
@@ -1945,6 +2068,15 @@ bool Style::eventFilter(QObject *object, QEvent *event)
 
     if (object->isWidgetType()) {
         QWidget *widget = static_cast<QWidget *>(object);
+
+        // Breeze NG Aurora: a Qt Quick view loads new pages as the user moves around: look again a moment after each
+        // click or key (see ngGlassQuick)
+        if ((event->type() == QEvent::MouseButtonRelease || event->type() == QEvent::KeyRelease || event->type() == QEvent::Show) && _helper->isAurora()
+            && widget->inherits("QQuickWidget")) {
+            for (int delay : {120, 500, 1500}) {
+                QTimer::singleShot(delay, this, &Style::ngGlassQuick);
+            }
+        }
 
         // Breeze NG Glass: a translucent window never paints its background (WA_TranslucentBackground implies
         // WA_NoSystemBackground), so nothing would clear the area under the controls between their repaints and

@@ -64,6 +64,10 @@
     <entry name="AuroraLights" type="Int">
       <default>100</default>
     </entry>
+    <!-- Breeze NG Aurora: the grain over the lights (0-100), against the bands of faint gradients on 6 bit panels -->
+    <entry name="AuroraGrain" type="Int">
+      <default>50</default>
+    </entry>
     <!-- Breeze NG: a neon glow inside the field or button that has the focus (off: a thin outline) -->
     <entry name="FocusGlow" type="Bool">
       <default>true</default>

@@ -90,6 +90,9 @@ private:
     QSlider *m_auroraButton = nullptr;
     QSlider *m_auroraLights = nullptr;
     QSlider *m_blurStrength = nullptr;
+    QSlider *m_auroraGrain = nullptr;
+    QLabel *m_auroraGrainValue = nullptr;
+    int m_savedAuroraGrain = 50;
     QLabel *m_auroraBodyValue = nullptr;
     QLabel *m_auroraPanelValue = nullptr;
     QLabel *m_auroraButtonValue = nullptr;
