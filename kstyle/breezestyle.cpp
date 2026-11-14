@@ -681,7 +681,8 @@ void Style::ngGlassQuick()
         return;
     }
     const QPalette palette = QApplication::palette();
-    const QColor ground(0, 0, 0, 0);
+    QColor ground = palette.color(QPalette::Window); // nothing, in the window's own colour (see the Kirigami plugin)
+    ground.setAlpha(0);
     const QColor veil = _helper->alphaColor(_helper->ink(palette), _helper->auroraVeil(palette, false));
     const auto windows = QGuiApplication::allWindows();
     static const bool debug = qEnvironmentVariableIsSet("BREEZE_NG_DEBUG_QUICK");
@@ -720,6 +721,9 @@ void Style::ngGlassQuick()
         // a narrow view at the side of its window is a sidebar: a card on the glass, as the sidebar of Dolphin NG (the
         // card is painted under the view, see eventFilter; its list stands on it without a veil of its own)
         const bool side = view && view->window() != view && view->width() * 5 <= view->window()->width() * 2 && view->height() * 2 > view->window()->height();
+        if (side) {
+            window->setProperty("_breeze_ng_side", true); // (Breeze NG's Kirigami plugin reads it: no veil on the card)
+        }
         if (view && side && !view->property("_breeze_ng_side_card").toBool() && view->parentWidget()) {
             view->setProperty("_breeze_ng_side_card", true);
             view->parentWidget()->setProperty("_breeze_ng_side_card_host", true);

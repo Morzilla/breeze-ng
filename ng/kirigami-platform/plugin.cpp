@@ -86,11 +86,11 @@ Look readLook()
     // and the veil is a tone lifted from it at an alpha that weighs as the veil of the widget style does.
     look.ground = window;
     look.ground.setAlpha(0);
-    const QColor ink = dark ? QColor(255, 255, 255) : QColor(0, 0, 0);
-    const qreal lift = 0.30;
-    look.veil = QColor::fromRgbF(window.redF() + (ink.redF() - window.redF()) * lift, window.greenF() + (ink.greenF() - window.greenF()) * lift,
-                                 window.blueF() + (ink.blueF() - window.blueF()) * lift);
-    look.veil.setAlphaF(qMin(0.9, panel / 100.0 * (dark ? 1.0 : 0.75) / lift));
+    // (the veil is ink, as in the widget style: a grey tone lifted from the window took the colour out of what lay
+    // under it, an olive cast on the lights. The dark slab under Kirigami's cards, which made a white veil a white
+    // card, is faded out: see cardShadow)
+    look.veil = dark ? QColor(255, 255, 255) : QColor(0, 0, 0);
+    look.veil.setAlphaF(panel / 100.0 * (dark ? 1.0 : 0.75));
     return look;
 }
 
@@ -120,7 +120,8 @@ bool onVeil(const QObject *owner)
     for (const QObject *object = owner ? owner->parent() : nullptr; object; object = object->parent()) {
         const auto children = object->children();
         for (const QObject *child : children) {
-            if (child->inherits("Kirigami::Platform::PlatformTheme") && child->property("_breeze_ng_glass").toInt() == 1) {
+            const int kind = child->inherits("Kirigami::Platform::PlatformTheme") ? child->property("_breeze_ng_glass").toInt() : 0;
+            if (kind == 1 || kind == 5) {
                 return true;
             }
         }
@@ -156,6 +157,7 @@ public:
     void paint(QPainter *painter) override
     {
         const QRectF rect(0, 0, width(), height());
+        painter->fillRect(rect, m_look.sheet); // the window's glass
         const qreal strength = (m_look.dark ? 1.0 : 0.70) * (m_window->isActive() ? 1.0 : 0.6) * m_look.lights;
         if (strength > 0.0) {
             const QColor highlight = QGuiApplication::palette().color(QPalette::Active, QPalette::Highlight);
@@ -240,24 +242,38 @@ void dumpItems(QQuickItem *item, int depth)
     }
 }
 
-// is there, above this object, a theme that already has our colours (not the window's own, which is the sheet)?
-bool underOurs(const QObject *owner)
+// is this object in a Qt Quick view that the widget style treats as a sidebar (it marks the view's offscreen window)?
+bool sideView(const QObject *owner)
 {
-    // (a theme inherits along the items: one attached to a popup or a drawer, which are not items, does not reach
-    // the items inside it)
+    for (const QObject *object = owner; object; object = object->parent()) {
+        if (auto item = qobject_cast<const QQuickItem *>(object)) {
+            return item->window() && item->window()->property("_breeze_ng_side").toBool();
+        }
+    }
+    return false;
+}
+
+// The kind of the nearest theme above this object that has our colours: 1 a veil, 2 nothing (0: none; the window's
+// own does not count). A theme inherits along the items: one attached to a popup or a drawer, which are not items,
+// does not reach the items inside it.
+int oursAbove(const QObject *owner)
+{
     for (const QObject *object = owner ? owner->parent() : nullptr; object; object = object->parent()) {
         if (!object->inherits("QQuickItem")) {
-            return false;
+            return 0;
         }
         const auto children = object->children();
         for (const QObject *child : children) {
             const int kind = child->inherits("Kirigami::Platform::PlatformTheme") ? child->property("_breeze_ng_glass").toInt() : 0;
-            if (kind >= 1 && kind <= 3) {
-                return true;
+            if (kind == 1 || kind == 5) {
+                return 1;
+            }
+            if (kind == 2 || kind == 3 || kind == 6) {
+                return 2;
             }
         }
     }
-    return false;
+    return 0;
 }
 
 // asks the compositor for the blur behind a Qt Quick window, each time it gets a native window
@@ -355,19 +371,23 @@ private:
                 }
                 return;
             }
-            if (!window && guard->inherit() && underOurs(owner)) {
-                // it takes its colours from the theme above it, which has ours (or, inside a popup, the solid ones)
-                if (guard->property("_breeze_ng_glass").toInt() != 0) {
-                    guard->setCustomBackgroundColor();
-                    guard->setCustomAlternateBackgroundColor();
-                    guard->setProperty("_breeze_ng_glass", 0);
-                }
+            if (const int above = (!window && guard->inherit()) ? oursAbove(owner) : 0) {
+                // It would take its colours from the theme above it, which has ours: but custom colours were seen
+                // not to reach it every time (a solid block in the middle of a glass page). Give it the same ones.
+                const bool veil = above == 1 && !sideView(owner);
+                guard->setCustomBackgroundColor(veil ? look.veil : look.ground);
+                guard->setCustomAlternateBackgroundColor(veil ? look.veil : look.ground);
+                guard->setProperty("_breeze_ng_glass", veil ? 5 : 6);
                 cardShadow(owner);
                 return;
             }
             const bool view = guard->colorSet() == PlatformTheme::View && !window;
-            const bool veiled = view && !onVeil(owner);
-            const QColor background = window ? look.sheet : veiled ? look.veil : look.ground;
+            // (a sidebar view inside a window of widgets has its card painted under it by the widget style, which
+            // marks the view's window: no veil of its own on top of that)
+            const bool veiled = view && !onVeil(owner) && !sideView(owner);
+            // (the window's own theme is nothing too: the sheet is painted once, by the backdrop; as the window's
+            // colour it was laid again by every item that took its colour from the window)
+            const QColor background = veiled ? look.veil : look.ground;
             guard->setCustomBackgroundColor(background);
             guard->setCustomAlternateBackgroundColor(veiled ? look.veil : look.ground);
             guard->setProperty("_breeze_ng_glass", window ? 4 : veiled ? 1 : view ? 3 : 2); // (the widget style's own pass leaves these alone)
@@ -388,8 +408,11 @@ private:
         apply();
         QObject::connect(theme, &PlatformTheme::colorSetChanged, theme, apply);
         QObject::connect(theme, &PlatformTheme::inheritChanged, theme, apply);
-        // the item is given its parent, and a popup its content, a moment after the theme is asked for
+        // the item is given its parent, and a popup its content, a moment after the theme is asked for; the widget
+        // style finds out which view is a sidebar a little later still
         QTimer::singleShot(0, theme, apply);
+        QTimer::singleShot(500, theme, apply);
+        QTimer::singleShot(1500, theme, apply);
     }
 
     // Kirigami's card background lays a dark slab under itself as a drop shadow (60 % of the background colour,
