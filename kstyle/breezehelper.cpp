@@ -1886,9 +1886,13 @@ void Helper::renderTabBarTab(QPainter *painter,
     QRectF frameRect = rect;
     QColor bgBrush;
 
-    if (pillBar && !selected) {
+    if (pillBar && (!selected || _aurora)) {
         // Breeze NG: a tab at rest is a faint pill, a little brighter under the pointer
-        qreal veil = 0.06;
+        // (Aurora: the current one too, brighter: no tongue in the opaque colour of the page, the page is glass)
+        if (_aurora) {
+            clearUnder(painter, frameRect);
+        }
+        qreal veil = selected ? 0.16 : 0.06;
         if (animated) {
             veil += 0.06 * animation;
         } else if (enabled && hovered) {

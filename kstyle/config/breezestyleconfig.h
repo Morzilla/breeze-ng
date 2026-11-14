@@ -74,6 +74,7 @@ private:
     // look
     NgLookTile *m_soft = nullptr;
     NgLookTile *m_glass = nullptr;
+    NgLookTile *m_aurora = nullptr;
     QCheckBox *m_applyDecoration = nullptr;
     QCheckBox *m_applyColours = nullptr;
 

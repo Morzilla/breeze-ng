@@ -1931,6 +1931,9 @@ bool Style::eventFilterScrollArea(QWidget *widget, QEvent *event)
             break;
         }
 
+        if (_helper->isAurora() && !viewport->autoFillBackground() && scrollArea->window()->property("_breeze_ng_glass").toBool()) {
+            break; // Aurora: a view with no background of its own stands on the window's glass, its scroll bars too
+        }
         // make sure proper background is rendered behind the containers
         QPainter painter(scrollArea);
         painter.setClipRegion(static_cast<QPaintEvent *>(event)->region());

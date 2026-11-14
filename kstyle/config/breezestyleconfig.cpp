@@ -29,6 +29,8 @@
 #include <QLocale>
 #include <QMessageBox>
 #include <QPainter>
+#include <QPixmap>
+#include <QToolButton>
 #include <QPainterPath>
 #include <QProcess>
 #include <QPushButton>
@@ -127,12 +129,28 @@ void notifyStyleChanged()
 }
 
 //* one of the two looks, as a tile with a small window drawn in it
+// The look in use: the style follows the window decoration's theme first (a global theme sets only that), then its
+// own setting; the page has to show the same one.
+static int ngCurrentLook()
+{
+    const QString theme = KSharedConfig::openConfig(QStringLiteral("kwinrc"))->group(QStringLiteral("org.kde.kdecoration2")).readEntry("theme", QString());
+    if (theme.compare(QLatin1String("Breeze NG Aurora"), Qt::CaseInsensitive) == 0) {
+        return Breeze::StyleConfigData::Aurora;
+    } else if (theme.compare(QLatin1String("Breeze NG Glass"), Qt::CaseInsensitive) == 0) {
+        return Breeze::StyleConfigData::Glass;
+    } else if (theme.compare(QLatin1String("Breeze NG Soft"), Qt::CaseInsensitive) == 0) {
+        return Breeze::StyleConfigData::Soft;
+    }
+    return Breeze::StyleConfigData::variant();
+}
+
 class NgLookTile : public QAbstractButton
 {
 public:
-    NgLookTile(bool glass, const QString &title, const QString &description, QWidget *parent)
+    NgLookTile(bool glass, const QString &title, const QString &description, QWidget *parent, bool aurora = false)
         : QAbstractButton(parent)
         , m_glass(glass)
+        , m_aurora(aurora)
         , m_title(title)
         , m_description(description)
     {
@@ -179,9 +197,27 @@ protected:
         p.setBrush(QColor(255, 210, 120, 120));
         p.drawEllipse(QPointF(picture.right() - picture.width() * 0.2, picture.top() + picture.height() * 0.3), picture.height() * 0.22, picture.height() * 0.22);
         const QRectF window(picture.left() + picture.width() * 0.14, picture.top() + picture.height() * 0.16, picture.width() * 0.72, picture.height() * 0.74);
-        p.setBrush(m_glass ? QColor(30, 33, 39, 140) : QColor(35, 38, 44));
-        p.setPen(m_glass ? QPen(QColor(255, 255, 255, 50), 1) : QPen(Qt::NoPen));
+        p.setBrush(m_aurora ? QColor(30, 33, 39, 96) : m_glass ? QColor(30, 33, 39, 140) : QColor(35, 38, 44));
+        p.setPen(m_glass && !m_aurora ? QPen(QColor(255, 255, 255, 50), 1) : QPen(Qt::NoPen));
         p.drawRoundedRect(window, 9, 9);
+        if (m_aurora) {
+            // Aurora: lights of the accent behind the glass, no rims
+            QPainterPath inside;
+            inside.addRoundedRect(window, 9, 9);
+            p.save();
+            p.setClipPath(inside, Qt::IntersectClip);
+            const QColor glow = QColor::fromHslF(accent.hslHueF() < 0 ? 0.58 : accent.hslHueF(), 0.8, 0.62);
+            for (const auto &[centre, alpha] : {std::pair<QPointF, qreal>{window.topLeft(), 0.55}, std::pair<QPointF, qreal>{window.bottomRight(), 0.38}}) {
+                QRadialGradient light(centre, window.width() * 0.6);
+                QColor c = glow;
+                c.setAlphaF(alpha);
+                light.setColorAt(0, c);
+                c.setAlphaF(0);
+                light.setColorAt(1, c);
+                p.fillRect(window, light);
+            }
+            p.restore();
+        }
         const QRectF side(window.left() + 6, window.top() + 6, window.width() * 0.28, window.height() - 12);
         p.setPen(Qt::NoPen);
         p.setBrush(m_glass ? QColor(255, 255, 255, 22) : QColor(43, 47, 54));
@@ -219,6 +255,7 @@ protected:
 
 private:
     bool m_glass;
+    bool m_aurora = false;
     QString m_title;
     QString m_description;
 };
@@ -475,16 +512,71 @@ QWidget *StyleConfig::pageLook()
                              QStringLiteral("Glass"),
                              ngText("See-through windows and menus, with the desktop blurred behind.", "Finestre e menu trasparenti con la sfocatura del desktop dietro."),
                              w);
+    m_aurora = new NgLookTile(true,
+                              QStringLiteral("Aurora"),
+                              ngText("Glass without rims, with lights of the accent colour behind the windows.",
+                                     "Vetro senza bordi, con le luci del colore d'accento dietro le finestre."),
+                              w,
+                              true);
     tiles->addWidget(m_soft);
     tiles->addWidget(m_glass);
+    tiles->addWidget(m_aurora);
     body->addLayout(tiles);
+    // the accent colour: KDE's own (System Settings > Colours), one click away. It tints the selection, the sliders
+    // and, in Aurora, the lights behind the windows. Applied at once.
+    body->addWidget(groupTitle(ngText("Accent colour", "Colore d'accento"), w));
+    {
+        auto *row = new QHBoxLayout();
+        row->setSpacing(10);
+        static const char *const colours[] = {"#6a9bcc", "#3eb4a0", "#62b86a", "#9676e0", "#e06ca0", "#e8843c", "#e2b93b", "#d9534f"};
+        for (const char *hex : colours) {
+            auto *swatch = new QToolButton(w);
+            swatch->setFixedSize(28, 28);
+            swatch->setCursor(Qt::PointingHandCursor);
+            swatch->setAutoRaise(true);
+            swatch->setToolTip(QString::fromLatin1(hex));
+            QPixmap dot(44, 44);
+            dot.fill(Qt::transparent);
+            {
+                QPainter dp(&dot);
+                dp.setRenderHint(QPainter::Antialiasing);
+                dp.setPen(Qt::NoPen);
+                dp.setBrush(QColor(QString::fromLatin1(hex)));
+                dp.drawEllipse(QRectF(4, 4, 36, 36));
+            }
+            swatch->setIcon(QIcon(dot));
+            swatch->setIconSize(QSize(22, 22));
+            const QString colour = QString::fromLatin1(hex);
+            connect(swatch, &QToolButton::clicked, this, [colour] {
+                const QString scheme = KSharedConfig::openConfig(QStringLiteral("kdeglobals"))->group(QStringLiteral("General")).readEntry("ColorScheme", QStringLiteral("BreezeNG"));
+                QProcess::startDetached(QStringLiteral("plasma-apply-colorscheme"), {QStringLiteral("--accent-color"), colour, scheme});
+            });
+            row->addWidget(swatch);
+        }
+        auto *own = new QPushButton(ngText("The colour scheme's own", "Quello dello schema di colori"), w);
+        connect(own, &QPushButton::clicked, this, [] {
+            auto config = KSharedConfig::openConfig(QStringLiteral("kdeglobals"));
+            auto general = config->group(QStringLiteral("General"));
+            const QString scheme = general.readEntry("ColorScheme", QStringLiteral("BreezeNG"));
+            general.deleteEntry("AccentColor");
+            general.deleteEntry("LastUsedCustomAccentColor");
+            config->sync();
+            // applying another scheme and then this one again makes Plasma rebuild the colours without the accent
+            QProcess::startDetached(QStringLiteral("sh"), {QStringLiteral("-c"), QStringLiteral("plasma-apply-colorscheme BreezeDark >/dev/null 2>&1; plasma-apply-colorscheme \"$0\"")
+                                                              , scheme});
+        });
+        row->addSpacing(8);
+        row->addWidget(own);
+        row->addStretch();
+        body->addLayout(row);
+    }
     body->addWidget(groupTitle(ngText("Together with the look", "Insieme alla variante"), w));
     m_applyDecoration = new QCheckBox(ngText("Also apply the Breeze NG window decoration", "Applica anche la decorazione delle finestre Breeze NG"), w);
     m_applyColours = new QCheckBox(ngText("Also apply the BreezeNG colour scheme", "Applica anche lo schema di colori BreezeNG"), w);
     body->addWidget(m_applyDecoration);
     body->addWidget(m_applyColours);
     body->addStretch();
-    for (QAbstractButton *b : {static_cast<QAbstractButton *>(m_soft), static_cast<QAbstractButton *>(m_glass), static_cast<QAbstractButton *>(m_applyDecoration),
+    for (QAbstractButton *b : {static_cast<QAbstractButton *>(m_soft), static_cast<QAbstractButton *>(m_glass), static_cast<QAbstractButton *>(m_aurora), static_cast<QAbstractButton *>(m_applyDecoration),
                                static_cast<QAbstractButton *>(m_applyColours)}) {
         connect(b, &QAbstractButton::toggled, this, &StyleConfig::updateChanged);
     }
@@ -706,9 +798,9 @@ int StyleConfig::animationIndex() const
 //__________________________________________________________________
 void StyleConfig::save()
 {
-    const bool glass = m_glass->isChecked();
-    const bool variantChanged = (StyleConfigData::variant() == StyleConfigData::Glass) != glass;
-    StyleConfigData::setVariant(glass ? StyleConfigData::Glass : StyleConfigData::Soft);
+    const int look = m_aurora->isChecked() ? StyleConfigData::Aurora : m_glass->isChecked() ? StyleConfigData::Glass : StyleConfigData::Soft;
+    const bool variantChanged = ngCurrentLook() != look;
+    StyleConfigData::setVariant(look);
     StyleConfigData::setWindowOpacity(m_windowOpacity->value());
     StyleConfigData::setMenuOpacity(m_menuOpacity->value());
     StyleConfigData::setAnimationsEnabled(m_animations->isChecked());
@@ -739,7 +831,7 @@ void StyleConfig::save()
     settings.writeEntry("ApplyColours", m_applyColours->isChecked());
     settings.sync();
 
-    const QString variant = glass ? QStringLiteral("Glass") : QStringLiteral("Soft");
+    const QString variant = look == StyleConfigData::Aurora ? QStringLiteral("Aurora") : look == StyleConfigData::Glass ? QStringLiteral("Glass") : QStringLiteral("Soft");
     if (m_applyDecoration->isChecked()) {
         // the look follows the decoration theme KWin was given: set it, or the choice above would not hold
         auto kwin = KSharedConfig::openConfig(QStringLiteral("kwinrc"))->group(QStringLiteral("org.kde.kdecoration2"));
@@ -796,14 +888,14 @@ void StyleConfig::updateChanged()
     m_animationSpeedValue->setText(ngText(speeds[speed][0], speeds[speed][1]));
     m_shadowStrengthValue->setText(QStringLiteral("%1 %").arg(qRound(m_shadowStrength->value() * 100.0 / 255.0)));
     m_animationSpeed->setEnabled(m_animations->isChecked());
-    m_windowOpacity->setEnabled(m_glass->isChecked());
-    m_preview->setOpacities(m_windowOpacity->value(), m_menuOpacity->value(), m_glass->isChecked());
+    m_windowOpacity->setEnabled(m_glass->isChecked() || m_aurora->isChecked());
+    m_preview->setOpacities(m_windowOpacity->value(), m_menuOpacity->value(), m_glass->isChecked() || m_aurora->isChecked());
     if (m_loading) {
         return;
     }
 
     const auto settings = KSharedConfig::openConfig(QStringLiteral("breezengrc"))->group(QStringLiteral("Settings"));
-    const bool modified = m_glass->isChecked() != (StyleConfigData::variant() == StyleConfigData::Glass)
+    const bool modified = (m_aurora->isChecked() ? StyleConfigData::Aurora : m_glass->isChecked() ? StyleConfigData::Glass : StyleConfigData::Soft) != ngCurrentLook()
         || m_applyDecoration->isChecked() != settings.readEntry("ApplyDecoration", true) || m_applyColours->isChecked() != settings.readEntry("ApplyColours", true)
         || m_windowOpacity->value() != StyleConfigData::windowOpacity() || m_menuOpacity->value() != StyleConfigData::menuOpacity()
         || m_animations->isChecked() != StyleConfigData::animationsEnabled() || m_animationSpeed->value() != animationIndex()
@@ -823,9 +915,10 @@ void StyleConfig::updateChanged()
 void StyleConfig::load()
 {
     m_loading = true;
-    const bool glass = StyleConfigData::variant() == StyleConfigData::Glass;
-    m_glass->setChecked(glass);
-    m_soft->setChecked(!glass);
+    const int look = ngCurrentLook();
+    m_aurora->setChecked(look == StyleConfigData::Aurora);
+    m_glass->setChecked(look == StyleConfigData::Glass);
+    m_soft->setChecked(look == StyleConfigData::Soft);
     const auto settings = KSharedConfig::openConfig(QStringLiteral("breezengrc"))->group(QStringLiteral("Settings"));
     m_applyDecoration->setChecked(settings.readEntry("ApplyDecoration", true));
     m_applyColours->setChecked(settings.readEntry("ApplyColours", true));
