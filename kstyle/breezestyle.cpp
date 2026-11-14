@@ -593,7 +593,7 @@ void Style::unpolish(QApplication *application)
 // Kirigami's theme objects (one attached to every item that asks for colours) take custom colours through their
 // properties; set on each, they hold whatever colour set the item uses. The style reaches them by name, without
 // linking Qt Quick or Kirigami: it only meets them inside applications that use both.
-static void ngGlassQuickWalk(QObject *object, const QColor &ground, const QColor &veil, int depth)
+static void ngGlassQuickWalk(QObject *object, const QColor &ground, const QColor &veil, int depth, bool *changed = nullptr)
 {
     if (!object || depth > 64) {
         return;
@@ -604,6 +604,9 @@ static void ngGlassQuickWalk(QObject *object, const QColor &ground, const QColor
     }
     if (object->inherits("Kirigami::Platform::PlatformTheme") && !object->property("_breeze_ng_glass").toBool()) {
         object->setProperty("_breeze_ng_glass", true);
+        if (changed) {
+            *changed = true;
+        }
         // the View set is what lists and fields stand on (a veil); every other set is the page itself (the glass)
         const bool view = object->property("colorSet").toInt() == 0;
         object->setProperty("backgroundColor", view ? veil : ground);
@@ -611,7 +614,7 @@ static void ngGlassQuickWalk(QObject *object, const QColor &ground, const QColor
     }
     const auto children = object->children();
     for (QObject *child : children) {
-        ngGlassQuickWalk(child, ground, veil, depth + 1);
+        ngGlassQuickWalk(child, ground, veil, depth + 1, changed);
     }
     // a Qt Quick item's visual children are not always its QObject children: read its "children" list property. The
     // style does not link Qt Qml: the value is a QQmlListProperty<QQuickItem>, whose first fields (the same since
@@ -632,7 +635,7 @@ static void ngGlassQuickWalk(QObject *object, const QColor &ground, const QColor
                 for (qsizetype i = 0; i < count; ++i) {
                     QObject *child = property.at(&property, i);
                     if (child && child->parent() != object) { // (QObject children were walked above)
-                        ngGlassQuickWalk(child, ground, veil, depth + 1);
+                        ngGlassQuickWalk(child, ground, veil, depth + 1, changed);
                     }
                 }
             }
@@ -673,8 +676,28 @@ void Style::ngGlassQuick()
         if (!window->inherits("QQuickWindow") || window->isVisible()) {
             continue; // (a Qt Quick window of its own is not handled here: only the views inside glass windows)
         }
+        // which view is it? (the style does not link Qt Quick Widgets: the view whose size is the window's)
+        QWidget *view = nullptr;
+        const auto widgets = QApplication::allWidgets();
+        for (QWidget *widget : widgets) {
+            if (widget->inherits("QQuickWidget") && widget->isVisible() && widget->size() == window->size()) {
+                view = widget;
+                break;
+            }
+        }
+        // a narrow view at the side of its window is a sidebar: a card on the glass, as the sidebar of Dolphin NG (the
+        // card is painted under the view, see eventFilter; its list stands on it without a veil of its own)
+        const bool side = view && view->window() != view && view->width() * 5 <= view->window()->width() * 2 && view->height() * 2 > view->window()->height();
+        if (view && side && !view->property("_breeze_ng_side_card").toBool() && view->parentWidget()) {
+            view->setProperty("_breeze_ng_side_card", true);
+            view->parentWidget()->setProperty("_breeze_ng_side_card_host", true);
+            addEventFilter(view->parentWidget());
+            view->parentWidget()->update();
+        }
+        const QColor viewVeil = side ? ground : veil;
+        bool changed = window->property("color").value<QColor>().alpha() != 0;
         window->setProperty("color", QColor(Qt::transparent));
-        ngGlassQuickWalk(window, ground, veil, 0);
+        ngGlassQuickWalk(window, ground, viewVeil, 0, &changed);
         // the root item of the view is not a QObject child of the window: ask the content item for what lies at its
         // corner (QQuickItem::childAt, by name)
         if (QObject *content = window->property("contentItem").value<QObject *>()) {
@@ -685,9 +708,18 @@ void Style::ngGlassQuick()
                 if (debug) {
                     qWarning("breeze-ng quick:   root %s children %d", rootObject->metaObject()->className(), int(rootObject->children().size()));
                 }
-                ngGlassQuickWalk(rootObject, ground, veil, 0);
+                ngGlassQuickWalk(rootObject, ground, viewVeil, 0, &changed);
             } else if (debug) {
                 qWarning("breeze-ng quick:   no root item (content %s)", content->metaObject()->className());
+            }
+        }
+        if (changed) {
+            // show it now (the view painted itself opaque before this, and stayed so until something else made it
+            // paint again: a window that turned to glass only when moved)
+            QMetaObject::invokeMethod(window, "update", Qt::QueuedConnection);
+            if (view) {
+                view->update();
+                view->window()->update();
             }
         }
     }
@@ -2068,6 +2100,20 @@ bool Style::eventFilter(QObject *object, QEvent *event)
 
     if (object->isWidgetType()) {
         QWidget *widget = static_cast<QWidget *>(object);
+
+        if (event->type() == QEvent::Paint && widget->property("_breeze_ng_side_card_host").toBool() && _helper->isAurora()) {
+            // the card under a Qt Quick sidebar (see ngGlassQuick)
+            const auto children = widget->findChildren<QWidget *>(Qt::FindDirectChildrenOnly);
+            for (const QWidget *child : children) {
+                if (child->property("_breeze_ng_side_card").toBool() && child->isVisible()) {
+                    QPainter painter(widget);
+                    painter.setRenderHint(QPainter::Antialiasing, true);
+                    painter.setPen(Qt::NoPen);
+                    painter.setBrush(_helper->alphaColor(_helper->ink(widget->palette()), _helper->auroraVeil(widget->palette(), false)));
+                    painter.drawRoundedRect(QRectF(child->geometry()).adjusted(5, 5, -5, -5), 12, 12);
+                }
+            }
+        }
 
         // Breeze NG Aurora: a Qt Quick view loads new pages as the user moves around: look again a moment after each
         // click or key (see ngGlassQuick)

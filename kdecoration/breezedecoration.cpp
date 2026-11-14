@@ -485,7 +485,7 @@ void Decoration::reconfigure()
         const auto common = config->group(QStringLiteral("Common"));
         m_ngAuroraBody = qBound(10, common.readEntry("AuroraBodyOpacity", 52), 95);
         m_ngAuroraLights = qBound(0, common.readEntry("AuroraLights", 100), 180) / 100.0;
-        m_ngAuroraGrain = qBound(0, common.readEntry("AuroraGrain", 50), 100);
+        m_ngAuroraGrain = qBound(0, common.readEntry("AuroraGrain", 30), 100);
         const QString blurMode = common.readEntry("DecorationBlur", QStringLiteral("full")).toLower();
         if (blurMode != m_ngBlurMode) {
             m_ngBlurMode = blurMode;
