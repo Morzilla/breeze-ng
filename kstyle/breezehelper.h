@@ -118,6 +118,17 @@ public:
     {
         return !isGlass();
     }
+    //* Breeze NG Aurora: Glass pushed further (more see-through, lights of the accent colour behind the window, a light
+    //* that follows the pointer inside buttons). Aurora is a kind of Glass: isGlass() is true as well.
+    bool isAurora() const
+    {
+        return _aurora;
+    }
+    //* how opaque the sheet of a Glass window is (0-1): the setting, capped lower in Aurora
+    qreal windowSheetAlpha() const;
+    //* Aurora: the lights behind a window. windowRect is the whole window in the painter's coordinates, so that
+    //* every widget that lays its own piece of sheet continues the same lights.
+    void renderAuroraLights(QPainter *painter, const QRectF &windowRect, const QPalette &palette) const;
     //* Breeze NG: white on a dark palette, black on a light one, for translucent sheets and edges
     static QColor ink(const QPalette &palette);
     static bool isDark(const QPalette &palette);
@@ -417,6 +428,8 @@ private:
     //* KWin configuration
     KSharedConfig::Ptr _kwinConfig;
     bool _glass = false; // Breeze NG
+    bool _aurora = false; // Breeze NG
+    bool glassLayers(const QPainter *painter, QColor *base, QList<QColor> *panels, const QWidget **widget, const QWidget **window) const;
 
     //* event filter
     PaletteChangedEventFilter *_eventFilter;

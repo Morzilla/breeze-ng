@@ -3,7 +3,7 @@
 """Builds the Breeze NG Plasma styles (Soft and Glass): Plasma's default style with the look of the Breeze NG
 widget style, for what Plasma draws itself (the panel's popups, the launcher, its buttons, lists and fields).
 
-    make-plasma-style.py soft|glass [destination]
+    make-plasma-style.py soft|glass|aurora [destination]
         default destination: ~/.local/share/plasma/desktoptheme/breeze-ng-soft (or -glass)
 
 Only the frames below are redrawn, as nine pieces each; hints, shadows of the popups, icons and every other
@@ -26,9 +26,10 @@ import xml.etree.ElementTree as E
 
 SRC = '/usr/share/plasma/desktoptheme/default'
 VARIANT = sys.argv[1] if len(sys.argv) > 1 else ''
-if VARIANT not in ('soft', 'glass'):
+if VARIANT not in ('soft', 'glass', 'aurora'):
     sys.exit(__doc__)
-GLASS = VARIANT == 'glass'
+AURORA = VARIANT == 'aurora'   # Glass pushed further: more see-through popups, a brighter rim
+GLASS = VARIANT in ('glass', 'aurora')
 DST = sys.argv[2] if len(sys.argv) > 2 else os.path.expanduser(f'~/.local/share/plasma/desktoptheme/breeze-ng-{VARIANT}')
 NS = 'http://www.w3.org/2000/svg'
 E.register_namespace('', NS)
@@ -108,11 +109,12 @@ hover = 0.06                                # a little more ink under the pointe
 pressed = 0.18 if GLASS else 0.16
 focus = (HL, 0.85)
 R_BUTTON, R_ITEM, R_POPUP, R_TIP = 9, 7, 14, 9
-popup_rim = 0.16 if GLASS else 0.10
+popup_rim = 0.22 if AURORA else 0.16 if GLASS else 0.10
+glass_popup = 0.50 if AURORA else 0.62
 
 # popups (the panel's, the launcher) and tooltips
-redraw('dialogs/background', [('', R_POPUP, (BG, 1 if not GLASS else 0.62), (INK, popup_rim)), ('mask-', R_POPUP, None, None, True)])
-redraw('translucent/dialogs/background', [('', R_POPUP, (BG, 0.62 if GLASS else 0.86), (INK, popup_rim)), ('mask-', R_POPUP, None, None, True)])
+redraw('dialogs/background', [('', R_POPUP, (BG, 1 if not GLASS else glass_popup), (INK, popup_rim)), ('mask-', R_POPUP, None, None, True)])
+redraw('translucent/dialogs/background', [('', R_POPUP, (BG, glass_popup if GLASS else 0.86), (INK, popup_rim)), ('mask-', R_POPUP, None, None, True)])
 redraw('widgets/tooltip', [('', R_TIP, (BG, 1), (INK, popup_rim)), ('mask-', R_TIP, None, None, True)])
 redraw('translucent/widgets/tooltip', [('', R_TIP, (BG, 0.72 if GLASS else 0.9), (INK, popup_rim)), ('mask-', R_TIP, None, None, True)])
 

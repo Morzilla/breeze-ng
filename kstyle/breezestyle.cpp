@@ -345,6 +345,9 @@ void Style::polish(QWidget *widget)
         || qobject_cast<QToolButton *>(widget) || widget->inherits("KTextEditor::View")) {
         widget->setAttribute(Qt::WA_Hover);
     }
+    if (qobject_cast<QPushButton *>(widget) || qobject_cast<QToolButton *>(widget)) {
+        addEventFilter(widget); // Breeze NG Aurora: the pointer's moves inside a button, see eventFilter()
+    }
 
     // enforce translucency for drag and drop window
     if (widget->testAttribute(Qt::WA_X11NetWmWindowTypeDND) && _helper->compositingActive()) {
@@ -1374,7 +1377,11 @@ bool Style::drawWidgetPrimitive(const QStyleOption *option, QPainter *painter, c
     if (glassWindow) {
         painter->save();
         painter->setCompositionMode(QPainter::CompositionMode_Source);
-        painter->fillRect(widget->rect(), _helper->alphaColor(widget->palette().color(QPalette::Window), qBound(20, StyleConfigData::windowOpacity(), 100) / 100.0));
+        painter->fillRect(widget->rect(), _helper->alphaColor(widget->palette().color(QPalette::Window), _helper->windowSheetAlpha()));
+        if (_helper->isAurora()) {
+            painter->setCompositionMode(QPainter::CompositionMode_SourceOver);
+            _helper->renderAuroraLights(painter, widget->rect(), widget->palette());
+        }
         painter->restore();
     }
 
@@ -1397,7 +1404,7 @@ bool Style::drawWidgetPrimitive(const QStyleOption *option, QPainter *painter, c
 
         auto color = _toolsAreaManager->palette().brush(mw->isActiveWindow() ? QPalette::Active : QPalette::Inactive, QPalette::Window);
         if (glassWindow) {
-            color = QBrush(_helper->alphaColor(color.color(), qBound(20, StyleConfigData::windowOpacity(), 100) / 100.0));
+            color = QBrush(_helper->alphaColor(color.color(), _helper->windowSheetAlpha()));
         }
 
         // Breeze NG Glass: the window already painted its sheet under the tools area; a second translucent layer
@@ -1745,6 +1752,12 @@ bool Style::event(QEvent *e)
 //_____________________________________________________________________
 bool Style::eventFilter(QObject *object, QEvent *event)
 {
+    // Breeze NG Aurora: the light inside a button follows the pointer
+    if (event->type() == QEvent::HoverMove && _helper->isAurora()) {
+        if (auto button = qobject_cast<QAbstractButton *>(object)) {
+            button->update();
+        }
+    }
     if (qobject_cast<QMenu *>(object) || object->inherits("QComboBoxPrivateContainer")) {
         eventFilterNgPopup(static_cast<QWidget *>(object), event);
     }
@@ -1809,7 +1822,10 @@ bool Style::eventFilter(QObject *object, QEvent *event)
             QPainter painter(widget);
             painter.setClipRegion(static_cast<QPaintEvent *>(event)->region());
             painter.setCompositionMode(QPainter::CompositionMode_DestinationOver);
-            painter.fillRect(widget->rect(), _helper->alphaColor(widget->palette().color(QPalette::Window), qBound(20, StyleConfigData::windowOpacity(), 100) / 100.0));
+            if (_helper->isAurora()) {
+                _helper->renderAuroraLights(&painter, widget->rect(), widget->palette()); // over the sheet, under the children
+            }
+            painter.fillRect(widget->rect(), _helper->alphaColor(widget->palette().color(QPalette::Window), _helper->windowSheetAlpha()));
             return false;
         }
 
@@ -2261,7 +2277,11 @@ bool Style::eventFilterDockWidget(QDockWidget *dockWidget, QEvent *event)
         QPainter painter(dockWidget);
         painter.setClipRegion(static_cast<QPaintEvent *>(event)->region());
         painter.setCompositionMode(QPainter::CompositionMode_Source);
-        painter.fillRect(dockWidget->rect(), _helper->alphaColor(dockWidget->palette().color(QPalette::Window), qBound(20, StyleConfigData::windowOpacity(), 100) / 100.0));
+        painter.fillRect(dockWidget->rect(), _helper->alphaColor(dockWidget->palette().color(QPalette::Window), _helper->windowSheetAlpha()));
+        if (_helper->isAurora()) {
+            painter.setCompositionMode(QPainter::CompositionMode_SourceOver);
+            _helper->renderAuroraLights(&painter, QRectF(dockWidget->mapFrom(dockWidget->window(), QPoint(0, 0)), dockWidget->window()->size()), dockWidget->palette());
+        }
         return false;
     }
 

@@ -69,7 +69,7 @@ cmake --build build -j%{?_smp_build_ncpus}
 %install
 DESTDIR=%{buildroot} cmake --install build
 # the Plasma styles (panel popups, launcher, their buttons and lists), from Fedora's default style
-for v in soft glass; do
+for v in soft glass aurora; do
     python3 ng/plasma-style/make-plasma-style.py $v %{buildroot}%{_datadir}/plasma/desktoptheme/breeze-ng-$v
 done
 install -Dm644 -t %{buildroot}%{_datadir}/color-schemes ng/color-schemes/BreezeNG.colors ng/color-schemes/BreezeNGLight.colors
@@ -96,8 +96,11 @@ done
 %{_datadir}/plasma/look-and-feel/org.morzilla.breezeng.glass
 %{_datadir}/plasma/look-and-feel/org.morzilla.breezeng.soft.light
 %{_datadir}/plasma/look-and-feel/org.morzilla.breezeng.glass.light
+%{_datadir}/plasma/look-and-feel/org.morzilla.breezeng.aurora
+%{_datadir}/plasma/look-and-feel/org.morzilla.breezeng.aurora.light
 %{_datadir}/plasma/desktoptheme/breeze-ng-soft
 %{_datadir}/plasma/desktoptheme/breeze-ng-glass
+%{_datadir}/plasma/desktoptheme/breeze-ng-aurora
 %{_qt6_plugindir}/styles/breezeng6.so
 %{_qt6_plugindir}/kstyle_config/breezengstyleconfig.so
 %{_qt6_plugindir}/org.kde.kdecoration3/org.kde.breezeng.so

@@ -48,6 +48,7 @@
       <choices>
         <choice name="Soft" />
         <choice name="Glass" />
+        <choice name="Aurora" />
       </choices>
       <default>Soft</default>
     </entry>

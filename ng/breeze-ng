@@ -5,7 +5,7 @@
 #   ./ng/breeze-ng env            make the plugins visible to the session (QT_PLUGIN_PATH; log out and in once)
 #   ./ng/breeze-ng now            same, for the running session: restarts Plasma (and KWin on X11) with the path
 #   ./ng/breeze-ng themes         install the two global themes (System Settings > Global Theme)
-#   ./ng/breeze-ng use soft|glass select the look: widget style, window decoration, colours; applies at once
+#   ./ng/breeze-ng use soft|glass|aurora  select the look: widget style, window decoration, colours; applies at once
 #   ./ng/breeze-ng off            back to the stock Breeze
 #   ./ng/breeze-ng settings       the settings window (also: System Settings > Application Style > Breeze NG > Configure)
 #   ./ng/breeze-ng status         what is active now
@@ -86,12 +86,12 @@ themes)
     cp -r "$W"/ng/look-and-feel/org.morzilla.breezeng.* "$HOME/.local/share/plasma/look-and-feel/"
     ICONS="$(kreadconfig6 --file kdeglobals --group Icons --key Theme 2>/dev/null || true)"
     if [ -n "$ICONS" ]; then
-        for v in soft glass soft.light glass.light; do
+        for v in soft glass aurora soft.light glass.light aurora.light; do
             printf '\n[kdeglobals][Icons]\nTheme=%s\n' "$ICONS" >> "$HOME/.local/share/plasma/look-and-feel/org.morzilla.breezeng.$v/contents/defaults"
         done
     fi
     # the Plasma styles in the same looks (panel popups, launcher, their buttons and lists), from the default one
-    for v in soft glass; do
+    for v in soft glass aurora; do
         python3 "$W/ng/plasma-style/make-plasma-style.py" "$v" "$HOME/.local/share/plasma/desktoptheme/breeze-ng-$v" >/dev/null
     done
     echo "==> global themes installed: Breeze NG Soft and Glass, dark and light (colour schemes Breeze NG and Breeze NG Light, Plasma styles Breeze NG Soft/Glass)"
@@ -100,7 +100,8 @@ use)
     case "$2" in
     soft) VARIANT=Soft ;;
     glass) VARIANT=Glass ;;
-    *) echo "usage: $0 use soft|glass" >&2; exit 1 ;;
+    aurora) VARIANT=Aurora ;;
+    *) echo "usage: $0 use soft|glass|aurora" >&2; exit 1 ;;
     esac
     kwriteconfig6 --file breezengrc --group Common --key Variant "$VARIANT"
     kwriteconfig6 --file kdeglobals --group KDE --key widgetStyle BreezeNG

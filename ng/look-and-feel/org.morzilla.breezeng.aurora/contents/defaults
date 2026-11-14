@@ -1,0 +1,12 @@
+[kdeglobals][KDE]
+widgetStyle=BreezeNG
+
+[kdeglobals][General]
+ColorScheme=BreezeNG
+
+[kwinrc][org.kde.kdecoration2]
+library=org.kde.breezeng
+theme=Breeze NG Aurora
+
+[plasmarc][Theme]
+name=breeze-ng-aurora

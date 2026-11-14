@@ -99,6 +99,8 @@ private Q_SLOTS:
 private:
     bool ngGlass() const; // Breeze NG
     bool m_ngGlass = false;
+    bool m_ngAurora = false; // Aurora is Glass pushed further: m_ngGlass is true as well
+    bool ngAurora() const;
     //* return the rect in which caption will be drawn
     QPair<QRectF, Qt::Alignment> captionRect() const;
 

@@ -20,6 +20,8 @@
 #endif
 
 #include <QApplication>
+#include <QCursor>
+#include <cmath>
 #include <QDockWidget>
 #include <QFileInfo>
 #include <QMainWindow>
@@ -100,13 +102,18 @@ void Helper::loadConfig()
     // Breeze NG: which look
     {
         const QString theme = _kwinConfig->group(QStringLiteral("org.kde.kdecoration2")).readEntry("theme", QString());
-        if (theme.compare(QLatin1String("Breeze NG Glass"), Qt::CaseInsensitive) == 0) {
+        _aurora = false;
+        if (theme.compare(QLatin1String("Breeze NG Aurora"), Qt::CaseInsensitive) == 0) {
+            _glass = true;
+            _aurora = true;
+        } else if (theme.compare(QLatin1String("Breeze NG Glass"), Qt::CaseInsensitive) == 0) {
             _glass = true;
         } else if (theme.compare(QLatin1String("Breeze NG Soft"), Qt::CaseInsensitive) == 0) {
             _glass = false;
         } else {
             StyleConfigData::self()->load();
-            _glass = StyleConfigData::variant() == StyleConfigData::Glass;
+            _aurora = StyleConfigData::variant() == StyleConfigData::Aurora;
+            _glass = _aurora || StyleConfigData::variant() == StyleConfigData::Glass;
         }
     }
 
@@ -214,19 +221,80 @@ void Helper::renderNgGlow(QPainter *painter, const QRectF &rect, const QColor &c
     painter->restore();
 }
 
-QColor Helper::glassSheet(const QPainter *painter) const
+qreal Helper::windowSheetAlpha() const
+{
+    const int opacity = qBound(20, StyleConfigData::windowOpacity(), 100);
+    return (_aurora ? qMin(opacity, 52) : opacity) / 100.0;
+}
+
+void Helper::renderAuroraLights(QPainter *painter, const QRectF &windowRect, const QPalette &palette) const
+{
+    // three soft lights: the accent from the top left corner, a neighbouring hue from the top right, the accent again
+    // from the bottom right. The window decoration draws the same two top ones in the title bar, from the same
+    // centres (the top corners of the window's contents), so they run on without a seam.
+    const QColor accent = palette.color(QPalette::Active, QPalette::Highlight);
+    const qreal hue = accent.hslHueF() < 0 ? 0.58 : accent.hslHueF();
+    const QColor second = QColor::fromHslF(std::fmod(hue + 0.17, 1.0), qMin(1.0, accent.hslSaturationF() * 1.1 + 0.1), qBound(0.45, accent.lightnessF(), 0.70));
+    const qreal strength = isDark(palette) ? 1.0 : 0.70;
+    const qreal radius = qBound(260.0, windowRect.width() * 0.55, 620.0);
+    auto light = [&](const QPointF &centre, qreal r, QColor colour, qreal alpha) {
+        QRadialGradient gradient(centre, r);
+        colour.setAlphaF(alpha * strength);
+        gradient.setColorAt(0.0, colour);
+        colour.setAlphaF(alpha * strength * 0.42);
+        gradient.setColorAt(0.45, colour);
+        colour.setAlphaF(0.0);
+        gradient.setColorAt(1.0, colour);
+        painter->fillRect(windowRect, gradient);
+    };
+    light(windowRect.topLeft(), radius, accent, 0.34);
+    light(windowRect.topRight(), radius * 0.8, second, 0.22);
+    light(windowRect.bottomRight(), radius * 0.9, accent, 0.20);
+}
+
+bool Helper::glassLayers(const QPainter *painter, QColor *base, QList<QColor> *panels, const QWidget **widgetOut, const QWidget **windowOut) const
 {
     if (!painter || !painter->device() || painter->device()->devType() != QInternal::Widget) {
-        return QColor();
+        return false;
     }
     const QWidget *widget = static_cast<const QWidget *>(painter->device());
     const QWidget *window = widget->window();
     if (!window || !window->property("_breeze_ng_glass").toBool() || widget->autoFillBackground()) {
-        return QColor();
+        return false;
     }
-    QColor sheet = alphaColor(window->palette().color(QPalette::Window), qBound(20, StyleConfigData::windowOpacity(), 100) / 100.0);
+    *base = alphaColor(window->palette().color(QPalette::Window), windowSheetAlpha());
     // a control inside a tab page or a group box sits on that panel, not on the bare window: what lies under it is the
     // window sheet with the panel's fill over it (clearing to the bare sheet would punch a hole in the panel)
+    const QWidget *child = widget;
+    for (const QWidget *parent = widget->parentWidget(); parent && parent != window; child = parent, parent = parent->parentWidget()) {
+        if (parent->autoFillBackground() || parent->inherits("QAbstractScrollArea")) {
+            return false; // an opaque surface of its own
+        }
+        if (parent->inherits("QTabWidget") && child->inherits("QTabBar")) {
+            continue; // the tab bar is beside the panel of its tab widget, not on it
+        }
+        if (parent->inherits("QTabWidget")) {
+            panels->prepend(tabPanelColor(parent->palette()));
+        } else if (parent->inherits("QGroupBox")) {
+            panels->prepend(frameBackgroundColor(parent->palette()));
+        }
+    }
+    if (widgetOut) {
+        *widgetOut = widget;
+    }
+    if (windowOut) {
+        *windowOut = window;
+    }
+    return true;
+}
+
+QColor Helper::glassSheet(const QPainter *painter) const
+{
+    QColor sheet;
+    QList<QColor> panels;
+    if (!glassLayers(painter, &sheet, &panels, nullptr, nullptr)) {
+        return QColor();
+    }
     auto over = [](const QColor &top, const QColor &bottom) {
         const qreal ta = top.alphaF(), ba = bottom.alphaF();
         const qreal a = ta + ba * (1.0 - ta);
@@ -240,21 +308,6 @@ QColor Helper::glassSheet(const QPainter *painter) const
                        a);
         return result;
     };
-    QList<QColor> panels;
-    const QWidget *child = widget;
-    for (const QWidget *parent = widget->parentWidget(); parent && parent != window; child = parent, parent = parent->parentWidget()) {
-        if (parent->autoFillBackground() || parent->inherits("QAbstractScrollArea")) {
-            return QColor(); // an opaque surface of its own
-        }
-        if (parent->inherits("QTabWidget") && child->inherits("QTabBar")) {
-            continue; // the tab bar is beside the panel of its tab widget, not on it
-        }
-        if (parent->inherits("QTabWidget")) {
-            panels.prepend(tabPanelColor(parent->palette()));
-        } else if (parent->inherits("QGroupBox")) {
-            panels.prepend(frameBackgroundColor(parent->palette()));
-        }
-    }
     for (const QColor &panel : std::as_const(panels)) {
         sheet = over(panel, sheet);
     }
@@ -263,6 +316,29 @@ QColor Helper::glassSheet(const QPainter *painter) const
 
 void Helper::clearUnder(QPainter *painter, const QRectF &rect) const
 {
+    if (_aurora) {
+        // Aurora: under a control lie the window's sheet, the lights and then the panels it sits on: lay them again in
+        // that order, or the control would stand on a flat patch without the lights around it
+        QColor base;
+        QList<QColor> panels;
+        const QWidget *widget = nullptr;
+        const QWidget *window = nullptr;
+        if (!glassLayers(painter, &base, &panels, &widget, &window)) {
+            return;
+        }
+        painter->save();
+        painter->setRenderHint(QPainter::Antialiasing, false);
+        painter->setClipRect(rect, Qt::IntersectClip);
+        painter->setCompositionMode(QPainter::CompositionMode_Source);
+        painter->fillRect(rect, base);
+        painter->setCompositionMode(QPainter::CompositionMode_SourceOver);
+        renderAuroraLights(painter, QRectF(widget->mapFrom(window, QPoint(0, 0)), window->size()), window->palette());
+        for (const QColor &panel : std::as_const(panels)) {
+            painter->fillRect(rect, panel);
+        }
+        painter->restore();
+        return;
+    }
     const QColor sheet = glassSheet(painter);
     if (!sheet.isValid()) {
         return;
@@ -1013,6 +1089,20 @@ void Helper::renderNgButtonFrame(QPainter *painter,
         painter->setClipPath(path);
         painter->setPen(QPen(alphaColor(inkColor, dark ? 0.16 : 0.5), 1));
         painter->drawLine(QPointF(frameRect.left() + radius, frameRect.top() + 1.0), QPointF(frameRect.right() - radius, frameRect.top() + 1.0));
+    }
+    if (_aurora && hovered && painter->device() && painter->device()->devType() == QInternal::Widget) {
+        // Aurora: a light that follows the pointer inside the button (the style repaints the button as the pointer moves)
+        const QWidget *device = static_cast<const QWidget *>(painter->device());
+        const QPointF pointer = device->mapFromGlobal(QCursor::pos());
+        if (rect.adjusted(-30, -30, 30, 30).contains(pointer)) {
+            painter->setClipPath(path);
+            painter->setPen(Qt::NoPen);
+            QRadialGradient spot(pointer, qMax<qreal>(56.0, rect.height() * 2.0));
+            spot.setColorAt(0.0, alphaColor(inkColor, dark ? 0.24 : 0.16));
+            spot.setColorAt(0.5, alphaColor(inkColor, dark ? 0.08 : 0.05));
+            spot.setColorAt(1.0, alphaColor(inkColor, 0.0));
+            painter->fillRect(rect, spot);
+        }
     }
     painter->restore();
     if (visualFocus) {

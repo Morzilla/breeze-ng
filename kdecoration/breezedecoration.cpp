@@ -29,7 +29,10 @@
 #include <QDBusMessage>
 #include <QDBusPendingCallWatcher>
 #include <QDBusPendingReply>
+#include <QGuiApplication>
 #include <QPainter>
+#include <QPainterPath>
+#include <cmath>
 #include <QPainterPath>
 #include <QTextStream>
 #include <QTimer>
@@ -382,19 +385,33 @@ bool Decoration::ngGlass() const
     // Breeze NG: the theme name KWin was given decides; breezengrc [Common] Variant is the fallback
     KSharedConfig::Ptr kwinConfig = KSharedConfig::openConfig(QStringLiteral("kwinrc"));
     const QString theme = kwinConfig->group(QStringLiteral("org.kde.kdecoration2")).readEntry("theme", QString());
-    if (theme.compare(QLatin1String("Breeze NG Glass"), Qt::CaseInsensitive) == 0) {
+    if (theme.compare(QLatin1String("Breeze NG Glass"), Qt::CaseInsensitive) == 0 || theme.compare(QLatin1String("Breeze NG Aurora"), Qt::CaseInsensitive) == 0) {
         return true;
     }
     if (theme.compare(QLatin1String("Breeze NG Soft"), Qt::CaseInsensitive) == 0) {
         return false;
     }
-    return m_internalSettings && m_internalSettings->variant() == InternalSettings::Glass;
+    return m_internalSettings && (m_internalSettings->variant() == InternalSettings::Glass || m_internalSettings->variant() == InternalSettings::Aurora);
+}
+
+bool Decoration::ngAurora() const
+{
+    KSharedConfig::Ptr kwinConfig = KSharedConfig::openConfig(QStringLiteral("kwinrc"));
+    const QString theme = kwinConfig->group(QStringLiteral("org.kde.kdecoration2")).readEntry("theme", QString());
+    if (theme.compare(QLatin1String("Breeze NG Aurora"), Qt::CaseInsensitive) == 0) {
+        return true;
+    }
+    if (theme.compare(QLatin1String("Breeze NG Glass"), Qt::CaseInsensitive) == 0 || theme.compare(QLatin1String("Breeze NG Soft"), Qt::CaseInsensitive) == 0) {
+        return false;
+    }
+    return m_internalSettings && m_internalSettings->variant() == InternalSettings::Aurora;
 }
 
 void Decoration::reconfigure()
 {
     m_internalSettings = SettingsProvider::self()->internalSettings(this);
     m_ngGlass = ngGlass();
+    m_ngAurora = ngAurora();
     setOpaque(isMaximized() && !m_ngGlass); // (the look may have changed: Glass is never opaque)
 
     setScaledCornerRadius();
@@ -606,7 +623,7 @@ void Decoration::paint(QPainter *painter, const QRectF &repaintRegion)
         painter->setPen(Qt::NoPen);
         QColor frameColor = window()->color(window()->isActive() ? ColorGroup::Active : ColorGroup::Inactive, ColorRole::Frame);
         if (m_ngGlass) {
-            frameColor.setAlphaF(0.70); // Breeze NG
+            frameColor.setAlphaF(m_ngAurora ? 0.52 : 0.70); // Breeze NG
             painter->setCompositionMode(QPainter::CompositionMode_Source);
         }
         painter->setBrush(frameColor);
@@ -664,7 +681,7 @@ void Decoration::paintTitleBar(QPainter *painter, const QRectF &repaintRegion)
     const bool glass = m_ngGlass;
     QColor sheet = titleBarColor();
     if (glass) {
-        sheet.setAlphaF(0.70);
+        sheet.setAlphaF(m_ngAurora ? 0.52 : 0.70);
         painter->setCompositionMode(QPainter::CompositionMode_Source);
     }
     backBrush = sheet;
@@ -702,10 +719,44 @@ void Decoration::paintTitleBar(QPainter *painter, const QRectF &repaintRegion)
 
     painter->restore();
 
+    if (m_ngAurora && !window()->isShaded()) {
+        // Aurora: the lights behind the window start here. The same centres as in the widget style (the top corners
+        // of the window's contents, that is the bottom corners of the title bar) and the same radii and colours, so
+        // the lights run from the title bar into the window without a seam.
+        painter->save();
+        QPainterPath clip;
+        if (isMaximized() || !settings()->isAlphaChannelSupported()) {
+            clip.addRect(rect);
+        } else {
+            clip.addRoundedRect(rect, m_scaledCornerRadius, m_scaledCornerRadius);
+            clip.addRect(QRectF(rect.left(), rect.bottom() - m_scaledCornerRadius, rect.width(), m_scaledCornerRadius));
+            clip.setFillRule(Qt::WindingFill);
+        }
+        painter->setClipPath(clip.simplified());
+        const QColor accent = QGuiApplication::palette().color(QPalette::Active, QPalette::Highlight);
+        const qreal hue = accent.hslHueF() < 0 ? 0.58 : accent.hslHueF();
+        const QColor second = QColor::fromHslF(std::fmod(hue + 0.17, 1.0), qMin(1.0, accent.hslSaturationF() * 1.1 + 0.1), qBound(0.45, accent.lightnessF(), 0.70));
+        const qreal strength = (titleBarColor().lightnessF() < 0.5 ? 1.0 : 0.70) * (window()->isActive() ? 1.0 : 0.6);
+        const qreal radius = qBound(260.0, rect.width() * 0.55, 620.0);
+        auto light = [&](const QPointF &centre, qreal r, QColor colour, qreal alpha) {
+            QRadialGradient gradient(centre, r);
+            colour.setAlphaF(alpha * strength);
+            gradient.setColorAt(0.0, colour);
+            colour.setAlphaF(alpha * strength * 0.42);
+            gradient.setColorAt(0.45, colour);
+            colour.setAlphaF(0.0);
+            gradient.setColorAt(1.0, colour);
+            painter->fillRect(rect, gradient);
+        };
+        light(QPointF(rect.left(), rect.bottom() + 1), radius, accent, 0.34);
+        light(QPointF(rect.right() + 1, rect.bottom() + 1), radius * 0.8, second, 0.22);
+        painter->restore();
+    }
+
     if (glass) {
         painter->save();
         painter->setRenderHint(QPainter::Antialiasing);
-        painter->setPen(QPen(QColor(255, 255, 255, window()->isActive() ? 46 : 26), 1));
+        painter->setPen(QPen(QColor(255, 255, 255, m_ngAurora ? (window()->isActive() ? 84 : 44) : (window()->isActive() ? 46 : 26)), 1));
         painter->drawLine(QPointF(rect.left() + m_scaledCornerRadius, rect.top() + 1.0), QPointF(rect.right() - m_scaledCornerRadius, rect.top() + 1.0));
         painter->restore();
     }
