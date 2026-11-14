@@ -1,7 +1,8 @@
 # SPDX-License-Identifier: GPL-2.0-or-later
-%global commit      4fd88f18e1857ee5caf0d82afb575b2799e517df
+%global commit      c65b3a952d0857306a15e3eea1e34b673c6bd880
 %global shortcommit %(c=%{commit}; echo ${c:0:7})
-%global snapdate    20261114
+%global snapdate    202611140926
+# snapdate: date and time of the commit (YYYYMMDDHHMM), so that two snapshots of one day sort in order
 # installed apart from the system, next to Fedora's own Breeze
 %global ngprefix    /opt/ng/breeze-ng
 # its plugins have names of their own (breezeng6, org.kde.breezeng...), so links to them go in Qt's plugin folder,
@@ -87,6 +88,10 @@ done
 %{_qt6_plugindir}/org.kde.kdecoration3.kcm/kcm_breezengdecoration.so
 
 %changelog
+* Sat Nov 14 2026 Morzilla <3956663+Morzilla@users.noreply.github.com> - 6.7.5^202611140926gitc65b3a9-1
+- A joined menu lines up with its button on Wayland (one pixel off before)
+- Snapshot versions carry the time of the commit, so builds of the same day sort right
+
 * Sat Nov 14 2026 Morzilla <3956663+Morzilla@users.noreply.github.com> - 6.7.5^20261114git4fd88f1-1
 - A menu joined to its button follows it where the compositor slides it
 
