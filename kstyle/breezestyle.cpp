@@ -404,6 +404,9 @@ void Style::polish(QWidget *widget)
     }
 
     ngUnfill(widget);
+    if (widget->inherits("KMessageWidget")) {
+        addEventFilter(widget); // Breeze NG Aurora: messages are tinted glass, see eventFilter()
+    }
 
     if (_helper->isAurora() && !widget->isWindow() && qEnvironmentVariableIsSet("BREEZE_NG_DEBUG_FILL")) {
         QByteArray chain;
@@ -2205,6 +2208,40 @@ bool Style::eventFilter(QObject *object, QEvent *event)
     if (object->isWidgetType()) {
         QWidget *widget = static_cast<QWidget *>(object);
 
+        if (event->type() == QEvent::Paint && _helper->isAurora() && widget->inherits("KMessageWidget") && widget->window()->property("_breeze_ng_glass").toBool()) {
+            // Breeze NG Aurora: an inline message (KMessageWidget: "codec not found", "file changed on disk") is a
+            // sheet of glass tinted with the colour of its kind, not a solid block of it. Its own painting is skipped;
+            // the text, the icon and the buttons are its children and paint themselves.
+            const QPalette palette = widget->palette();
+            QColor tint;
+            switch (widget->property("messageType").toInt()) {
+            case 0: // positive
+                tint = QColor(39, 174, 96);
+                break;
+            case 2: // warning
+                tint = _helper->neutralText(QApplication::palette());
+                break;
+            case 3: // error
+                tint = _helper->negativeText(QApplication::palette());
+                break;
+            default: // information
+                tint = _helper->auroraAccent(QApplication::palette(), 1.0);
+                break;
+            }
+            tint.setAlphaF(_helper->isDark(QApplication::palette()) ? 0.30 : 0.24);
+            QPainter painter(widget);
+            _helper->clearUnder(&painter, widget->rect());
+            painter.setRenderHint(QPainter::Antialiasing, true);
+            painter.setPen(Qt::NoPen);
+            painter.setBrush(tint);
+            if (widget->property("position").toInt() == 0) {
+                painter.drawRoundedRect(QRectF(widget->rect()).adjusted(1, 1, -1, -1), 10, 10); // inline: a rounded sheet
+            } else {
+                painter.drawRect(widget->rect()); // a header or a footer runs from edge to edge
+            }
+            Q_UNUSED(palette)
+            return true;
+        }
         if (event->type() == QEvent::Paint && widget->property("_breeze_ng_side_card_host").toBool() && _helper->isAurora()) {
             // the card under a Qt Quick sidebar (see ngGlassQuick)
             const auto children = widget->findChildren<QWidget *>(Qt::FindDirectChildrenOnly);

@@ -379,6 +379,8 @@ private:
                 guard->setCustomAlternateBackgroundColor(veil ? look.veil : look.ground);
                 guard->setProperty("_breeze_ng_glass", veil ? 5 : 6);
                 cardShadow(owner);
+            messageGlass(owner);
+                messageGlass(owner);
                 return;
             }
             const bool view = guard->colorSet() == PlatformTheme::View && !window;
@@ -392,6 +394,7 @@ private:
             guard->setCustomAlternateBackgroundColor(veiled ? look.veil : look.ground);
             guard->setProperty("_breeze_ng_glass", window ? 4 : veiled ? 1 : view ? 3 : 2); // (the widget style's own pass leaves these alone)
             cardShadow(owner);
+            messageGlass(owner);
             if (window && !owner->property("_breeze_ng_blur").toBool()) {
                 owner->setProperty("_breeze_ng_blur", true);
                 owner->installEventFilter(new BlurBehind(owner));
@@ -438,6 +441,33 @@ private:
         fade();
         QTimer::singleShot(0, card, fade);
         QTimer::singleShot(300, card, fade);
+    }
+
+    // Kirigami's inline message (the coloured strip: "codec not found", "restart needed") draws a block of its
+    // kind's colour and, over it, the page's background to leave only a border: with a see-through background the
+    // whole block shows, solid. Thin the block out instead: a sheet of glass tinted with the colour of its kind.
+    static void messageGlass(QObject *owner)
+    {
+        QObject *message = owner;
+        for (int depth = 0; message && depth < 4 && !QByteArray(message->metaObject()->className()).startsWith("InlineMessage"); ++depth) {
+            message = message->parent();
+        }
+        if (!message || !QByteArray(message->metaObject()->className()).startsWith("InlineMessage") || message->property("_breeze_ng_glass").toBool()) {
+            return;
+        }
+        QPointer<QObject> guard(message);
+        auto thin = [guard] {
+            if (!guard) {
+                return;
+            }
+            if (auto background = qobject_cast<QQuickItem *>(guard->property("background").value<QObject *>())) {
+                background->setOpacity(0.34);
+                guard->setProperty("_breeze_ng_glass", true);
+            }
+        };
+        thin();
+        QTimer::singleShot(0, message, thin);
+        QTimer::singleShot(300, message, thin);
     }
 
     Look m_look;
