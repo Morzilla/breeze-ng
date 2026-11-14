@@ -4,19 +4,20 @@
 %global snapdate    20261113
 # installed apart from the system, next to Fedora's own Breeze
 %global ngprefix    /opt/ng/breeze-ng
-# its programs find its libraries through an RPATH to /opt/ng/breeze-ng: on purpose, since they have the same names as
-# Fedora's Breeze libraries and must not be put on the system's library path
+# its plugins have names of their own (breezeng6, org.kde.breezeng...), so links to them go in Qt's plugin folder,
+# where every application and KWin find them at once, with no change to the session
 %global __brp_check_rpaths %{nil}
 
 Name:           breeze-ng
 Version:        6.7.5^%{snapdate}git%{shortcommit}
-Release:        1%{?dist}
+Release:        2%{?dist}
 Summary:        Breeze widget style and window decoration with two looks, Soft and Glass
 License:        GPL-2.0-or-later AND MIT
 URL:            https://github.com/Morzilla/breeze-ng
 Source0:        %{url}/archive/%{commit}/breeze-ng-%{shortcommit}.tar.gz
 
 BuildRequires:  cmake
+BuildRequires:  qt6-rpm-macros
 BuildRequires:  extra-cmake-modules
 BuildRequires:  gcc-c++
 BuildRequires:  gettext
@@ -41,11 +42,12 @@ BuildRequires:  cmake(KDecoration3)
 Breeze NG is a fork of KDE's Breeze widget style and window decoration with
 two looks: Soft (surfaces told apart by tone, no separator lines) and Glass
 (translucent windows and menus blurred by the compositor). It installs under
-%{ngprefix}, next to the stock Breeze, which stays untouched; every Plasma
-session finds it through a file in /etc/xdg/plasma-workspace/env.
+%{ngprefix}, next to the stock Breeze, which stays untouched, with links
+to its plugins in Qt's plugin folder.
 
-After installing, log out and in once, then pick "Breeze NG Soft" or
-"Breeze NG Glass" in System Settings > Global Theme.
+After installing, pick "Breeze NG Soft" or "Breeze NG Glass" in System
+Settings > Global Theme. Applications already open keep their old style
+until restarted.
 
 %prep
 %autosetup -n breeze-ng-%{commit}
@@ -62,14 +64,13 @@ install -Dm644 ng/color-schemes/BreezeNG.colors %{buildroot}%{_datadir}/color-sc
 install -Dm644 kstyle/breezeng.themerc %{buildroot}%{_datadir}/kstyle/themes/breezeng.themerc
 mkdir -p %{buildroot}%{_datadir}/plasma/look-and-feel
 cp -a ng/look-and-feel/org.morzilla.breezeng.soft ng/look-and-feel/org.morzilla.breezeng.glass %{buildroot}%{_datadir}/plasma/look-and-feel/
-# the plugin folder: lib64 on Fedora
-plugins=$(dirname "$(dirname "$(find %{buildroot}%{ngprefix} -name breezeng6.so -path '*/styles/*' | head -n 1)")")
-plugins=${plugins#%{buildroot}}
-mkdir -p %{buildroot}%{_sysconfdir}/xdg/plasma-workspace/env
-cat > %{buildroot}%{_sysconfdir}/xdg/plasma-workspace/env/breeze-ng.sh <<EOT
-# Breeze NG: the widget style and window decoration live under %{ngprefix}
-export QT_PLUGIN_PATH="$plugins\${QT_PLUGIN_PATH:+:\$QT_PLUGIN_PATH}"
-EOT
+# links to the plugins in Qt's plugin folder (no QT_PLUGIN_PATH, no new login)
+for f in styles/breezeng6.so kstyle_config/breezengstyleconfig.so org.kde.kdecoration3/org.kde.breezeng.so \
+         org.kde.kdecoration3.kcm/kcm_breezengdecoration.so; do
+    test -e %{buildroot}%{ngprefix}/%{_lib}/plugins/$f
+    mkdir -p "$(dirname %{buildroot}%{_qt6_plugindir}/$f)"
+    ln -s %{ngprefix}/%{_lib}/plugins/$f %{buildroot}%{_qt6_plugindir}/$f
+done
 
 %files
 %license LICENSES/*
@@ -80,8 +81,15 @@ EOT
 %{_datadir}/kstyle/themes/breezeng.themerc
 %{_datadir}/plasma/look-and-feel/org.morzilla.breezeng.soft
 %{_datadir}/plasma/look-and-feel/org.morzilla.breezeng.glass
-%config(noreplace) %{_sysconfdir}/xdg/plasma-workspace/env/breeze-ng.sh
+%{_qt6_plugindir}/styles/breezeng6.so
+%{_qt6_plugindir}/kstyle_config/breezengstyleconfig.so
+%{_qt6_plugindir}/org.kde.kdecoration3/org.kde.breezeng.so
+%{_qt6_plugindir}/org.kde.kdecoration3.kcm/kcm_breezengdecoration.so
 
 %changelog
+* Sat Nov 14 2026 Morzilla <3956663+Morzilla@users.noreply.github.com> - 6.7.5^20261113git399ea7a-2
+- Links to the plugins in Qt's plugin folder: the style and the decoration are there
+  at once, with no new login (the file in /etc/xdg/plasma-workspace/env is gone)
+
 * Sat Nov 14 2026 Morzilla <3956663+Morzilla@users.noreply.github.com> - 6.7.5^20261113git399ea7a-1
 - First package
