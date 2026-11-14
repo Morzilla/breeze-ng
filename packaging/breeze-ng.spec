@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: GPL-2.0-or-later
-%global commit      399ea7a8bc24e319de3e6852c8aba548880f6d48
+%global commit      4fd88f18e1857ee5caf0d82afb575b2799e517df
 %global shortcommit %(c=%{commit}; echo ${c:0:7})
-%global snapdate    20261113
+%global snapdate    20261114
 # installed apart from the system, next to Fedora's own Breeze
 %global ngprefix    /opt/ng/breeze-ng
 # its plugins have names of their own (breezeng6, org.kde.breezeng...), so links to them go in Qt's plugin folder,
@@ -10,7 +10,7 @@
 
 Name:           breeze-ng
 Version:        6.7.5^%{snapdate}git%{shortcommit}
-Release:        2%{?dist}
+Release:        1%{?dist}
 Summary:        Breeze widget style and window decoration with two looks, Soft and Glass
 License:        GPL-2.0-or-later AND MIT
 URL:            https://github.com/Morzilla/breeze-ng
@@ -87,6 +87,9 @@ done
 %{_qt6_plugindir}/org.kde.kdecoration3.kcm/kcm_breezengdecoration.so
 
 %changelog
+* Sat Nov 14 2026 Morzilla <3956663+Morzilla@users.noreply.github.com> - 6.7.5^20261114git4fd88f1-1
+- A menu joined to its button follows it where the compositor slides it
+
 * Sat Nov 14 2026 Morzilla <3956663+Morzilla@users.noreply.github.com> - 6.7.5^20261113git399ea7a-2
 - Links to the plugins in Qt's plugin folder: the style and the decoration are there
   at once, with no new login (the file in /etc/xdg/plasma-workspace/env is gone)
