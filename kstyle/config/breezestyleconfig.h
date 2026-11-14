@@ -100,6 +100,7 @@ private:
     QLabel *m_blurStrengthValue = nullptr;
     QWidget *m_auroraGroup = nullptr;
     int m_savedAuroraBody = 52;
+    QCheckBox *m_auroraLight = nullptr;
     int m_savedAuroraLights = 100;
 
     // controls and animations

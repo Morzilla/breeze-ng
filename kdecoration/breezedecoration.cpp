@@ -415,7 +415,7 @@ bool Decoration::ngGlass() const
     // Breeze NG: the theme name KWin was given decides; breezengrc [Common] Variant is the fallback
     KSharedConfig::Ptr kwinConfig = KSharedConfig::openConfig(QStringLiteral("kwinrc"));
     const QString theme = kwinConfig->group(QStringLiteral("org.kde.kdecoration2")).readEntry("theme", QString());
-    if (theme.compare(QLatin1String("Breeze NG Glass"), Qt::CaseInsensitive) == 0 || theme.compare(QLatin1String("Breeze NG Aurora"), Qt::CaseInsensitive) == 0) {
+    if (theme.compare(QLatin1String("Breeze NG Glass"), Qt::CaseInsensitive) == 0 || theme.startsWith(QLatin1String("Breeze NG Aurora"), Qt::CaseInsensitive)) {
         return true;
     }
     if (theme.compare(QLatin1String("Breeze NG Soft"), Qt::CaseInsensitive) == 0) {
@@ -457,14 +457,14 @@ qreal Decoration::ngSheetAlpha(const QColor &sheet) const
     if (!m_ngAurora) {
         return 0.70;
     }
-    return (sheet.lightnessF() < 0.5 ? m_ngAuroraBody : qMin(m_ngAuroraBody + 18, 95)) / 100.0; // as Helper::windowSheetAlpha
+    return qMin(m_ngAuroraBody + (sheet.lightnessF() < 0.5 ? (m_ngAuroraLight ? 0 : 22) : 18), 95) / 100.0; // as Helper::windowSheetAlpha
 }
 
 bool Decoration::ngAurora() const
 {
     KSharedConfig::Ptr kwinConfig = KSharedConfig::openConfig(QStringLiteral("kwinrc"));
     const QString theme = kwinConfig->group(QStringLiteral("org.kde.kdecoration2")).readEntry("theme", QString());
-    if (theme.compare(QLatin1String("Breeze NG Aurora"), Qt::CaseInsensitive) == 0) {
+    if (theme.startsWith(QLatin1String("Breeze NG Aurora"), Qt::CaseInsensitive)) {
         return true;
     }
     if (theme.compare(QLatin1String("Breeze NG Glass"), Qt::CaseInsensitive) == 0 || theme.compare(QLatin1String("Breeze NG Soft"), Qt::CaseInsensitive) == 0) {
@@ -478,6 +478,7 @@ void Decoration::reconfigure()
     m_internalSettings = SettingsProvider::self()->internalSettings(this);
     m_ngGlass = ngGlass();
     m_ngAurora = ngAurora();
+    m_ngAuroraLight = KSharedConfig::openConfig(QStringLiteral("kwinrc"))->group(QStringLiteral("org.kde.kdecoration2")).readEntry("theme", QString()).endsWith(QLatin1String("Aurora Light"), Qt::CaseInsensitive);
     {
         // Aurora: the title bar is the same glass as the window's body, with the same lights (breezengrc, as the style)
         auto config = KSharedConfig::openConfig(QStringLiteral("breezengrc"));

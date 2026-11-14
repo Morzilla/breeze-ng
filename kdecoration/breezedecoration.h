@@ -101,6 +101,7 @@ private:
     bool m_ngGlass = false;
     bool m_ngAurora = false; // Aurora is Glass pushed further: m_ngGlass is true as well
     int m_ngAuroraBody = 52;
+    bool m_ngAuroraLight = false;
     qreal m_ngAuroraLights = 1.0;
     int m_ngAuroraGrain = 30;
     QString m_ngBlurMode = QStringLiteral("full");

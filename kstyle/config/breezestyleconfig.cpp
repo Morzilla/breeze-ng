@@ -155,10 +155,15 @@ void notifyStyleChanged()
 //* one of the two looks, as a tile with a small window drawn in it
 // The look in use: the style follows the window decoration's theme first (a global theme sets only that), then its
 // own setting; the page has to show the same one.
+static bool ngCurrentAuroraLight()
+{
+    return KSharedConfig::openConfig(QStringLiteral("kwinrc"))->group(QStringLiteral("org.kde.kdecoration2")).readEntry("theme", QString()).endsWith(QLatin1String("Aurora Light"), Qt::CaseInsensitive);
+}
+
 static int ngCurrentLook()
 {
     const QString theme = KSharedConfig::openConfig(QStringLiteral("kwinrc"))->group(QStringLiteral("org.kde.kdecoration2")).readEntry("theme", QString());
-    if (theme.compare(QLatin1String("Breeze NG Aurora"), Qt::CaseInsensitive) == 0) {
+    if (theme.startsWith(QLatin1String("Breeze NG Aurora"), Qt::CaseInsensitive)) {
         return Breeze::StyleConfigData::Aurora;
     } else if (theme.compare(QLatin1String("Breeze NG Glass"), Qt::CaseInsensitive) == 0) {
         return Breeze::StyleConfigData::Glass;
@@ -634,6 +639,9 @@ QWidget *StyleConfig::pageTransparency()
         auto *group = new QVBoxLayout(m_auroraGroup);
         group->setContentsMargins(0, 0, 0, 0);
         group->addWidget(groupTitle(QStringLiteral("Aurora"), m_auroraGroup));
+        m_auroraLight = new QCheckBox(ngText("Aurora Light: a lighter, airier glass (off: dark tones)", "Aurora Light: un vetro più chiaro e arioso (spento: toni scuri)"), m_auroraGroup);
+        group->addWidget(m_auroraLight);
+        connect(m_auroraLight, &QCheckBox::toggled, this, &StyleConfig::updateChanged);
         auto *aurora = new QFormLayout();
         m_auroraBody = slider(15, 90, m_auroraGroup);
         m_auroraPanel = slider(0, 25, m_auroraGroup);
@@ -905,7 +913,9 @@ void StyleConfig::save()
     settings.writeEntry("ApplyColours", m_applyColours->isChecked());
     settings.sync();
 
-    const QString variant = look == StyleConfigData::Aurora ? QStringLiteral("Aurora") : look == StyleConfigData::Glass ? QStringLiteral("Glass") : QStringLiteral("Soft");
+    const QString variant = look == StyleConfigData::Aurora ? (m_auroraLight->isChecked() ? QStringLiteral("Aurora Light") : QStringLiteral("Aurora"))
+        : look == StyleConfigData::Glass ? QStringLiteral("Glass")
+                                         : QStringLiteral("Soft");
     if (m_applyDecoration->isChecked()) {
         // the look follows the decoration theme KWin was given: set it, or the choice above would not hold
         auto kwin = KSharedConfig::openConfig(QStringLiteral("kwinrc"))->group(QStringLiteral("org.kde.kdecoration2"));
@@ -985,7 +995,7 @@ void StyleConfig::updateChanged()
         || m_windowOpacity->value() != StyleConfigData::windowOpacity() || m_menuOpacity->value() != StyleConfigData::menuOpacity()
         || m_auroraBody->value() != StyleConfigData::auroraBodyOpacity() || m_auroraPanel->value() != StyleConfigData::auroraPanelVeil()
         || m_auroraButton->value() != StyleConfigData::auroraButtonVeil() || m_auroraLights->value() != StyleConfigData::auroraLights()
-        || m_auroraGrain->value() != StyleConfigData::auroraGrain()
+        || m_auroraGrain->value() != StyleConfigData::auroraGrain() || (m_aurora->isChecked() && m_auroraLight->isChecked() != ngCurrentAuroraLight())
         || m_blurStrength->value() != blurStrength()
         || m_animations->isChecked() != StyleConfigData::animationsEnabled() || m_animationSpeed->value() != animationIndex()
         || m_transitions->isChecked() != StyleConfigData::stackedWidgetTransitionsEnabled() || m_mnemonics->currentIndex() != StyleConfigData::mnemonicsMode()
@@ -1006,6 +1016,7 @@ void StyleConfig::load()
     m_loading = true;
     const int look = ngCurrentLook();
     m_aurora->setChecked(look == StyleConfigData::Aurora);
+    m_auroraLight->setChecked(ngCurrentAuroraLight());
     m_glass->setChecked(look == StyleConfigData::Glass);
     m_soft->setChecked(look == StyleConfigData::Soft);
     const auto settings = KSharedConfig::openConfig(QStringLiteral("breezengrc"))->group(QStringLiteral("Settings"));

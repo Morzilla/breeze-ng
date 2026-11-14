@@ -103,9 +103,12 @@ void Helper::loadConfig()
     {
         const QString theme = _kwinConfig->group(QStringLiteral("org.kde.kdecoration2")).readEntry("theme", QString());
         _aurora = false;
-        if (theme.compare(QLatin1String("Breeze NG Aurora"), Qt::CaseInsensitive) == 0) {
+        _auroraLight = false;
+        if (theme.startsWith(QLatin1String("Breeze NG Aurora"), Qt::CaseInsensitive)) {
+            // "Breeze NG Aurora": dark tones; "Breeze NG Aurora Light": the same effects on a lighter, airier glass
             _glass = true;
             _aurora = true;
+            _auroraLight = theme.endsWith(QLatin1String("Light"), Qt::CaseInsensitive);
         } else if (theme.compare(QLatin1String("Breeze NG Glass"), Qt::CaseInsensitive) == 0) {
             _glass = true;
         } else if (theme.compare(QLatin1String("Breeze NG Soft"), Qt::CaseInsensitive) == 0) {
@@ -227,7 +230,9 @@ qreal Helper::windowSheetAlpha() const
     // Aurora: more see-through; less so under a light scheme, where a dark desktop behind would turn the window grey
     if (_aurora) {
         const int body = qBound(10, StyleConfigData::auroraBodyOpacity(), 95);
-        return (isDark(QApplication::palette()) ? body : qMin(body + 18, 95)) / 100.0;
+        // the setting is the glass of Aurora Light; Aurora (dark tones) holds more of the window's colour; under a
+        // light colour scheme a dark desktop behind would turn the window grey: less see-through there too
+        return qMin(body + (isDark(QApplication::palette()) ? (_auroraLight ? 0 : 22) : 18), 95) / 100.0;
     }
     return opacity / 100.0;
 }

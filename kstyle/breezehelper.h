@@ -444,6 +444,7 @@ private:
     KSharedConfig::Ptr _kwinConfig;
     bool _glass = false; // Breeze NG
     bool _aurora = false; // Breeze NG
+    bool _auroraLight = false; // Breeze NG: the lighter glass of "Breeze NG Aurora Light"
     bool glassLayers(const QPainter *painter, QColor *base, QList<QColor> *panels, const QWidget **widget, const QWidget **window) const;
 
     //* event filter

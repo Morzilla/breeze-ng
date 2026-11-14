@@ -2,11 +2,11 @@
 widgetStyle=BreezeNG
 
 [kdeglobals][General]
-ColorScheme=BreezeNGLight
+ColorScheme=BreezeNG
 
 [kwinrc][org.kde.kdecoration2]
 library=org.kde.breezeng
-theme=Breeze NG Aurora
+theme=Breeze NG Aurora Light
 
 [plasmarc][Theme]
 name=breeze-ng-aurora
