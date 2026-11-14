@@ -152,6 +152,16 @@ public:
     qreal auroraVeil(const QPalette &palette, bool button) const;
     //* Breeze NG Aurora: the accent as a light (its hue, always luminous), with the given alpha
     QColor auroraAccent(const QPalette &palette, qreal alpha) const;
+    //* Breeze NG Aurora: is the sheet of a menu joined to its button see-through (then the button is laid as joinedFill
+    //* does: from nothing, so that it shows what the menu shows)
+    bool joinedGlass() const
+    {
+        return _aurora;
+    }
+    //* Breeze NG: fill the shape of a button (or menu bar title) joined to its open menu with the menu's sheet. With a
+    //* see-through sheet the window's own glass is taken away under the shape first: the menu has only its sheet over
+    //* the blur, the button must have no more.
+    void joinedFill(QPainter *painter, const QPainterPath &path, const QColor &sheet, const QPen &pen = QPen(Qt::NoPen)) const;
     //* Breeze NG: background of text fields
     QColor inputBackground(const QPalette &palette) const;
     //* Breeze NG: background and outline of a menu panel (`alpha`: the menu window has an alpha channel)

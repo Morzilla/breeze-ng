@@ -2183,7 +2183,14 @@ bool Style::eventFilter(QObject *object, QEvent *event)
             if (item.isValid() && sheet.isValid() && item.bottom() < menuBar->rect().bottom()) {
                 QPainter painter(menuBar);
                 const QRect strip(item.left(), item.bottom() + 1, item.width(), menuBar->rect().bottom() - item.bottom());
-                painter.fillRect(strip, sheet);
+                if (_helper->joinedGlass()) {
+                    QPainterPath stripPath;
+                    stripPath.addRect(strip);
+                    painter.setRenderHint(QPainter::Antialiasing, false);
+                    _helper->joinedFill(&painter, stripPath, sheet);
+                } else {
+                    painter.fillRect(strip, sheet);
+                }
                 const QColor line = KColorUtils::overlayColors(sheet, edge);
                 painter.fillRect(QRect(strip.left(), strip.top(), 1, strip.height()), line);
                 painter.fillRect(QRect(strip.right(), strip.top(), 1, strip.height()), line);
@@ -2732,6 +2739,9 @@ void Style::ngRenderPopupPanel(QPainter *painter, const QRect &rect, const QPale
         painter->setRenderHint(QPainter::Antialiasing, false);
         painter->setPen(Qt::NoPen);
         painter->setBrush(background);
+        if (background.alpha() < 255) {
+            painter->setCompositionMode(QPainter::CompositionMode_Source); // a see-through sheet: replace, do not add to the frame's
+        }
         const int y = top ? rect.top() : rect.bottom() - 1;
         // the outline stays under the two side lines of the button (one pixel at each end of the span): when the
         // popup is wider than the button or shifted, its edge then meets the button's sides without a break
@@ -6803,9 +6813,15 @@ bool Style::drawMenuBarItemControl(const QStyleOption *option, QPainter *painter
         const qreal radius = _helper->frameRadius(PenWidth::Frame);
         QRectF shape = _helper->strokedRect(QRectF(rect));
         shape.adjust(0, 0, 0, radius + 3); // past the bottom: the painter is clipped to the title
-        painter->setBrush(sheet);
-        painter->setPen(QPen(edge, PenWidth::Frame));
-        painter->drawRoundedRect(shape, radius, radius);
+        if (_helper->joinedGlass()) {
+            QPainterPath shapePath;
+            shapePath.addRoundedRect(shape, radius, radius);
+            _helper->joinedFill(painter, shapePath, sheet, QPen(edge, PenWidth::Frame));
+        } else {
+            painter->setBrush(sheet);
+            painter->setPen(QPen(edge, PenWidth::Frame));
+            painter->drawRoundedRect(shape, radius, radius);
+        }
     } else if (useStrongFocus && (selected || sunken)) {
         // Breeze NG: a title under the pointer gets a faint veil, as the buttons do, not a block of the accent
         const QColor color = _helper->alphaColor(_helper->ink(palette), sunken ? 0.14 : 0.08);

@@ -177,8 +177,9 @@ QColor Helper::ink(const QPalette &palette)
 QColor Helper::menuSheet(const QPalette &palette, bool alpha, QColor *outline, bool joined) const
 {
     QColor background = frameBackgroundColor(palette);
-    // a menu joined to a button is opaque: only then can the button be painted in exactly its colour
-    const int menuOpacity = joined ? 100 : ((isGlass() && StyleConfigData::menuOpacity() >= 100) ? 78 : StyleConfigData::menuOpacity());
+    // a menu joined to a button is opaque: only then can the button be painted in exactly its colour (Aurora: the
+    // menu stays see-through and blurred, and the button is laid from nothing in the same sheet: joinedFill)
+    const int menuOpacity = (joined && !_aurora) ? 100 : ((isGlass() && StyleConfigData::menuOpacity() >= 100) ? 78 : StyleConfigData::menuOpacity());
     QColor edge = isGlass() ? alphaColor(ink(palette), 0.16) : frameOutlineColor(palette);
     if (menuOpacity < 100 && alpha) {
         background.setAlphaF(menuOpacity / 100.0);
@@ -411,6 +412,23 @@ void Helper::clearUnder(QPainter *painter, const QRectF &rect) const
     painter->setCompositionMode(QPainter::CompositionMode_Source);
     painter->setRenderHint(QPainter::Antialiasing, false);
     painter->fillRect(rect, sheet);
+    painter->restore();
+}
+
+void Helper::joinedFill(QPainter *painter, const QPainterPath &path, const QColor &sheet, const QPen &pen) const
+{
+    painter->save();
+    painter->setRenderHint(QPainter::Antialiasing, true);
+    if (_aurora && sheet.alpha() < 255) {
+        painter->setCompositionMode(QPainter::CompositionMode_DestinationOut);
+        painter->setPen(Qt::NoPen);
+        painter->setBrush(Qt::black);
+        painter->drawPath(path);
+        painter->setCompositionMode(QPainter::CompositionMode_SourceOver);
+    }
+    painter->setPen(pen);
+    painter->setBrush(sheet);
+    painter->drawPath(path);
     painter->restore();
 }
 
@@ -1140,7 +1158,9 @@ void Helper::renderNgButtonFrame(QPainter *painter,
             path = roundedPath(frameRect, CornersBottom, radius);
         }
         bg = joinedBg.isValid() ? joinedBg : frameBackgroundColor(palette);
-        bg.setAlpha(255);
+        if (!_aurora) {
+            bg.setAlpha(255);
+        }
         // the outline is the menu's translucent one, composited over the fill (never Source: it would turn black)
         edge = joinedEdge.isValid() ? KColorUtils::overlayColors(bg, joinedEdge) : QColor(0, 0, 0, 0);
     } else {
@@ -1156,7 +1176,11 @@ void Helper::renderNgButtonFrame(QPainter *painter,
         painter->setBrush(bg);
     }
     painter->setPen(edge.alpha() > 0 ? QPen(edge, PenWidth::Frame) : QPen(Qt::NoPen));
-    painter->drawPath(path);
+    if (_aurora && (joined == QLatin1String("bottom") || joined == QLatin1String("top"))) {
+        joinedFill(painter, path, bg, painter->pen()); // the menu's see-through sheet, from nothing
+    } else {
+        painter->drawPath(path);
+    }
     if (rims && !flat && !down) {
         // the bright hairline on the top edge, as on the panels
         painter->setClipPath(path);
