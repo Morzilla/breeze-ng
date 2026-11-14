@@ -281,14 +281,31 @@ void Decoration::updateTitleBar()
         QPainterPath path;
         path.addRoundedRect(QRectF(QPointF(0, 0), size()), m_scaledCornerRadius, m_scaledCornerRadius);
         setBlurRegion(QRegion(path.toFillPolygon().toPolygon()));
+        ngSettle();
     } else {
         setBlurRegion(QRegion());
+    }
+}
+
+void Decoration::ngSettle()
+{
+    // Breeze NG Glass: seen on KWin 6 with the blur behind the frame: after the window opened or was activated, the
+    // title bar stayed in two versions (one lit and blurred, one flat) in the compositor's two buffers, and every small
+    // repaint of the window (a blinking text cursor) showed the other one: the title bar flashed with the cursor.
+    // Painting the frame again over the next frames brings every buffer to the same picture.
+    for (int delay : {0, 120, 400, 1200, 3000}) {
+        QTimer::singleShot(delay, this, [this] {
+            update();
+        });
     }
 }
 
 //________________________________________________________________
 void Decoration::updateAnimationState()
 {
+    if (m_ngGlass) {
+        ngSettle(); // the window was activated or left: see there
+    }
     if (m_shadowAnimation->duration() > 0) {
         m_shadowAnimation->setDirection(window()->isActive() ? QAbstractAnimation::Forward : QAbstractAnimation::Backward);
         m_shadowAnimation->setEasingCurve(window()->isActive() ? QEasingCurve::OutCubic : QEasingCurve::InCubic);
