@@ -26,6 +26,7 @@
 #include <kguiaddons_version.h>
 
 #include <QApplication>
+#include <QWindow>
 #include <QBitmap>
 #include <QCheckBox>
 #include <QComboBox>
@@ -2117,6 +2118,7 @@ bool Style::eventFilterNgPopup(QWidget *popup, QEvent *event)
         popup->setProperty("_breeze_ng_joins", QVariant::fromValue(QPointer<QWidget>(button)));
         popup->setProperty("_breeze_ng_join_button", buttonRect);
         popup->setProperty("_breeze_ng_join_top", menuEdge == Qt::TopEdge);
+        ngAnchorPopupToButton(popup, button, buttonRect, menuEdge == Qt::TopEdge);
         ngUpdateJoinSpan(popup);
         QColor outline;
         const QColor sheet = _helper->menuSheet(popup->palette(), _helper->hasAlphaChannel(popup), &outline, true);
@@ -2128,9 +2130,6 @@ bool Style::eventFilterNgPopup(QWidget *popup, QEvent *event)
     } else if (event->type() == QEvent::Move && popup->property("_breeze_ng_joins").isValid()) {
         // on Wayland the compositor has the last word on where a popup goes: it slides a menu that would leave the
         // screen (the menu of a button at the right edge of a window) after Qt placed it. The span follows.
-        if (ngNudgeJoinedPopup(popup)) {
-            return false; // moved again: the next Move event brings the final place
-        }
         ngUpdateJoinSpan(popup);
         _shadowHelper->updateShadows(popup);
         popup->update();
@@ -2153,7 +2152,13 @@ bool Style::eventFilterNgPopup(QWidget *popup, QEvent *event)
             popup->setProperty("_breeze_ng_join_span", QVariant());
             popup->setProperty("_breeze_ng_join_button", QVariant());
             popup->setProperty("_breeze_ng_join_top", QVariant());
-            popup->setProperty("_breeze_ng_nudged", QVariant());
+            if (QWindow *handle = popup->windowHandle(); handle && handle->property("_breeze_ng_anchored").toBool()) {
+                // the next opening may not join a button: let Qt place it its own way again
+                handle->setProperty("_q_waylandPopupAnchorRect", QVariant());
+                handle->setProperty("_q_waylandPopupAnchor", QVariant());
+                handle->setProperty("_q_waylandPopupGravity", QVariant());
+                handle->setProperty("_breeze_ng_anchored", QVariant());
+            }
             _shadowHelper->updateShadows(popup);
         }
     }
@@ -2161,29 +2166,29 @@ bool Style::eventFilterNgPopup(QWidget *popup, QEvent *event)
 }
 
 //____________________________________________________________________________
-// Breeze NG: on Wayland (Qt 6.11, KWin 6.8) a popup asked for at the left edge of its button lands one pixel to the
-// right of it, and the outline of a joined menu then steps off the button's. The offset is constant, so asking again
-// for the place minus twice the error puts it where it belongs. Only for a menu that sits within two pixels of the
-// button's left or right edge, once per opening: where the compositor places popups exactly, nothing happens.
-bool Style::ngNudgeJoinedPopup(QWidget *popup) const
+// Breeze NG: on Wayland Qt describes where a menu goes as a 1x1 point next to the requested position, and with the
+// window margins it applies the menu of a button lands one pixel to the right of it (Qt 6.11, KWin 6.8): the outline
+// of a joined menu then steps off the button's. Qt reads the anchor from a few window properties instead when they
+// are set; given the button's own rectangle, the compositor lines the menu up with it exactly. Set at the Show event,
+// which Qt sends before it maps the popup. The flip and slide on the screen's edges stay Qt's.
+void Style::ngAnchorPopupToButton(QWidget *popup, QWidget *button, const QRect &buttonGlobal, bool below) const
 {
-    if (popup->property("_breeze_ng_nudged").toBool() || !QGuiApplication::platformName().startsWith(QLatin1String("wayland"))) {
-        return false;
+    if (!QGuiApplication::platformName().startsWith(QLatin1String("wayland"))) {
+        return;
     }
-    const QRect buttonRect = popup->property("_breeze_ng_join_button").toRect();
-    if (!buttonRect.isValid()) {
-        return false;
+    QWindow *handle = popup->windowHandle();
+    QWidget *parentWindow = button->window();
+    if (!handle || !parentWindow) {
+        return;
     }
-    int dx = popup->x() - buttonRect.left();
-    if (dx == 0 || qAbs(dx) > 2) {
-        dx = popup->geometry().right() - buttonRect.right(); // a menu aligned with the button's right edge
-        if (dx == 0 || qAbs(dx) > 2) {
-            return false;
-        }
-    }
-    popup->setProperty("_breeze_ng_nudged", true);
-    popup->move(popup->x() - 2 * dx, popup->y());
-    return true;
+    const QRect anchorRect(parentWindow->mapFromGlobal(buttonGlobal.topLeft()), buttonGlobal.size());
+    // the side of the button the menu starts from: its left edge, or its right edge for a menu lined up on that side
+    const bool fromRight = popup->x() != buttonGlobal.left() && popup->geometry().right() == buttonGlobal.right();
+    const Qt::Edges vertical = below ? Qt::BottomEdge : Qt::TopEdge;
+    handle->setProperty("_q_waylandPopupAnchorRect", anchorRect);
+    handle->setProperty("_q_waylandPopupAnchor", QVariant::fromValue(Qt::Edges(vertical | (fromRight ? Qt::RightEdge : Qt::LeftEdge))));
+    handle->setProperty("_q_waylandPopupGravity", QVariant::fromValue(Qt::Edges(vertical | (fromRight ? Qt::LeftEdge : Qt::RightEdge))));
+    handle->setProperty("_breeze_ng_anchored", true);
 }
 
 //____________________________________________________________________________
