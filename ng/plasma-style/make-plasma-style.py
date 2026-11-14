@@ -156,6 +156,16 @@ redraw('widgets/lineedit', [
 # tabs (the launcher's Applications / Places)
 redraw('widgets/tabbar', [(f'{side}-active-tab-', R_ITEM, (INK, 0.12), rim) for side in ('north', 'south', 'east', 'west')])
 
+# separator lines (the launcher's, the panel popups'): the default draws them in the scheme's frame colour, black
+# lines on a dark glass. Breeze NG has no separator lines: a breath of ink, enough to tell two areas apart
+line = gzip.open(f'{SRC}/widgets/line.svgz').read().decode()
+line = line.replace('class="ColorScheme-Frame"\n       style="fill:currentColor"', f'class="{INK}"\n       style="fill:currentColor;fill-opacity:{0.05 if AURORA else 0.07}"')
+if 'fill-opacity' in line:
+    with gzip.open(f'{DST}/widgets/line.svgz', 'wb') as out:
+        out.write(line.encode())
+else:
+    print('warning: the default line.svgz has changed, separator lines left as they are', file=sys.stderr)
+
 json.dump({'KPlugin': {'Id': f'breeze-ng-{VARIANT}', 'Name': f'Breeze NG {VARIANT.capitalize()}',
                        'Description': 'The look of the Breeze NG widget style for Plasma: popups, buttons, lists, fields',
                        'Authors': [{'Name': 'Morzilla'}], 'License': 'LGPL-2.0-or-later', 'Version': '1.0',
