@@ -8,3 +8,6 @@ ColorScheme=BreezeNG
 library=org.kde.breezeng
 theme=Breeze NG Soft
 
+
+[plasmarc][Theme]
+name=breeze-ng-soft

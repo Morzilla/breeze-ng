@@ -41,7 +41,11 @@ and a menu opened from a button that joins it into one shape.
 - `kstyle/` – the widget style, plugin key `BreezeNG`
 - `kdecoration/` – the KWin decoration `org.kde.breezeng`, themes `Breeze NG Soft` and `Breeze NG Glass`
 - [`ng/breeze-ng`](ng/breeze-ng) – build, install and switch script
-- [`ng/look-and-feel/`](ng/look-and-feel/) – the two global themes (System Settings › Global Theme)
+- [`ng/look-and-feel/`](ng/look-and-feel/) – the two global themes (System Settings › Global Theme): widget style, window
+  decoration, colours and Plasma style together
+- [`ng/plasma-style/make-plasma-style.py`](ng/plasma-style/make-plasma-style.py) – builds the Plasma styles `Breeze NG Soft` and
+  `Breeze NG Glass` from Plasma's default one: what Plasma draws itself (the panel's popups, the launcher, their buttons,
+  lists and fields) in the same tones, radii and rims as the widget style
 - [`ng/color-schemes/BreezeNG.colors`](ng/color-schemes/BreezeNG.colors) – the colour scheme both looks were designed on
 - [`ng/demo-controls.py`](ng/demo-controls.py) – a small window with the common controls, to see the style at a glance
 

@@ -90,7 +90,11 @@ themes)
             printf '\n[kdeglobals][Icons]\nTheme=%s\n' "$ICONS" >> "$HOME/.local/share/plasma/look-and-feel/org.morzilla.breezeng.$v/contents/defaults"
         done
     fi
-    echo "==> global themes installed: Breeze NG Soft, Breeze NG Glass (colour scheme Breeze NG)"
+    # the Plasma styles in the same looks (panel popups, launcher, their buttons and lists), from the default one
+    for v in soft glass; do
+        python3 "$W/ng/plasma-style/make-plasma-style.py" "$v" "$HOME/.local/share/plasma/desktoptheme/breeze-ng-$v" >/dev/null
+    done
+    echo "==> global themes installed: Breeze NG Soft, Breeze NG Glass (colour scheme Breeze NG, Plasma styles Breeze NG Soft/Glass)"
     ;;
 use)
     case "$2" in
