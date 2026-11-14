@@ -110,6 +110,30 @@ bool effectEnabled(const char *id)
     return KSharedConfig::openConfig(QStringLiteral("kwinrc"), KConfig::NoGlobals)->group(QStringLiteral("Plugins")).readEntry(QStringLiteral("%1Enabled").arg(QLatin1String(id)), false);
 }
 
+// KWin's blur strength (1-15): one for the whole desktop, whichever blur effect is in use
+const char *const blurGroups[] = {"Effect-better-blur-dx", "Effect-blurplus", "Effect-blur"};
+int blurStrength()
+{
+    auto config = KSharedConfig::openConfig(QStringLiteral("kwinrc"), KConfig::NoGlobals);
+    for (const char *group : blurGroups) {
+        if (config->hasGroup(QLatin1String(group)) && config->group(QLatin1String(group)).hasKey("BlurStrength")) {
+            return qBound(1, config->group(QLatin1String(group)).readEntry("BlurStrength", 15), 15);
+        }
+    }
+    return 15; // KWin's default
+}
+
+void setBlurStrength(int strength)
+{
+    auto config = KSharedConfig::openConfig(QStringLiteral("kwinrc"), KConfig::NoGlobals);
+    for (const char *group : blurGroups) {
+        if (config->hasGroup(QLatin1String(group)) || qstrcmp(group, "Effect-blur") == 0) {
+            config->group(QLatin1String(group)).writeEntry("BlurStrength", strength);
+        }
+    }
+    config->sync();
+}
+
 void reloadKWin()
 {
 #if HAVE_QTDBUS
@@ -604,8 +628,41 @@ QWidget *StyleConfig::pageTransparency()
     note->setEnabled(false);
     note->setWordWrap(true);
     body->addWidget(note);
+    // Aurora has its own: the glass of the window, the veil of what lies on it, the lights behind
+    m_auroraGroup = new QWidget(w);
+    {
+        auto *group = new QVBoxLayout(m_auroraGroup);
+        group->setContentsMargins(0, 0, 0, 0);
+        group->addWidget(groupTitle(QStringLiteral("Aurora"), m_auroraGroup));
+        auto *aurora = new QFormLayout();
+        m_auroraBody = slider(15, 90, m_auroraGroup);
+        m_auroraPanel = slider(0, 25, m_auroraGroup);
+        m_auroraButton = slider(0, 25, m_auroraGroup);
+        m_auroraLights = slider(0, 160, m_auroraGroup);
+        m_blurStrength = slider(1, 15, m_auroraGroup);
+        m_auroraBodyValue = new QLabel(m_auroraGroup);
+        m_auroraPanelValue = new QLabel(m_auroraGroup);
+        m_auroraButtonValue = new QLabel(m_auroraGroup);
+        m_auroraLightsValue = new QLabel(m_auroraGroup);
+        m_blurStrengthValue = new QLabel(m_auroraGroup);
+        aurora->addRow(ngText("Window opacity", "Opacità della finestra"), sliderRow(m_auroraBody, m_auroraBodyValue, m_auroraGroup));
+        aurora->addRow(ngText("Sidebar, cards, lists", "Barra laterale, schede, liste"), sliderRow(m_auroraPanel, m_auroraPanelValue, m_auroraGroup));
+        aurora->addRow(ngText("Buttons and fields", "Pulsanti e campi"), sliderRow(m_auroraButton, m_auroraButtonValue, m_auroraGroup));
+        aurora->addRow(ngText("Lights", "Luci"), sliderRow(m_auroraLights, m_auroraLightsValue, m_auroraGroup));
+        aurora->addRow(ngText("Blur", "Sfocatura"), sliderRow(m_blurStrength, m_blurStrengthValue, m_auroraGroup));
+        group->addLayout(aurora);
+        auto *auroraNote = new QLabel(ngText("The two veils are equal by default, so that sidebar, cards, buttons and fields have one intensity. The blur is KWin's: one "
+                                             "strength for the whole desktop, it cannot differ between the parts of a window.",
+                                             "I due veli sono uguali in partenza, così barra laterale, schede, pulsanti e campi hanno la stessa intensità. La sfocatura è "
+                                             "quella di KWin: una sola per tutto il desktop, non può cambiare tra le parti di una finestra."),
+                                      m_auroraGroup);
+        auroraNote->setEnabled(false);
+        auroraNote->setWordWrap(true);
+        group->addWidget(auroraNote);
+    }
+    body->addWidget(m_auroraGroup);
     body->addStretch();
-    for (QSlider *s : {m_windowOpacity, m_menuOpacity}) {
+    for (QSlider *s : {m_windowOpacity, m_menuOpacity, m_auroraBody, m_auroraPanel, m_auroraButton, m_auroraLights, m_blurStrength}) {
         connect(s, &QSlider::valueChanged, this, &StyleConfig::updateChanged);
     }
     return w;
@@ -803,6 +860,18 @@ void StyleConfig::save()
     StyleConfigData::setVariant(look);
     StyleConfigData::setWindowOpacity(m_windowOpacity->value());
     StyleConfigData::setMenuOpacity(m_menuOpacity->value());
+    StyleConfigData::setAuroraBodyOpacity(m_auroraBody->value());
+    StyleConfigData::setAuroraPanelVeil(m_auroraPanel->value());
+    StyleConfigData::setAuroraButtonVeil(m_auroraButton->value());
+    StyleConfigData::setAuroraLights(m_auroraLights->value());
+    const bool blurChanged = m_blurStrength->value() != blurStrength();
+    if (blurChanged) {
+        setBlurStrength(m_blurStrength->value());
+    }
+    // the window decoration draws the title bar with the same glass and lights
+    const bool decorationChanged = blurChanged || m_auroraBody->value() != m_savedAuroraBody || m_auroraLights->value() != m_savedAuroraLights;
+    m_savedAuroraBody = m_auroraBody->value();
+    m_savedAuroraLights = m_auroraLights->value();
     StyleConfigData::setAnimationsEnabled(m_animations->isChecked());
     StyleConfigData::setAnimationsDuration(animationDurations[qBound(0, m_animationSpeed->value(), 4)]);
     StyleConfigData::setStackedWidgetTransitionsEnabled(m_transitions->isChecked());
@@ -840,7 +909,11 @@ void StyleConfig::save()
             kwin.writeEntry("theme", QStringLiteral("Breeze NG ") + variant);
             kwin.sync();
             reloadKWin();
+        } else if (decorationChanged) {
+            reloadKWin();
         }
+    } else if (decorationChanged) {
+        reloadKWin();
     }
     if (m_applyColours->isChecked() && variantChanged) {
         QProcess::startDetached(QStringLiteral("plasma-apply-colorscheme"), {QStringLiteral("BreezeNG")});
@@ -883,12 +956,18 @@ void StyleConfig::updateChanged()
     // the labels and the preview follow the controls
     m_windowOpacityValue->setText(QStringLiteral("%1 %").arg(m_windowOpacity->value()));
     m_menuOpacityValue->setText(QStringLiteral("%1 %").arg(m_menuOpacity->value()));
+    m_auroraBodyValue->setText(QStringLiteral("%1 %").arg(m_auroraBody->value()));
+    m_auroraPanelValue->setText(QStringLiteral("%1 %").arg(m_auroraPanel->value()));
+    m_auroraButtonValue->setText(QStringLiteral("%1 %").arg(m_auroraButton->value()));
+    m_auroraLightsValue->setText(QStringLiteral("%1 %").arg(m_auroraLights->value()));
+    m_blurStrengthValue->setText(QString::number(m_blurStrength->value()));
+    m_auroraGroup->setVisible(m_aurora->isChecked());
     static const char *const speeds[][2] = {{"Very fast", "Molto veloce"}, {"Fast", "Veloce"}, {"Normal", "Normale"}, {"Slow", "Lenta"}, {"Very slow", "Molto lenta"}};
     const int speed = qBound(0, m_animationSpeed->value(), 4);
     m_animationSpeedValue->setText(ngText(speeds[speed][0], speeds[speed][1]));
     m_shadowStrengthValue->setText(QStringLiteral("%1 %").arg(qRound(m_shadowStrength->value() * 100.0 / 255.0)));
     m_animationSpeed->setEnabled(m_animations->isChecked());
-    m_windowOpacity->setEnabled(m_glass->isChecked() || m_aurora->isChecked());
+    m_windowOpacity->setEnabled(m_glass->isChecked() && !m_aurora->isChecked());
     m_preview->setOpacities(m_windowOpacity->value(), m_menuOpacity->value(), m_glass->isChecked() || m_aurora->isChecked());
     if (m_loading) {
         return;
@@ -898,6 +977,9 @@ void StyleConfig::updateChanged()
     const bool modified = (m_aurora->isChecked() ? StyleConfigData::Aurora : m_glass->isChecked() ? StyleConfigData::Glass : StyleConfigData::Soft) != ngCurrentLook()
         || m_applyDecoration->isChecked() != settings.readEntry("ApplyDecoration", true) || m_applyColours->isChecked() != settings.readEntry("ApplyColours", true)
         || m_windowOpacity->value() != StyleConfigData::windowOpacity() || m_menuOpacity->value() != StyleConfigData::menuOpacity()
+        || m_auroraBody->value() != StyleConfigData::auroraBodyOpacity() || m_auroraPanel->value() != StyleConfigData::auroraPanelVeil()
+        || m_auroraButton->value() != StyleConfigData::auroraButtonVeil() || m_auroraLights->value() != StyleConfigData::auroraLights()
+        || m_blurStrength->value() != blurStrength()
         || m_animations->isChecked() != StyleConfigData::animationsEnabled() || m_animationSpeed->value() != animationIndex()
         || m_transitions->isChecked() != StyleConfigData::stackedWidgetTransitionsEnabled() || m_mnemonics->currentIndex() != StyleConfigData::mnemonicsMode()
         || m_scrollTop->currentIndex() != StyleConfigData::scrollBarSubLineButtons() || m_scrollBottom->currentIndex() != StyleConfigData::scrollBarAddLineButtons()
@@ -924,6 +1006,13 @@ void StyleConfig::load()
     m_applyColours->setChecked(settings.readEntry("ApplyColours", true));
     m_windowOpacity->setValue(StyleConfigData::windowOpacity());
     m_menuOpacity->setValue(StyleConfigData::menuOpacity());
+    m_auroraBody->setValue(StyleConfigData::auroraBodyOpacity());
+    m_auroraPanel->setValue(StyleConfigData::auroraPanelVeil());
+    m_auroraButton->setValue(StyleConfigData::auroraButtonVeil());
+    m_auroraLights->setValue(StyleConfigData::auroraLights());
+    m_blurStrength->setValue(blurStrength());
+    m_savedAuroraBody = m_auroraBody->value();
+    m_savedAuroraLights = m_auroraLights->value();
     m_animations->setChecked(StyleConfigData::animationsEnabled());
     m_animationSpeed->setValue(animationIndex());
     m_transitions->setChecked(StyleConfigData::stackedWidgetTransitionsEnabled());

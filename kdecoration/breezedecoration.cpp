@@ -394,6 +394,14 @@ bool Decoration::ngGlass() const
     return m_internalSettings && (m_internalSettings->variant() == InternalSettings::Glass || m_internalSettings->variant() == InternalSettings::Aurora);
 }
 
+qreal Decoration::ngSheetAlpha(const QColor &sheet) const
+{
+    if (!m_ngAurora) {
+        return 0.70;
+    }
+    return (sheet.lightnessF() < 0.5 ? m_ngAuroraBody : qMin(m_ngAuroraBody + 18, 95)) / 100.0; // as Helper::windowSheetAlpha
+}
+
 bool Decoration::ngAurora() const
 {
     KSharedConfig::Ptr kwinConfig = KSharedConfig::openConfig(QStringLiteral("kwinrc"));
@@ -412,6 +420,14 @@ void Decoration::reconfigure()
     m_internalSettings = SettingsProvider::self()->internalSettings(this);
     m_ngGlass = ngGlass();
     m_ngAurora = ngAurora();
+    {
+        // Aurora: the title bar is the same glass as the window's body, with the same lights (breezengrc, as the style)
+        auto config = KSharedConfig::openConfig(QStringLiteral("breezengrc"));
+        config->reparseConfiguration();
+        const auto common = config->group(QStringLiteral("Common"));
+        m_ngAuroraBody = qBound(10, common.readEntry("AuroraBodyOpacity", 52), 95);
+        m_ngAuroraLights = qBound(0, common.readEntry("AuroraLights", 100), 180) / 100.0;
+    }
     setOpaque(isMaximized() && !m_ngGlass); // (the look may have changed: Glass is never opaque)
 
     setScaledCornerRadius();
@@ -623,7 +639,7 @@ void Decoration::paint(QPainter *painter, const QRectF &repaintRegion)
         painter->setPen(Qt::NoPen);
         QColor frameColor = window()->color(window()->isActive() ? ColorGroup::Active : ColorGroup::Inactive, ColorRole::Frame);
         if (m_ngGlass) {
-            frameColor.setAlphaF(m_ngAurora && frameColor.lightnessF() < 0.5 ? 0.52 : 0.70); // Breeze NG
+            frameColor.setAlphaF(ngSheetAlpha(frameColor)); // Breeze NG
             painter->setCompositionMode(QPainter::CompositionMode_Source);
         }
         painter->setBrush(frameColor);
@@ -681,7 +697,7 @@ void Decoration::paintTitleBar(QPainter *painter, const QRectF &repaintRegion)
     const bool glass = m_ngGlass;
     QColor sheet = titleBarColor();
     if (glass) {
-        sheet.setAlphaF(m_ngAurora && sheet.lightnessF() < 0.5 ? 0.52 : 0.70);
+        sheet.setAlphaF(ngSheetAlpha(sheet));
         painter->setCompositionMode(QPainter::CompositionMode_Source);
     }
     backBrush = sheet;
@@ -738,13 +754,13 @@ void Decoration::paintTitleBar(QPainter *painter, const QRectF &repaintRegion)
         const qreal saturation = qBound(0.60, highlight.hslSaturationF() * 1.4, 0.95);
         const QColor accent = QColor::fromHslF(hue, saturation, 0.62); // luminous, as in the widget style
         const QColor second = QColor::fromHslF(std::fmod(hue + 0.17, 1.0), saturation, 0.64);
-        const qreal strength = (titleBarColor().lightnessF() < 0.5 ? 1.0 : 0.70) * (window()->isActive() ? 1.0 : 0.6);
+        const qreal strength = (titleBarColor().lightnessF() < 0.5 ? 1.0 : 0.70) * (window()->isActive() ? 1.0 : 0.6) * m_ngAuroraLights;
         const qreal radius = qBound(260.0, rect.width() * 0.55, 620.0);
         auto light = [&](const QPointF &centre, qreal r, QColor colour, qreal alpha) {
             QRadialGradient gradient(centre, r);
-            colour.setAlphaF(alpha * strength);
+            colour.setAlphaF(qMin(1.0, alpha * strength));
             gradient.setColorAt(0.0, colour);
-            colour.setAlphaF(alpha * strength * 0.46);
+            colour.setAlphaF(qMin(1.0, alpha * strength * 0.46));
             gradient.setColorAt(0.45, colour);
             colour.setAlphaF(0.0);
             gradient.setColorAt(1.0, colour);

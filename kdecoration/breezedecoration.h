@@ -100,7 +100,10 @@ private:
     bool ngGlass() const; // Breeze NG
     bool m_ngGlass = false;
     bool m_ngAurora = false; // Aurora is Glass pushed further: m_ngGlass is true as well
+    int m_ngAuroraBody = 52;
+    qreal m_ngAuroraLights = 1.0;
     bool ngAurora() const;
+    qreal ngSheetAlpha(const QColor &sheet) const;
     //* return the rect in which caption will be drawn
     QPair<QRectF, Qt::Alignment> captionRect() const;
 

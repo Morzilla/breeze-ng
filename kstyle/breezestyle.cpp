@@ -62,6 +62,9 @@
 #include <QToolButton>
 #include <QTreeView>
 #include <QWidgetAction>
+#include <QListView>
+#include <QVariantAnimation>
+#include <QPersistentModelIndex>
 
 #if HAVE_QTDBUS
 #include <QDBusConnection>
@@ -555,6 +558,65 @@ void Style::unpolish(QApplication *application)
     _helper->removeEventFilter(application);
 }
 
+namespace
+{
+// Breeze NG: in a list with one selection, the selection slides from the old entry to the new one. One of these
+// lives in each such view (made at its first selected entry), holds where the selection is going and animates it.
+class NgSelectionSlide : public QObject
+{
+public:
+    explicit NgSelectionSlide(QAbstractItemView *view)
+        : QObject(view)
+        , m_view(view)
+    {
+        m_animation.setEasingCurve(QEasingCurve::OutCubic);
+        QObject::connect(&m_animation, &QVariantAnimation::valueChanged, this, [this] {
+            if (m_view->viewport()) {
+                m_view->viewport()->update();
+            }
+        });
+    }
+    void moveTo(const QModelIndex &index, const QRect &rect, int scroll, int duration)
+    {
+        if (index == m_index) {
+            if (rect != m_rect || scroll != m_scroll) {
+                m_animation.stop(); // scrolled or resized: the selection stays on its entry
+            }
+            m_rect = rect;
+            m_scroll = scroll;
+            return;
+        }
+        const bool slide = m_index.isValid() && scroll == m_scroll && duration > 0 && m_view->isVisible() && !m_rect.isEmpty();
+        const QRectF from = current();
+        m_index = index;
+        m_rect = rect;
+        m_scroll = scroll;
+        m_animation.stop();
+        if (slide) {
+            m_animation.setStartValue(from);
+            m_animation.setEndValue(QRectF(rect));
+            m_animation.setDuration(duration);
+            m_animation.start();
+        }
+    }
+    bool running() const
+    {
+        return m_animation.state() == QAbstractAnimation::Running;
+    }
+    QRectF current() const
+    {
+        return running() ? m_animation.currentValue().toRectF() : QRectF(m_rect);
+    }
+
+private:
+    QAbstractItemView *m_view;
+    QPersistentModelIndex m_index;
+    QRect m_rect;
+    int m_scroll = 0;
+    QVariantAnimation m_animation;
+};
+}
+
 //______________________________________________________________
 void Style::polishScrollArea(QAbstractScrollArea *scrollArea)
 {
@@ -571,6 +633,15 @@ void Style::polishScrollArea(QAbstractScrollArea *scrollArea)
     if (scrollArea->viewport() && scrollArea->inherits("KItemListContainer") && scrollArea->frameShape() == QFrame::NoFrame) {
         scrollArea->viewport()->setBackgroundRole(QPalette::Window);
         scrollArea->viewport()->setForegroundRole(QPalette::WindowText);
+    }
+
+    // Breeze NG Aurora: a list is not a solid box of the Base colour but a veil on the window's glass, with the
+    // intensity of every other panel (drawFramePrimitive lays it; a list without a frame stands on the glass itself)
+    if (_helper->isAurora() && qobject_cast<QAbstractItemView *>(scrollArea) && scrollArea->viewport() && scrollArea->viewport()->autoFillBackground()
+        && scrollArea->viewport()->backgroundRole() == QPalette::Base && scrollArea->styleSheet().isEmpty()
+        && !(scrollArea->window()->windowFlags() & Qt::Popup & ~Qt::Window)) {
+        scrollArea->viewport()->setAutoFillBackground(false);
+        scrollArea->setProperty("_breeze_ng_veil", true);
     }
 
     // add event filter, to make sure proper background is rendered behind scrollbars
@@ -648,6 +719,13 @@ void Style::unpolish(QWidget *widget)
     _splitterFactory->unregisterWidget(widget);
     _blurHelper->unregisterWidget(widget);
     _toolsAreaManager->unregisterWidget(widget);
+
+    if (widget->property("_breeze_ng_veil").toBool()) {
+        if (auto scrollArea = qobject_cast<QAbstractScrollArea *>(widget); scrollArea && scrollArea->viewport()) {
+            scrollArea->viewport()->setAutoFillBackground(true);
+        }
+        widget->setProperty("_breeze_ng_veil", QVariant());
+    }
 
     // remove event filter
     if (qobject_cast<QAbstractScrollArea *>(widget) || qobject_cast<QDockWidget *>(widget) || qobject_cast<QMdiSubWindow *>(widget)
@@ -1359,6 +1437,21 @@ void Style::drawPrimitive(PrimitiveElement element, const QStyleOption *option, 
 
     painter->save();
 
+    // Breeze NG Glass: the panel of a field is its frame, which lays the field's translucent background; the stock
+    // panel filled the inside with the opaque Base colour first (a solid box inside the glass field)
+    if (element == PE_PanelLineEdit && _helper->isGlass()) {
+        if (const auto panel = qstyleoption_cast<const QStyleOptionFrame *>(option)) {
+            const QWidget *holder = widget ? widget->parentWidget() : nullptr;
+            if (panel->lineWidth > 0) {
+                drawFrameLineEditPrimitive(option, painter, widget);
+            } else if (!(holder && (holder->inherits("QAbstractSpinBox") || holder->inherits("QComboBox")))) {
+                painter->fillRect(option->rect, _helper->inputBackground(option->palette)); // (inside a spin box or a combo box: theirs)
+            }
+            painter->restore();
+            return;
+        }
+    }
+
     // call function if implemented
     if (!(fcn && fcn(*this, option, painter, widget))) {
         ParentStyleClass::drawPrimitive(element, option, painter, widget);
@@ -1821,10 +1914,17 @@ bool Style::eventFilter(QObject *object, QEvent *event)
             // and fills what is still transparent; it never dims the children.
             QPainter painter(widget);
             painter.setClipRegion(static_cast<QPaintEvent *>(event)->region());
-            painter.setCompositionMode(QPainter::CompositionMode_DestinationOver);
             if (_helper->isAurora()) {
-                _helper->renderAuroraLights(&painter, widget->rect(), widget->palette()); // over the sheet, under the children
+                // Aurora: start again from the bare sheet, then the lights. (Laying the sheet under what is there
+                // piled it up at every repaint: the body of a plain window grew opaque, and the controls, cleared to
+                // one sheet, stood out as paler boxes.) The children paint after this, in the same pass.
+                painter.setCompositionMode(QPainter::CompositionMode_Source);
+                painter.fillRect(widget->rect(), _helper->alphaColor(widget->palette().color(QPalette::Window), _helper->windowSheetAlpha()));
+                painter.setCompositionMode(QPainter::CompositionMode_SourceOver);
+                _helper->renderAuroraLights(&painter, widget->rect(), widget->palette());
+                return false;
             }
+            painter.setCompositionMode(QPainter::CompositionMode_DestinationOver);
             painter.fillRect(widget->rect(), _helper->alphaColor(widget->palette().color(QPalette::Window), _helper->windowSheetAlpha()));
             return false;
         }
@@ -1931,7 +2031,7 @@ bool Style::eventFilterScrollArea(QWidget *widget, QEvent *event)
             break;
         }
 
-        if (_helper->isAurora() && !viewport->autoFillBackground() && scrollArea->window()->property("_breeze_ng_glass").toBool()) {
+        if (_helper->isAurora() && !viewport->autoFillBackground()) {
             break; // Aurora: a view with no background of its own stands on the window's glass, its scroll bars too
         }
         // make sure proper background is rendered behind the containers
@@ -4331,7 +4431,8 @@ bool Style::drawFramePrimitive(const QStyleOption *option, QPainter *painter, co
             _frameShadowFactory->updateState(widget, hasFocus, mouseOver, opacity, mode);
         }
 
-        const auto background(palette.base().color());
+        const bool veil = widget && widget->property("_breeze_ng_veil").toBool(); // Breeze NG Aurora, see polishScrollArea
+        const auto background(veil ? _helper->alphaColor(_helper->ink(palette), _helper->auroraVeil(palette, false)) : palette.base().color());
         const auto outline(_helper->frameOutlineColor(palette, mouseOver, hasFocus, opacity, mode));
         _helper->renderFrame(painter, rect, background, outline);
     }
@@ -5192,8 +5293,27 @@ bool Style::drawPanelItemViewItemPrimitive(const QStyleOption *option, QPainter 
     const bool hasSolidBackground = !hasCustomBackground || viewItemOption->backgroundBrush.style() == Qt::SolidPattern;
     const bool hasAlternateBackground(viewItemOption->features & QStyleOptionViewItem::Alternate);
 
+    // Breeze NG: in a list with one selection, the selection slides from the old entry to the new one
+    NgSelectionSlide *slide = nullptr;
+    if (auto listView = qobject_cast<const QListView *>(actualWidget); listView && listView->viewMode() == QListView::ListMode
+                                                                        && listView->selectionMode() == QAbstractItemView::SingleSelection
+                                                                        && !hasCustomBackground && viewItemOption->index.isValid()) {
+        slide = static_cast<NgSelectionSlide *>(listView->property("_breeze_ng_slide").value<QObject *>());
+        if (selected) {
+            if (!slide) {
+                auto view = const_cast<QListView *>(listView);
+                slide = new NgSelectionSlide(view);
+                view->setProperty("_breeze_ng_slide", QVariant::fromValue<QObject *>(slide));
+            }
+            slide->moveTo(viewItemOption->index, rect, listView->verticalScrollBar()->value(), StyleConfigData::animationsEnabled() ? 240 : 0);
+        }
+        if (slide && !slide->running()) {
+            slide = nullptr;
+        }
+    }
+
     // do nothing if no background is to be rendered
-    if (!(mouseOver || selected || hasCustomBackground || hasAlternateBackground)) {
+    if (!(mouseOver || selected || hasCustomBackground || hasAlternateBackground || slide)) {
         _helper->clearUnder(painter, option->rect); // Breeze NG Glass: the veil of the last hover goes
         return true;
     }
@@ -5219,7 +5339,7 @@ bool Style::drawPanelItemViewItemPrimitive(const QStyleOption *option, QPainter 
     }
 
     // stop here if no highlight is needed
-    if (!(mouseOver || selected || hasCustomBackground)) {
+    if (!(mouseOver || selected || hasCustomBackground || slide)) {
         return true;
     }
 
@@ -5257,14 +5377,38 @@ bool Style::drawPanelItemViewItemPrimitive(const QStyleOption *option, QPainter 
     // Breeze NG Glass: the selection is a pale sheet with a faint edge, not a block of colour.
     // Breeze NG Soft: the same, without the edge, in side panels (Places, sidebars): the accent is for the content.
     const bool sidePanel = actualWidget && actualWidget->property(PropertyNames::sidePanelView).toBool();
-    if (_helper->isGlass() && !hasCustomBackground) {
+    QColor slideColor = palette.color(colorGroup, QPalette::Highlight); // the selection at rest, for the sliding one
+    if (_helper->isAurora() && !hasCustomBackground) {
+        // Aurora: the selection wears the accent, as a light sheet; the hover is the veil of every other surface
+        const bool dark = _helper->isDark(palette);
+        slideColor = _helper->auroraAccent(palette, dark ? 0.34 : 0.30);
+        color = selected ? _helper->auroraAccent(palette, (dark ? 0.34 : 0.30) + (mouseOver ? 0.08 : 0.0)) : _helper->alphaColor(_helper->ink(palette), _helper->auroraVeil(palette, false));
+        focusColor = QColor(0, 0, 0, 0);
+    } else if (_helper->isGlass() && !hasCustomBackground) {
         const QColor inkColor = _helper->ink(palette);
+        slideColor = _helper->alphaColor(inkColor, 0.16);
         color = _helper->alphaColor(inkColor, selected ? (mouseOver ? 0.21 : 0.16) : 0.07);
         focusColor = _helper->alphaColor(inkColor, selected && _helper->hasRims() ? 0.22 : 0.0);
     } else if (sidePanel && !hasCustomBackground) {
         const QColor inkColor = _helper->ink(palette);
+        slideColor = _helper->alphaColor(inkColor, 0.11);
         color = _helper->alphaColor(inkColor, selected ? (mouseOver ? 0.15 : 0.11) : 0.06);
         focusColor = QColor(0, 0, 0, 0);
+    }
+
+    if (slide) {
+        // the selection is on its way: every entry draws the part of it that crosses its own rectangle (under its
+        // own text, whatever the order the view paints the entries in); an entry under the pointer keeps its veil
+        if (mouseOver && !selected) {
+            painter->setBrush(color);
+            _helper->renderViewItemPosition(painter, viewItemPosition, viewItemOption->direction, rect, color, QColor(0, 0, 0, 0));
+        }
+        painter->save();
+        painter->setClipRect(option->rect, Qt::IntersectClip);
+        painter->setBrush(slideColor);
+        _helper->renderViewItemPosition(painter, QStyleOptionViewItem::OnlyOne, viewItemOption->direction, slide->current(), slideColor, QColor(0, 0, 0, 0));
+        painter->restore();
+        return true;
     }
 
     // render

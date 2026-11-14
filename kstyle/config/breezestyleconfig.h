@@ -84,6 +84,20 @@ private:
     QSlider *m_menuOpacity = nullptr;
     QLabel *m_windowOpacityValue = nullptr;
     QLabel *m_menuOpacityValue = nullptr;
+    // Aurora: body, panels, buttons, lights, and KWin's blur strength
+    QSlider *m_auroraBody = nullptr;
+    QSlider *m_auroraPanel = nullptr;
+    QSlider *m_auroraButton = nullptr;
+    QSlider *m_auroraLights = nullptr;
+    QSlider *m_blurStrength = nullptr;
+    QLabel *m_auroraBodyValue = nullptr;
+    QLabel *m_auroraPanelValue = nullptr;
+    QLabel *m_auroraButtonValue = nullptr;
+    QLabel *m_auroraLightsValue = nullptr;
+    QLabel *m_blurStrengthValue = nullptr;
+    QWidget *m_auroraGroup = nullptr;
+    int m_savedAuroraBody = 52;
+    int m_savedAuroraLights = 100;
 
     // controls and animations
     QCheckBox *m_animations = nullptr;

@@ -142,10 +142,15 @@ public:
     {
         if (_aurora) {
             // Aurora: a veil, not a solid panel: the lights behind the window show through the tab pages too
-            return alphaColor(ink(palette), isDark(palette) ? 0.07 : 0.05);
+            return alphaColor(ink(palette), auroraVeil(palette, false));
         }
         return KColorUtils::mix(palette.color(QPalette::Window), ink(palette), isDark(palette) ? 0.08 : 0.05);
     }
+    //* Breeze NG Aurora: how much ink a surface holds at rest: one intensity for panels, sidebars and cards, one for
+    //* buttons and fields (the same unless the user sets them apart)
+    qreal auroraVeil(const QPalette &palette, bool button) const;
+    //* Breeze NG Aurora: the accent as a light (its hue, always luminous), with the given alpha
+    QColor auroraAccent(const QPalette &palette, qreal alpha) const;
     //* Breeze NG: background of text fields
     QColor inputBackground(const QPalette &palette) const;
     //* Breeze NG: background and outline of a menu panel (`alpha`: the menu window has an alpha channel)

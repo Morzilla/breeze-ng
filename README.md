@@ -1,3 +1,12 @@
+> **Fedora 44 and 45: there are ready-made packages on COPR**, no building needed:
+> 
+> ```
+> sudo dnf copr enable morzilla/desktop-ng
+> sudo dnf install breeze-ng
+> ```
+> 
+> Then pick a Breeze NG global theme in System Settings. The same repository has the rest of the NG desktop: `breeze-ng`, `dolphin-ng`, `dialog-ng`, `neoline-icons` ([project page](https://copr.fedorainfracloud.org/coprs/morzilla/desktop-ng/)).
+>
 > **Breeze NG** – this fork adds two looks, Soft and Glass, on top of Breeze.
 >
 > **Try it with the graphical installer:** [what it does and how to run it](NG.md#everything-at-once) (it sets up Breeze NG and, if you want, the rest of the NG desktop: Dolphin NG, the NeoLine icons, Dialog NG, all in your home folder).

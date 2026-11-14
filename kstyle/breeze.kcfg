@@ -49,6 +49,21 @@
     <entry name="WindowOpacity" type="Int">
       <default>70</default>
     </entry>
+    <!-- Breeze NG Aurora: opacity (0-100) of the window's glass; the veil (percent of ink) of panels, sidebars and
+         cards, and of buttons and fields: the same by default, so that every surface has one intensity; the strength
+         of the lights behind the window -->
+    <entry name="AuroraBodyOpacity" type="Int">
+      <default>52</default>
+    </entry>
+    <entry name="AuroraPanelVeil" type="Int">
+      <default>7</default>
+    </entry>
+    <entry name="AuroraButtonVeil" type="Int">
+      <default>7</default>
+    </entry>
+    <entry name="AuroraLights" type="Int">
+      <default>100</default>
+    </entry>
     <!-- Breeze NG: a neon glow inside the field or button that has the focus (off: a thin outline) -->
     <entry name="FocusGlow" type="Bool">
       <default>true</default>
