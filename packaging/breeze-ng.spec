@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: GPL-2.0-or-later
-%global commit      9075f9a9cdb694832ae41fd6470ec31e703339e1
+%global commit      dbe1f5886817cefdb211c40268c55aa1df07b6f2
 %global shortcommit %(c=%{commit}; echo ${c:0:7})
-%global snapdate    202611141235
+%global snapdate    202611141244
 # snapdate: date and time of the commit (YYYYMMDDHHMM), so that two snapshots of one day sort in order
 # installed apart from the system, next to Fedora's own Breeze
 %global ngprefix    /opt/ng/breeze-ng
@@ -107,6 +107,9 @@ done
 %{_qt6_plugindir}/org.kde.kdecoration3.kcm/kcm_breezengdecoration.so
 
 %changelog
+* Sat Nov 14 2026 Morzilla <3956663+Morzilla@users.noreply.github.com> - 6.7.5^202611141244gitdbe1f58-1
+- Aurora, a third look (first step): lights behind the windows, a light following the pointer in buttons
+
 * Sat Nov 14 2026 Morzilla <3956663+Morzilla@users.noreply.github.com> - 6.7.5^202611141235git9075f9a-1
 - Light colour scheme and light global themes; previews for the global themes
 
