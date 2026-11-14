@@ -27,6 +27,7 @@
 
 #include <QApplication>
 #include <QWindow>
+#include <QSurfaceFormat>
 #include <QBitmap>
 #include <QCheckBox>
 #include <QComboBox>
@@ -362,6 +363,17 @@ void Style::polish(QWidget *widget)
     if (_helper->isGlass() && widget->isWindow() && _helper->compositingActive() && !widget->testAttribute(Qt::WA_X11NetWmWindowTypeDND)
         && (qobject_cast<QMainWindow *>(widget) || qobject_cast<QDialog *>(widget)) && !widget->testAttribute(Qt::WA_TranslucentBackground)) {
         setTranslucentBackground(widget);
+        // The style is asked to polish a window when it is first shown, after Qt made its native window: without an
+        // alpha channel, and (on Wayland) declared opaque from edge to edge. Qt does not change either afterwards, so
+        // the compositor took the glass for a solid window: it did not repaint what lies behind it, and the blur under
+        // it showed stale pictures (title bar and glass parts flashing at every small repaint). Not shown yet: drop
+        // the native window, Qt makes it again at show, with the alpha channel and no opaque region.
+        if (QWindow *handle = widget->windowHandle(); handle && handle->handle() && !handle->isVisible() && handle->format().alphaBufferSize() <= 0) {
+            QSurfaceFormat format = handle->format();
+            format.setAlphaBufferSize(8);
+            handle->destroy();
+            handle->setFormat(format);
+        }
         widget->setProperty("_breeze_ng_glass", true);
         addEventFilter(widget); // paints the sheet, see eventFilter()
         _blurHelper->registerWidget(widget);
@@ -637,8 +649,9 @@ void Style::polishScrollArea(QAbstractScrollArea *scrollArea)
 
     // Breeze NG Aurora: a list is not a solid box of the Base colour but a veil on the window's glass, with the
     // intensity of every other panel (drawFramePrimitive lays it; a list without a frame stands on the glass itself)
-    if (_helper->isAurora() && qobject_cast<QAbstractItemView *>(scrollArea) && scrollArea->viewport() && scrollArea->viewport()->autoFillBackground()
-        && scrollArea->viewport()->backgroundRole() == QPalette::Base && scrollArea->styleSheet().isEmpty()
+    if (_helper->isAurora() && (qobject_cast<QAbstractItemView *>(scrollArea) || qobject_cast<QTextBrowser *>(scrollArea)) && scrollArea->viewport()
+        && scrollArea->viewport()->autoFillBackground()
+        && (scrollArea->viewport()->backgroundRole() == QPalette::Base || scrollArea->inherits("QHeaderView")) && scrollArea->styleSheet().isEmpty()
         && !(scrollArea->window()->windowFlags() & Qt::Popup & ~Qt::Window)) {
         scrollArea->viewport()->setAutoFillBackground(false);
         scrollArea->setProperty("_breeze_ng_veil", true);
@@ -659,6 +672,19 @@ void Style::polishScrollArea(QAbstractScrollArea *scrollArea)
         }
         if (inDock) {
             scrollArea->setProperty(PropertyNames::sidePanelView, true);
+        }
+    }
+
+    // Breeze NG Aurora: a side panel (the list of pages of a settings dialog, a sidebar) stands on the window's glass
+    if (_helper->isAurora() && scrollArea->property(PropertyNames::sidePanelView).toBool() && scrollArea->viewport() && scrollArea->styleSheet().isEmpty()
+        && !scrollArea->inherits("KFilePlacesView")) {
+        if (scrollArea->viewport()->autoFillBackground()) {
+            scrollArea->viewport()->setAutoFillBackground(false);
+            scrollArea->setProperty("_breeze_ng_veil", true); // (put back in unpolish; with the side panel's frame there is no veil, only glass)
+        }
+        if (scrollArea->autoFillBackground()) {
+            scrollArea->setAutoFillBackground(false); // (the list of pages of a settings dialog fills itself, not its viewport)
+            scrollArea->setProperty("_breeze_ng_unfilled", true);
         }
     }
 
@@ -720,6 +746,10 @@ void Style::unpolish(QWidget *widget)
     _blurHelper->unregisterWidget(widget);
     _toolsAreaManager->unregisterWidget(widget);
 
+    if (widget->property("_breeze_ng_unfilled").toBool()) {
+        widget->setAutoFillBackground(true);
+        widget->setProperty("_breeze_ng_unfilled", QVariant());
+    }
     if (widget->property("_breeze_ng_veil").toBool()) {
         if (auto scrollArea = qobject_cast<QAbstractScrollArea *>(widget); scrollArea && scrollArea->viewport()) {
             scrollArea->viewport()->setAutoFillBackground(true);
@@ -1787,6 +1817,16 @@ void Style::drawItemText(QPainter *painter,
         }
     }
 
+    if (!enabled && _helper->isAurora() && textRole != QPalette::NoRole) {
+        // Aurora: the scheme's disabled text, a dark grey, is lost on glass: the normal text colour, fainter
+        QPalette copy(palette);
+        QColor dim = palette.color(QPalette::Active, textRole);
+        dim.setAlphaF(0.42);
+        copy.setColor(QPalette::Disabled, textRole, dim);
+        copy.setCurrentColorGroup(QPalette::Disabled);
+        return ParentStyleClass::drawItemText(painter, rect, flags, copy, enabled, text, textRole);
+    }
+
     // fallback
     return ParentStyleClass::drawItemText(painter, rect, flags, palette, enabled, text, textRole);
 }
@@ -1980,6 +2020,9 @@ bool Style::eventFilterDialogButtonBox(QDialogButtonBox *widget, QEvent *event)
 //____________________________________________________________________________
 bool Style::eventFilterPageViewHeader(QWidget *widget, QEvent *event)
 {
+    if (event->type() == QEvent::Paint && _helper->isAurora() && widget->window()->property("_breeze_ng_glass").toBool()) {
+        return false; // Aurora: the header of a settings dialog is the window's glass, like the rest (no band, no line)
+    }
     if (event->type() == QEvent::Paint) {
         QPainter painter(widget);
         const auto &palette(_toolsAreaManager->palette());
@@ -4419,6 +4462,15 @@ bool Style::drawFramePrimitive(const QStyleOption *option, QPainter *painter, co
     const qreal opacity(_animations->inputWidgetEngine().frameOpacity(widget));
 
     if (widget && widget->property(PropertyNames::bordersSides).isValid()) {
+        if (_helper->isAurora() && widget->window()->property("_breeze_ng_glass").toBool()) {
+            // Aurora: the list of pages of a settings dialog is a card on the window's glass, as the sidebar of
+            // Dolphin NG: a rounded veil with a little air around it, no box, no lines
+            painter->setRenderHint(QPainter::Antialiasing, true);
+            painter->setPen(Qt::NoPen);
+            painter->setBrush(_helper->alphaColor(_helper->ink(palette), _helper->auroraVeil(palette, false)));
+            painter->drawRoundedRect(QRectF(rect).adjusted(5, 5, -5, -5), 12, 12);
+            return true;
+        }
         const auto background(palette.base().color());
         const auto outline(_helper->frameOutlineColor(palette));
         _helper->renderFrameWithSides(painter, rect, background, widget->property(PropertyNames::bordersSides).value<Qt::Edges>(), outline);
@@ -4427,7 +4479,14 @@ bool Style::drawFramePrimitive(const QStyleOption *option, QPainter *painter, co
     }
 
     // render
-    if (!StyleConfigData::sidePanelDrawFrame() && widget && widget->property(PropertyNames::sidePanelView).toBool()) {
+    if (_helper->isAurora() && widget && widget->property(PropertyNames::sidePanelView).toBool() && widget->property("_breeze_ng_veil").toBool()
+        && widget->window()->property("_breeze_ng_glass").toBool()) {
+        // Aurora: a side panel is a card on the glass, as the sidebar of Dolphin NG
+        painter->setRenderHint(QPainter::Antialiasing, true);
+        painter->setPen(Qt::NoPen);
+        painter->setBrush(_helper->alphaColor(_helper->ink(palette), _helper->auroraVeil(palette, false)));
+        painter->drawRoundedRect(QRectF(rect).adjusted(5, 5, -5, -5), 12, 12);
+    } else if (!StyleConfigData::sidePanelDrawFrame() && widget && widget->property(PropertyNames::sidePanelView).toBool()) {
         const auto outline(_helper->sidePanelOutlineColor(palette, hasFocus, opacity, mode));
         const bool reverseLayout(option->direction == Qt::RightToLeft);
         const Side side(reverseLayout ? SideRight : SideLeft);
@@ -7373,9 +7432,15 @@ bool Style::drawHeaderSectionControl(const QStyleOption *option, QPainter *paint
     const qreal opacity(_animations->headerViewEngine().opacity(widget, rect.topLeft()));
 
     // fill
-    const auto normal = palette.color(QPalette::Window); // Breeze NG: the header is the surface itself
-    const auto focus(KColorUtils::mix(normal, _helper->focusColor(palette), 0.2));
-    const auto hover(KColorUtils::mix(normal, _helper->ink(palette), 0.07));
+    auto normal = palette.color(QPalette::Window); // Breeze NG: the header is the surface itself
+    auto focus(KColorUtils::mix(normal, _helper->focusColor(palette), 0.2));
+    auto hover(KColorUtils::mix(normal, _helper->ink(palette), 0.07));
+    if (_helper->isAurora() && widget && widget->property("_breeze_ng_veil").toBool()) {
+        // Aurora: the header lies on the veil of its list; only what is under the pointer or pressed gets more of it
+        normal = QColor(0, 0, 0, 0);
+        hover = _helper->alphaColor(_helper->ink(palette), 0.07);
+        focus = _helper->auroraAccent(palette, 0.28);
+    }
 
     QColor color;
     if (sunken) {
@@ -7450,6 +7515,13 @@ bool Style::drawHeaderEmptyAreaControl(const QStyleOption *option, QPainter *pai
 
     const bool horizontal(option->state & QStyle::State_Horizontal);
     const bool reverseLayout(option->direction == Qt::RightToLeft);
+
+    if (_helper->isAurora() && painter->device() && painter->device()->devType() == QInternal::Widget) {
+        const QWidget *device = static_cast<const QWidget *>(painter->device());
+        if (device->property("_breeze_ng_veil").toBool() || (device->parentWidget() && device->parentWidget()->property("_breeze_ng_veil").toBool())) {
+            return true; // Aurora: the rest of a header is the veil of its list, see drawHeaderSectionControl
+        }
+    }
 
     // fill
     painter->setRenderHint(QPainter::Antialiasing, false);
