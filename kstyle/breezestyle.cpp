@@ -5830,6 +5830,22 @@ bool Style::drawPanelItemViewItemPrimitive(const QStyleOption *option, QPainter 
         return true;
     }
 
+    if (!abstractItemView && (_helper->isGlass() || sidePanel) && !hasCustomBackground) {
+        // Breeze NG: not an entry of a view but a widget that borrows its hover, as the folders of a location bar do:
+        // a chip inside the field, clear of its edges, not a block as tall as the field
+        const QRectF chip = QRectF(option->rect).adjusted(1, 4, -1, -4);
+        if (chip.height() >= 8) {
+            const qreal radius = qMin(8.0, chip.height() / 2.0);
+            painter->save();
+            painter->setRenderHint(QPainter::Antialiasing, true);
+            painter->setPen(Qt::NoPen);
+            painter->setBrush(color);
+            painter->drawRoundedRect(chip, radius, radius);
+            painter->restore();
+            return true;
+        }
+    }
+
     // render
     painter->setBrush(color);
     const auto isTable = qobject_cast<const QTableView *>(viewItemOption->widget);

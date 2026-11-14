@@ -1999,11 +1999,8 @@ void Helper::renderTabBarTab(QPainter *painter,
             pill.adjust(4, 2, -4, -2);
         }
         const qreal radius = (north || south) ? pill.height() / 2.0 : pill.width() / 2.0;
-        if (_aurora) {
-            // a clean sheet under the pill only: the rectangle of the current tab reaches over its neighbours, and
-            // clearing all of it cut the round end off the tab before it
-            clearUnder(painter, pill);
-        }
+        // (no clean sheet here: the whole tab bar gets one before it paints, see Style::eventFilter. One per tab cut
+        // the round ends off the neighbours of the current tab, whose rectangle reaches over them.)
         painter->setPen(Qt::NoPen);
         // Aurora: the current tab wears the accent
         painter->setBrush(selected && _aurora ? auroraAccent(palette, veil + 0.16) : alphaColor(ink(palette), veil));
