@@ -27,6 +27,7 @@
 
 #include <QApplication>
 #include <QWindow>
+#include <QElapsedTimer>
 #include <QMetaMethod>
 #include <functional>
 #include <QTimer>
@@ -394,9 +395,7 @@ void Style::polish(QWidget *widget)
         widget->setAttribute(Qt::WA_AlwaysStackOnTop);
         widget->setAttribute(Qt::WA_TranslucentBackground);
         addEventFilter(widget);
-        for (int delay : {0, 300, 1000, 2500}) {
-            QTimer::singleShot(delay, this, &Style::ngGlassQuick);
-        }
+        ngScheduleGlassQuick(true);
     }
 
     // scrollarea polishing is somewhat complex. It is moved to a dedicated method
@@ -602,15 +601,26 @@ static void ngGlassQuickWalk(QObject *object, const QColor &ground, const QColor
     if (name.contains("Popup") || name.contains("Dialog") || name.contains("Drawer") || name.contains("Menu") || name.contains("ToolTip") || name.contains("Overlay")) {
         return; // what floats over the page keeps its solid sheet
     }
-    if (object->inherits("Kirigami::Platform::PlatformTheme") && !object->property("_breeze_ng_glass").toBool()) {
-        object->setProperty("_breeze_ng_glass", true);
+    static const bool debugItems = qEnvironmentVariableIsSet("BREEZE_NG_DEBUG_QUICK");
+    if (debugItems && object->inherits("QQuickItem") && object->property("width").toReal() > 120 && object->property("height").toReal() > 120) {
+        const QVariant colour = object->property("color");
+        if (colour.isValid() && colour.value<QColor>().alpha() > 0 && object->property("visible").toBool()) {
+            qWarning("breeze-ng quick item: %s %dx%d color %s opacity %.2f parent %s", object->metaObject()->className(), object->property("width").toInt(), object->property("height").toInt(),
+                     qPrintable(colour.value<QColor>().name(QColor::HexArgb)), object->property("opacity").toReal(), object->parent() ? object->parent()->metaObject()->className() : "-");
+        }
+    }
+    // (1: lists stand on a veil, 2: on the bare glass, as in a sidebar, which has its card under it. A view may be
+    // met before it has its final size and be taken for the other kind: set again when the kind changes)
+    const int kind = veil.alpha() > 0 ? 1 : 2;
+    if (object->inherits("Kirigami::Platform::PlatformTheme") && object->property("_breeze_ng_glass").toInt() != kind) {
+        object->setProperty("_breeze_ng_glass", kind);
         if (changed) {
             *changed = true;
         }
         // the View set is what lists and fields stand on (a veil); every other set is the page itself (the glass)
         const bool view = object->property("colorSet").toInt() == 0;
         object->setProperty("backgroundColor", view ? veil : ground);
-        object->setProperty("alternateBackgroundColor", veil);
+        object->setProperty("alternateBackgroundColor", view ? veil : ground);
     }
     const auto children = object->children();
     for (QObject *child : children) {
@@ -639,6 +649,26 @@ static void ngGlassQuickWalk(QObject *object, const QColor &ground, const QColor
                     }
                 }
             }
+        }
+    }
+}
+
+void Style::ngScheduleGlassQuick(bool opening)
+{
+    // a view loads its pages a little after it is made: look often at first (so that it is not seen opaque and
+    // then turning to glass), then a few more times; not again while a round is already on its way
+    static QElapsedTimer last;
+    if (last.isValid() && last.elapsed() < (opening ? 400 : 150)) {
+        return;
+    }
+    last.start();
+    if (opening) {
+        for (int delay : {0, 30, 60, 100, 150, 200, 300, 400, 600, 800, 1000, 1500, 2500}) {
+            QTimer::singleShot(delay, this, &Style::ngGlassQuick);
+        }
+    } else {
+        for (int delay : {120, 500, 1500}) {
+            QTimer::singleShot(delay, this, &Style::ngGlassQuick);
         }
     }
 }
@@ -693,6 +723,12 @@ void Style::ngGlassQuick()
             view->parentWidget()->setProperty("_breeze_ng_side_card_host", true);
             addEventFilter(view->parentWidget());
             view->parentWidget()->update();
+        }
+        if (debug && view) {
+            for (const QWidget *w = view; w; w = w->parentWidget()) {
+                qWarning("breeze-ng quick chain: %s name=%s fill=%d role=%d geo=%d,%d %dx%d sheet=%d side=%d veil=%d card=%d", w->metaObject()->className(), qPrintable(w->objectName()), w->autoFillBackground(), int(w->backgroundRole()),
+                         w->x(), w->y(), w->width(), w->height(), !w->styleSheet().isEmpty(), w->property(PropertyNames::sidePanelView).toBool(), w->property("_breeze_ng_veil").toBool(), w->property("_breeze_ng_side_card_host").toBool());
+            }
         }
         const QColor viewVeil = side ? ground : veil;
         bool changed = window->property("color").value<QColor>().alpha() != 0;
@@ -2107,6 +2143,9 @@ bool Style::eventFilter(QObject *object, QEvent *event)
             for (const QWidget *child : children) {
                 if (child->property("_breeze_ng_side_card").toBool() && child->isVisible()) {
                     QPainter painter(widget);
+                    // from the bare glass every time: laid over what was there, the veil piled up at every repaint
+                    // and the card grew lighter and lighter
+                    _helper->clearUnder(&painter, child->geometry());
                     painter.setRenderHint(QPainter::Antialiasing, true);
                     painter.setPen(Qt::NoPen);
                     painter.setBrush(_helper->alphaColor(_helper->ink(widget->palette()), _helper->auroraVeil(widget->palette(), false)));
@@ -2119,9 +2158,7 @@ bool Style::eventFilter(QObject *object, QEvent *event)
         // click or key (see ngGlassQuick)
         if ((event->type() == QEvent::MouseButtonRelease || event->type() == QEvent::KeyRelease || event->type() == QEvent::Show) && _helper->isAurora()
             && widget->inherits("QQuickWidget")) {
-            for (int delay : {120, 500, 1500}) {
-                QTimer::singleShot(delay, this, &Style::ngGlassQuick);
-            }
+            ngScheduleGlassQuick(event->type() == QEvent::Show);
         }
 
         // Breeze NG Glass: a translucent window never paints its background (WA_TranslucentBackground implies
