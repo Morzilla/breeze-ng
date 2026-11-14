@@ -1404,8 +1404,12 @@ void Helper::renderRadioButton(QPainter *painter,
         painter->restore();
     }
 
+    painter->save();
     painter->setBrush(palette.text());
     painter->setPen(Qt::NoPen);
+    // Breeze NG: antialiased like the ring around it. Without it Qt rounded the small disc unevenly: one pixel
+    // narrower in height than in width and half a pixel below the ring's centre.
+    painter->setRenderHint(QPainter::Antialiasing, true);
 
     const int radius = (std::min(frameRect.width(), frameRect.height()) - 12) / 2;
     const QPointF center = frameRect.center();
@@ -1423,6 +1427,7 @@ void Helper::renderRadioButton(QPainter *painter,
     default:
         break;
     }
+    painter->restore();
 }
 
 //______________________________________________________________________________
