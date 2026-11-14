@@ -55,6 +55,7 @@
 #include <QPainter>
 #include <QPushButton>
 #include <QRadioButton>
+#include <QScrollArea>
 #include <QScrollBar>
 #include <QSplitter>
 #include <QSplitterHandle>
@@ -365,7 +366,11 @@ void Style::polish(QWidget *widget)
 
     // Breeze NG Glass: main windows and dialogs become sheets of frosted glass (the compositor blurs behind them)
     if (_helper->isGlass() && widget->isWindow() && _helper->compositingActive() && !widget->testAttribute(Qt::WA_X11NetWmWindowTypeDND)
-        && (qobject_cast<QMainWindow *>(widget) || qobject_cast<QDialog *>(widget)) && !widget->testAttribute(Qt::WA_TranslucentBackground)) {
+        && (qobject_cast<QMainWindow *>(widget) || qobject_cast<QDialog *>(widget))
+        // (a main window that made itself translucent, as Konsole does for its terminal, is glass too: without the
+        // sheet its tool bar stood on nothing, a black strip. Dolphin NG lays its own.)
+        && (!widget->testAttribute(Qt::WA_TranslucentBackground)
+            || (qobject_cast<QMainWindow *>(widget) && !widget->property("_breeze_ng_glass").isValid() && !widget->inherits("DolphinMainWindow")))) {
         setTranslucentBackground(widget);
         // The style is asked to polish a window when it is first shown, after Qt made its native window: without an
         // alpha channel, and (on Wayland) declared opaque from edge to edge. Qt does not change either afterwards, so
@@ -396,6 +401,19 @@ void Style::polish(QWidget *widget)
         widget->setAttribute(Qt::WA_TranslucentBackground);
         addEventFilter(widget);
         ngScheduleGlassQuick(true);
+    }
+
+    ngUnfill(widget);
+
+    if (_helper->isAurora() && !widget->isWindow() && qEnvironmentVariableIsSet("BREEZE_NG_DEBUG_FILL")) {
+        QByteArray chain;
+        for (const QWidget *up = widget; up && chain.size() < 300; up = up->parentWidget()) {
+            chain += up->metaObject()->className();
+            chain += " < ";
+        }
+        qWarning("breeze-ng fill: %s fill=%d role=%d setpal=%d sheet=%d opaque=%d nosys=%d brush=%d size=%dx%d %s", widget->metaObject()->className(), widget->autoFillBackground(), int(widget->backgroundRole()),
+                 widget->testAttribute(Qt::WA_SetPalette), !widget->styleSheet().isEmpty(), widget->testAttribute(Qt::WA_OpaquePaintEvent), widget->testAttribute(Qt::WA_NoSystemBackground),
+                 int(widget->palette().brush(widget->backgroundRole()).style()), widget->width(), widget->height(), chain.constData());
     }
 
     // scrollarea polishing is somewhat complex. It is moved to a dedicated method
@@ -650,6 +668,50 @@ static void ngGlassQuickWalk(QObject *object, const QColor &ground, const QColor
                         ngGlassQuickWalk(child, ground, veil, depth + 1, changed);
                     }
                 }
+            }
+        }
+    }
+}
+
+// Breeze NG Aurora, the general rule: inside a glass window nothing fills itself with the solid Base or Window
+// colour. Any standard widget that does (a panel, a page, the viewport of a scroll area) stands on the glass
+// instead; one that filled itself with the Base colour inside a framed scroll area gets the veil of every other
+// surface (drawFramePrimitive). What has to stay solid to be read or to work is left alone: text being edited,
+// terminals, web and graphics views, and anything with a style sheet or a brush of its own.
+void Style::ngUnfill(QWidget *widget)
+{
+    if (!widget) {
+        return;
+    }
+    if (_helper->isAurora() && !widget->isWindow() && widget->autoFillBackground() && widget->styleSheet().isEmpty()
+        && (widget->backgroundRole() == QPalette::Base || widget->backgroundRole() == QPalette::Window || widget->backgroundRole() == QPalette::AlternateBase)
+        && widget->palette().brush(widget->backgroundRole()).style() == Qt::SolidPattern && widget->window()->property("_breeze_ng_glass").toBool()) {
+        QWidget *holder = widget->parentWidget();
+        const auto scrollArea = qobject_cast<QAbstractScrollArea *>(holder);
+        const bool viewport = scrollArea && scrollArea->viewport() == widget;
+        const QWidget *subject = viewport ? static_cast<const QWidget *>(holder) : widget;
+        const auto textEdit = qobject_cast<const QTextEdit *>(subject);
+        bool keep = (textEdit && !textEdit->isReadOnly()) || subject->inherits("QPlainTextEdit") || subject->inherits("QGraphicsView") || subject->inherits("QMdiArea")
+            || subject->inherits("QQuickWidget") || subject->inherits("QOpenGLWidget") || subject->inherits("KItemListContainer") || subject->inherits("QLineEdit")
+            || subject->inherits("QAbstractSpinBox") || subject->inherits("QComboBox");
+        for (const QWidget *up = subject; up && !keep; up = up->parentWidget()) {
+            const QByteArray name = up->metaObject()->className();
+            keep = name.startsWith("Konsole::") || name.startsWith("KTextEditor::") || name.contains("WebEngine") || name.contains("Terminal") || !up->styleSheet().isEmpty()
+                || up->inherits("QComboBoxPrivateContainer") || up->inherits("QMenu");
+        }
+        // (the role is kept apart: a palette set on the widget itself is a colour of the application's choosing)
+        // (a palette set on the widget itself is the application's choice: left alone, unless it only puts one of the
+        // scheme's own background colours in another role, as Kontact's summary does with the Base colour)
+        const QColor filled = widget->palette().color(widget->backgroundRole());
+        const QPalette scheme = QApplication::palette();
+        const bool standard = !widget->testAttribute(Qt::WA_SetPalette) || filled == scheme.color(QPalette::Base) || filled == scheme.color(QPalette::Window)
+            || filled == scheme.color(QPalette::AlternateBase);
+        if (!keep && standard) {
+            const bool base = widget->backgroundRole() == QPalette::Base;
+            widget->setAutoFillBackground(false);
+            widget->setProperty("_breeze_ng_unfilled", true);
+            if (viewport && base && scrollArea->frameShape() != QFrame::NoFrame) {
+                scrollArea->setProperty("_breeze_ng_veil", true);
             }
         }
     }
@@ -948,7 +1010,7 @@ void Style::unpolish(QWidget *widget)
         widget->setProperty("_breeze_ng_unfilled", QVariant());
     }
     if (widget->property("_breeze_ng_veil").toBool()) {
-        if (auto scrollArea = qobject_cast<QAbstractScrollArea *>(widget); scrollArea && scrollArea->viewport()) {
+        if (auto scrollArea = qobject_cast<QAbstractScrollArea *>(widget); scrollArea && scrollArea->viewport() && !scrollArea->viewport()->property("_breeze_ng_unfilled").isValid()) {
             scrollArea->viewport()->setAutoFillBackground(true);
         }
         widget->setProperty("_breeze_ng_veil", QVariant());
@@ -2275,6 +2337,15 @@ bool Style::eventFilterPageViewHeader(QWidget *widget, QEvent *event)
 //____________________________________________________________________________
 bool Style::eventFilterScrollArea(QWidget *widget, QEvent *event)
 {
+    // Breeze NG Aurora: QScrollArea::setWidget() makes the widget it is given fill itself, and applications call it
+    // after the scroll area was polished (Kontact's summary builds its page late): look again when it paints
+    if ((event->type() == QEvent::Paint || event->type() == QEvent::Show) && _helper->isAurora()) {
+        if (auto scrollArea = qobject_cast<QScrollArea *>(widget)) {
+            ngUnfill(scrollArea->viewport());
+            ngUnfill(scrollArea->widget());
+        }
+    }
+
     switch (event->type()) {
     case QEvent::Paint: {
         // get scrollarea viewport
@@ -4720,7 +4791,9 @@ bool Style::drawFramePrimitive(const QStyleOption *option, QPainter *painter, co
             _frameShadowFactory->updateState(widget, hasFocus, mouseOver, opacity, mode);
         }
 
-        const bool veil = widget && widget->property("_breeze_ng_veil").toBool(); // Breeze NG Aurora, see polishScrollArea
+        // Breeze NG Aurora: inside a glass window a frame is a veil, not a box of the Base colour (see polishScrollArea
+        // and the general rule in polish(): what keeps a solid background of its own covers the veil anyway)
+        const bool veil = widget && (widget->property("_breeze_ng_veil").toBool() || (_helper->isAurora() && widget->window()->property("_breeze_ng_glass").toBool()));
         const auto background(veil ? _helper->alphaColor(_helper->ink(palette), _helper->auroraVeil(palette, false)) : palette.base().color());
         const auto outline(_helper->frameOutlineColor(palette, mouseOver, hasFocus, opacity, mode));
         _helper->renderFrame(painter, rect, background, outline);

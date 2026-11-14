@@ -97,6 +97,8 @@ public:
     //* Breeze NG Aurora: Qt Quick content inside a glass window (settings modules, Kirigami pages) becomes glass too
     void ngGlassQuick();
     void ngScheduleGlassQuick(bool opening);
+    //* Breeze NG Aurora: a widget that fills itself with a solid scheme colour inside a glass window stops doing so
+    void ngUnfill(QWidget *widget);
 
     //* pixel metrics
     int pixelMetric(PixelMetric, const QStyleOption * = nullptr, const QWidget * = nullptr) const override;
