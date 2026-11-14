@@ -79,14 +79,14 @@ themes)
     # the colour scheme and the two global themes (System Settings > Global Theme): Breeze NG Soft / Glass.
     # The themes keep whatever icon theme is in use.
     mkdir -p "$HOME/.local/share/color-schemes" "$HOME/.local/share/plasma/look-and-feel"
-    cp "$W/ng/color-schemes/BreezeNG.colors" "$HOME/.local/share/color-schemes/"
+    cp "$W/ng/color-schemes/BreezeNG.colors" "$W/ng/color-schemes/BreezeNGLight.colors" "$HOME/.local/share/color-schemes/"
     # the style's entry for System Settings > Application Style: its name and its Configure button
     mkdir -p "$HOME/.local/share/kstyle/themes"
     cp "$W/kstyle/breezeng.themerc" "$HOME/.local/share/kstyle/themes/"
-    cp -r "$W/ng/look-and-feel/org.morzilla.breezeng.soft" "$W/ng/look-and-feel/org.morzilla.breezeng.glass" "$HOME/.local/share/plasma/look-and-feel/"
+    cp -r "$W"/ng/look-and-feel/org.morzilla.breezeng.* "$HOME/.local/share/plasma/look-and-feel/"
     ICONS="$(kreadconfig6 --file kdeglobals --group Icons --key Theme 2>/dev/null || true)"
     if [ -n "$ICONS" ]; then
-        for v in soft glass; do
+        for v in soft glass soft.light glass.light; do
             printf '\n[kdeglobals][Icons]\nTheme=%s\n' "$ICONS" >> "$HOME/.local/share/plasma/look-and-feel/org.morzilla.breezeng.$v/contents/defaults"
         done
     fi
@@ -94,7 +94,7 @@ themes)
     for v in soft glass; do
         python3 "$W/ng/plasma-style/make-plasma-style.py" "$v" "$HOME/.local/share/plasma/desktoptheme/breeze-ng-$v" >/dev/null
     done
-    echo "==> global themes installed: Breeze NG Soft, Breeze NG Glass (colour scheme Breeze NG, Plasma styles Breeze NG Soft/Glass)"
+    echo "==> global themes installed: Breeze NG Soft and Glass, dark and light (colour schemes Breeze NG and Breeze NG Light, Plasma styles Breeze NG Soft/Glass)"
     ;;
 use)
     case "$2" in

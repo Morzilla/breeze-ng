@@ -1,0 +1,16 @@
+{
+    "KPackageStructure": "Plasma/LookAndFeel",
+    "KPlugin": {
+        "Authors": [
+            {
+                "Name": "Morzilla"
+            }
+        ],
+        "Description": "Breeze NG Glass, light: the Breeze NG widget style, window decoration and Plasma style with the light Breeze NG colours",
+        "Id": "org.morzilla.breezeng.glass.light",
+        "License": "GPL-2.0+",
+        "Name": "Breeze NG Glass Light",
+        "Version": "1.0"
+    },
+    "X-Plasma-APIVersion": "2"
+}

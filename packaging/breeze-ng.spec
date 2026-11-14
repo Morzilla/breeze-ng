@@ -72,10 +72,10 @@ DESTDIR=%{buildroot} cmake --install build
 for v in soft glass; do
     python3 ng/plasma-style/make-plasma-style.py $v %{buildroot}%{_datadir}/plasma/desktoptheme/breeze-ng-$v
 done
-install -Dm644 ng/color-schemes/BreezeNG.colors %{buildroot}%{_datadir}/color-schemes/BreezeNG.colors
+install -Dm644 -t %{buildroot}%{_datadir}/color-schemes ng/color-schemes/BreezeNG.colors ng/color-schemes/BreezeNGLight.colors
 install -Dm644 kstyle/breezeng.themerc %{buildroot}%{_datadir}/kstyle/themes/breezeng.themerc
 mkdir -p %{buildroot}%{_datadir}/plasma/look-and-feel
-cp -a ng/look-and-feel/org.morzilla.breezeng.soft ng/look-and-feel/org.morzilla.breezeng.glass %{buildroot}%{_datadir}/plasma/look-and-feel/
+cp -a ng/look-and-feel/org.morzilla.breezeng.* %{buildroot}%{_datadir}/plasma/look-and-feel/
 # links to the plugins in Qt's plugin folder (no QT_PLUGIN_PATH, no new login)
 for f in styles/breezeng6.so kstyle_config/breezengstyleconfig.so org.kde.kdecoration3/org.kde.breezeng.so \
          org.kde.kdecoration3.kcm/kcm_breezengdecoration.so; do
@@ -90,9 +90,12 @@ done
 %{ngprefix}
 %dir /opt/ng
 %{_datadir}/color-schemes/BreezeNG.colors
+%{_datadir}/color-schemes/BreezeNGLight.colors
 %{_datadir}/kstyle/themes/breezeng.themerc
 %{_datadir}/plasma/look-and-feel/org.morzilla.breezeng.soft
 %{_datadir}/plasma/look-and-feel/org.morzilla.breezeng.glass
+%{_datadir}/plasma/look-and-feel/org.morzilla.breezeng.soft.light
+%{_datadir}/plasma/look-and-feel/org.morzilla.breezeng.glass.light
 %{_datadir}/plasma/desktoptheme/breeze-ng-soft
 %{_datadir}/plasma/desktoptheme/breeze-ng-glass
 %{_qt6_plugindir}/styles/breezeng6.so
