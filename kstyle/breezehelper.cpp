@@ -248,7 +248,30 @@ QColor Helper::auroraAccent(const QPalette &palette, qreal alpha) const
     return accent;
 }
 
-void Helper::renderAuroraLights(QPainter *painter, const QRectF &windowRect, const QPalette &palette) const
+// Breeze NG Aurora: a fine grain for the lights. Their gradients are faint (a few levels of alpha over hundreds of
+// pixels) and showed bands, as if the screen had 16 bits; a noise of two or three levels breaks the bands up.
+static const QPixmap &ngGrainTile()
+{
+    static QPixmap tile;
+    if (tile.isNull()) {
+        QImage image(128, 128, QImage::Format_ARGB32_Premultiplied);
+        quint32 seed = 0x9e3779b9u;
+        for (int y = 0; y < image.height(); ++y) {
+            QRgb *line = reinterpret_cast<QRgb *>(image.scanLine(y));
+            for (int x = 0; x < image.width(); ++x) {
+                seed ^= seed << 13;
+                seed ^= seed >> 17;
+                seed ^= seed << 5;
+                const int value = int(seed % 9) - 4; // -4..4: white above zero, black below, as alpha
+                line[x] = value >= 0 ? qPremultiply(qRgba(255, 255, 255, value)) : qPremultiply(qRgba(0, 0, 0, -value));
+            }
+        }
+        tile = QPixmap::fromImage(image);
+    }
+    return tile;
+}
+
+void Helper::renderAuroraLights(QPainter *painter, const QRectF &windowRect, const QPalette &palette, bool active) const
 {
     // three soft lights: the accent from the top left corner, a neighbouring hue from the top right, the accent again
     // from the bottom right. The window decoration draws the same two top ones in the title bar, from the same
@@ -260,7 +283,7 @@ void Helper::renderAuroraLights(QPainter *painter, const QRectF &windowRect, con
     const qreal saturation = qBound(0.60, highlight.hslSaturationF() * 1.4, 0.95);
     const QColor accent = QColor::fromHslF(hue, saturation, 0.62);
     const QColor second = QColor::fromHslF(std::fmod(hue + 0.17, 1.0), saturation, 0.64);
-    const qreal strength = (isDark(palette) ? 1.0 : 0.70) * qBound(0, StyleConfigData::auroraLights(), 180) / 100.0;
+    const qreal strength = (isDark(palette) ? 1.0 : 0.70) * (active ? 1.0 : 0.6) * qBound(0, StyleConfigData::auroraLights(), 180) / 100.0;
     if (strength <= 0.0) {
         return;
     }
@@ -278,6 +301,7 @@ void Helper::renderAuroraLights(QPainter *painter, const QRectF &windowRect, con
     light(windowRect.topLeft(), radius, accent, 0.52);
     light(windowRect.topRight(), radius * 0.8, second, 0.36);
     light(windowRect.bottomRight(), radius * 0.9, accent, 0.32);
+    painter->drawTiledPixmap(windowRect, ngGrainTile(), windowRect.topLeft()); // (the same grain at the same place at every repaint)
 }
 
 bool Helper::glassLayers(const QPainter *painter, QColor *base, QList<QColor> *panels, const QWidget **widgetOut, const QWidget **windowOut) const
@@ -360,7 +384,7 @@ void Helper::clearUnder(QPainter *painter, const QRectF &rect) const
         painter->setCompositionMode(QPainter::CompositionMode_Source);
         painter->fillRect(rect, base);
         painter->setCompositionMode(QPainter::CompositionMode_SourceOver);
-        renderAuroraLights(painter, QRectF(widget->mapFrom(window, QPoint(0, 0)), window->size()), window->palette());
+        renderAuroraLights(painter, QRectF(widget->mapFrom(window, QPoint(0, 0)), window->size()), window->palette(), window->isActiveWindow());
         for (const QColor &panel : std::as_const(panels)) {
             painter->fillRect(rect, panel);
         }

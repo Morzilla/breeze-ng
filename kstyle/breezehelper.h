@@ -133,7 +133,8 @@ public:
     qreal windowSheetAlpha() const;
     //* Aurora: the lights behind a window. windowRect is the whole window in the painter's coordinates, so that
     //* every widget that lays its own piece of sheet continues the same lights.
-    void renderAuroraLights(QPainter *painter, const QRectF &windowRect, const QPalette &palette) const;
+    //* (`active`: the window has the focus; a window in the background dims its lights, as its title bar does)
+    void renderAuroraLights(QPainter *painter, const QRectF &windowRect, const QPalette &palette, bool active = true) const;
     //* Breeze NG: white on a dark palette, black on a light one, for translucent sheets and edges
     static QColor ink(const QPalette &palette);
     static bool isDark(const QPalette &palette);

@@ -277,10 +277,23 @@ void Decoration::updateTitleBar()
     setTitleBar(QRectF(x, y, width, height));
 
     // Breeze NG Glass: ask the compositor to blur what lies behind the translucent frame
-    if (m_ngGlass) {
+    ngApplyBlurRegion();
+}
+
+void Decoration::ngApplyBlurRegion()
+{
+    // breezengrc [Common] DecorationBlur: "full" (the whole window's shape, the default), "frame" (only the title bar
+    // and the borders), "off" (none: the frame is see-through and sharp). With KWin 6.8's blur the title bar was seen
+    // flashing between two pictures at every small repaint of the window; these are there to tell where it comes from.
+    if (m_ngGlass && m_ngBlurMode != QLatin1String("off")) {
         QPainterPath path;
         path.addRoundedRect(QRectF(QPointF(0, 0), size()), m_scaledCornerRadius, m_scaledCornerRadius);
-        setBlurRegion(QRegion(path.toFillPolygon().toPolygon()));
+        QRegion region(path.toFillPolygon().toPolygon());
+        if (m_ngBlurMode == QLatin1String("frame")) {
+            const QRectF inside(borderLeft(), borderTop(), size().width() - borderLeft() - borderRight(), size().height() - borderTop() - borderBottom());
+            region -= QRegion(inside.toRect());
+        }
+        setBlurRegion(region);
         ngSettle();
     } else {
         setBlurRegion(QRegion());
@@ -411,6 +424,29 @@ bool Decoration::ngGlass() const
     return m_internalSettings && (m_internalSettings->variant() == InternalSettings::Glass || m_internalSettings->variant() == InternalSettings::Aurora);
 }
 
+// Breeze NG Aurora: a fine grain for the lights. Their gradients are faint (a few levels of alpha over hundreds of
+// pixels) and showed bands, as if the screen had 16 bits; a noise of two or three levels breaks the bands up.
+static const QPixmap &ngGrainTile()
+{
+    static QPixmap tile;
+    if (tile.isNull()) {
+        QImage image(128, 128, QImage::Format_ARGB32_Premultiplied);
+        quint32 seed = 0x9e3779b9u;
+        for (int y = 0; y < image.height(); ++y) {
+            QRgb *line = reinterpret_cast<QRgb *>(image.scanLine(y));
+            for (int x = 0; x < image.width(); ++x) {
+                seed ^= seed << 13;
+                seed ^= seed >> 17;
+                seed ^= seed << 5;
+                const int value = int(seed % 9) - 4; // -4..4: white above zero, black below, as alpha
+                line[x] = value >= 0 ? qPremultiply(qRgba(255, 255, 255, value)) : qPremultiply(qRgba(0, 0, 0, -value));
+            }
+        }
+        tile = QPixmap::fromImage(image);
+    }
+    return tile;
+}
+
 qreal Decoration::ngSheetAlpha(const QColor &sheet) const
 {
     if (!m_ngAurora) {
@@ -444,6 +480,12 @@ void Decoration::reconfigure()
         const auto common = config->group(QStringLiteral("Common"));
         m_ngAuroraBody = qBound(10, common.readEntry("AuroraBodyOpacity", 52), 95);
         m_ngAuroraLights = qBound(0, common.readEntry("AuroraLights", 100), 180) / 100.0;
+        const QString blurMode = common.readEntry("DecorationBlur", QStringLiteral("full")).toLower();
+        if (blurMode != m_ngBlurMode) {
+            m_ngBlurMode = blurMode;
+            ngApplyBlurRegion();
+            update();
+        }
     }
     setOpaque(isMaximized() && !m_ngGlass); // (the look may have changed: Glass is never opaque)
 
@@ -785,6 +827,7 @@ void Decoration::paintTitleBar(QPainter *painter, const QRectF &repaintRegion)
         };
         light(QPointF(rect.left(), rect.bottom() + 1), radius, accent, 0.52);
         light(QPointF(rect.right() + 1, rect.bottom() + 1), radius * 0.8, second, 0.36);
+        painter->drawTiledPixmap(rect, ngGrainTile(), rect.topLeft());
         painter->restore();
     }
 

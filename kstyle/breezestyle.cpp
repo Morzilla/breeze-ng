@@ -1473,7 +1473,7 @@ bool Style::drawWidgetPrimitive(const QStyleOption *option, QPainter *painter, c
         painter->fillRect(widget->rect(), _helper->alphaColor(widget->palette().color(QPalette::Window), _helper->windowSheetAlpha()));
         if (_helper->isAurora()) {
             painter->setCompositionMode(QPainter::CompositionMode_SourceOver);
-            _helper->renderAuroraLights(painter, widget->rect(), widget->palette());
+            _helper->renderAuroraLights(painter, widget->rect(), widget->palette(), widget->isActiveWindow());
         }
         painter->restore();
     }
@@ -1909,6 +1909,15 @@ bool Style::eventFilter(QObject *object, QEvent *event)
         // Breeze NG Glass: a translucent window never paints its background (WA_TranslucentBackground implies
         // WA_NoSystemBackground), so nothing would clear the area under the controls between their repaints and
         // their translucent hover veils would pile up. Lay the sheet here, in Source mode, before the children paint.
+        if ((event->type() == QEvent::WindowActivate || event->type() == QEvent::WindowDeactivate) && _helper->isAurora()
+            && widget->property("_breeze_ng_glass").toBool()) {
+            // Aurora: a window in the background dims its lights, as its title bar does: everything on it paints again
+            widget->update();
+            const auto children = widget->findChildren<QWidget *>();
+            for (QWidget *child : children) {
+                child->update();
+            }
+        }
         if (event->type() == QEvent::Paint && widget->property("_breeze_ng_glass").toBool()) {
             // DestinationOver: the sheet goes under whatever a child may already have painted in this pass,
             // and fills what is still transparent; it never dims the children.
@@ -1921,7 +1930,7 @@ bool Style::eventFilter(QObject *object, QEvent *event)
                 painter.setCompositionMode(QPainter::CompositionMode_Source);
                 painter.fillRect(widget->rect(), _helper->alphaColor(widget->palette().color(QPalette::Window), _helper->windowSheetAlpha()));
                 painter.setCompositionMode(QPainter::CompositionMode_SourceOver);
-                _helper->renderAuroraLights(&painter, widget->rect(), widget->palette());
+                _helper->renderAuroraLights(&painter, widget->rect(), widget->palette(), widget->isActiveWindow());
                 return false;
             }
             painter.setCompositionMode(QPainter::CompositionMode_DestinationOver);
@@ -2383,7 +2392,7 @@ bool Style::eventFilterDockWidget(QDockWidget *dockWidget, QEvent *event)
         painter.fillRect(dockWidget->rect(), _helper->alphaColor(dockWidget->palette().color(QPalette::Window), _helper->windowSheetAlpha()));
         if (_helper->isAurora()) {
             painter.setCompositionMode(QPainter::CompositionMode_SourceOver);
-            _helper->renderAuroraLights(&painter, QRectF(dockWidget->mapFrom(dockWidget->window(), QPoint(0, 0)), dockWidget->window()->size()), dockWidget->palette());
+            _helper->renderAuroraLights(&painter, QRectF(dockWidget->mapFrom(dockWidget->window(), QPoint(0, 0)), dockWidget->window()->size()), dockWidget->palette(), dockWidget->isActiveWindow());
         }
         return false;
     }
