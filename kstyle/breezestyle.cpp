@@ -2115,10 +2115,9 @@ bool Style::eventFilterNgPopup(QWidget *popup, QEvent *event)
             return false;
         }
         popup->setProperty("_breeze_ng_joins", QVariant::fromValue(QPointer<QWidget>(button)));
-        // the button's span in the popup's coordinates, on the top (y 0) or bottom (y 1) side
-        const int x1 = qMax(0, buttonRect.left() - topLeft.x());
-        const int x2 = qMin(popup->width() - 1, buttonRect.right() - topLeft.x());
-        popup->setProperty("_breeze_ng_join_span", QRect(x1, menuEdge == Qt::TopEdge ? 0 : 1, qMax(1, x2 - x1 + 1), 1));
+        popup->setProperty("_breeze_ng_join_button", buttonRect);
+        popup->setProperty("_breeze_ng_join_top", menuEdge == Qt::TopEdge);
+        ngUpdateJoinSpan(popup);
         QColor outline;
         const QColor sheet = _helper->menuSheet(popup->palette(), _helper->hasAlphaChannel(popup), &outline, true);
         button->setProperty(joinedProperty, buttonSide);
@@ -2126,6 +2125,12 @@ bool Style::eventFilterNgPopup(QWidget *popup, QEvent *event)
         button->setProperty("_breeze_ng_joined_edge", outline);
         button->update();
         _shadowHelper->updateShadows(popup); // no shadow on the joined side
+    } else if (event->type() == QEvent::Move && popup->property("_breeze_ng_joins").isValid()) {
+        // on Wayland the compositor has the last word on where a popup goes: it slides a menu that would leave the
+        // screen (the menu of a button at the right edge of a window) after Qt placed it. The span follows.
+        ngUpdateJoinSpan(popup);
+        _shadowHelper->updateShadows(popup);
+        popup->update();
     } else if (event->type() == QEvent::Hide) {
         const QVariant joins = popup->property("_breeze_ng_joins");
         if (joins.isValid()) {
@@ -2143,10 +2148,31 @@ bool Style::eventFilterNgPopup(QWidget *popup, QEvent *event)
             }
             popup->setProperty("_breeze_ng_joins", QVariant());
             popup->setProperty("_breeze_ng_join_span", QVariant());
+            popup->setProperty("_breeze_ng_join_button", QVariant());
+            popup->setProperty("_breeze_ng_join_top", QVariant());
             _shadowHelper->updateShadows(popup);
         }
     }
     return false;
+}
+
+//____________________________________________________________________________
+// Breeze NG: where the joined button sits along the popup's edge, in the popup's coordinates, from where the popup
+// is now: on the top (y 0) or bottom (y 1) side
+void Style::ngUpdateJoinSpan(QWidget *popup) const
+{
+    const QRect buttonRect = popup->property("_breeze_ng_join_button").toRect();
+    if (!buttonRect.isValid()) {
+        return;
+    }
+    const QPoint topLeft = popup->pos();
+    const int x1 = qMax(0, buttonRect.left() - topLeft.x());
+    const int x2 = qMin(popup->width() - 1, buttonRect.right() - topLeft.x());
+    if (x2 < x1) {
+        popup->setProperty("_breeze_ng_join_span", QVariant()); // slid away from the button entirely: a plain menu
+        return;
+    }
+    popup->setProperty("_breeze_ng_join_span", QRect(x1, popup->property("_breeze_ng_join_top").toBool() ? 0 : 1, x2 - x1 + 1, 1));
 }
 
 //____________________________________________________________________________

@@ -136,6 +136,7 @@ public:
     bool eventFilterComboBoxContainer(QWidget *, QEvent *);
     bool eventFilterDockWidget(QDockWidget *, QEvent *);
     bool eventFilterNgPopup(QWidget *, QEvent *); // Breeze NG: a menu or combo list opened from a button joins it
+    void ngUpdateJoinSpan(QWidget *popup) const;
     void ngRenderPopupPanel(QPainter *, const QRect &, const QPalette &, bool hasAlpha, const QWidget *) const; // Breeze NG
     bool eventFilterMdiSubWindow(QMdiSubWindow *, QEvent *);
     bool eventFilterCommandLinkButton(QCommandLinkButton *, QEvent *);
