@@ -70,6 +70,11 @@
     <entry name="AuroraSecondAccent" type="String">
       <default></default>
     </entry>
+    <!-- Breeze NG Aurora: a window in the background dims its lights and takes the inactive colours (off: it looks
+         the same as in front) -->
+    <entry name="AuroraDimInactive" type="Bool">
+      <default>true</default>
+    </entry>
     <entry name="AuroraGrain" type="Int">
       <default>30</default>
     </entry>

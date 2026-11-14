@@ -161,24 +161,24 @@ QColor Decoration::titleBarColor() const
 {
     if (hideTitleBar()) {
         return window()->color(ColorGroup::Inactive, ColorRole::TitleBar);
-    } else if (m_animation->state() == QAbstractAnimation::Running) {
+    } else if (m_animation->state() == QAbstractAnimation::Running && !ngSteady()) {
         return KColorUtils::mix(window()->color(ColorGroup::Inactive, ColorRole::TitleBar),
                                 window()->color(ColorGroup::Active, ColorRole::TitleBar),
                                 m_opacity);
     } else {
-        return window()->color(window()->isActive() ? ColorGroup::Active : ColorGroup::Inactive, ColorRole::TitleBar);
+        return window()->color((window()->isActive() || ngSteady()) ? ColorGroup::Active : ColorGroup::Inactive, ColorRole::TitleBar);
     }
 }
 
 //________________________________________________________________
 QColor Decoration::fontColor() const
 {
-    if (m_animation->state() == QAbstractAnimation::Running) {
+    if (m_animation->state() == QAbstractAnimation::Running && !ngSteady()) {
         return KColorUtils::mix(window()->color(ColorGroup::Inactive, ColorRole::Foreground),
                                 window()->color(ColorGroup::Active, ColorRole::Foreground),
                                 m_opacity);
     } else {
-        return window()->color(window()->isActive() ? ColorGroup::Active : ColorGroup::Inactive, ColorRole::Foreground);
+        return window()->color((window()->isActive() || ngSteady()) ? ColorGroup::Active : ColorGroup::Inactive, ColorRole::Foreground);
     }
 }
 
@@ -471,6 +471,7 @@ void Decoration::reconfigure()
         m_ngAuroraBody = qBound(10, common.readEntry("AuroraBodyOpacity", 52), 95);
         m_ngAuroraLights = qBound(0, common.readEntry("AuroraLights", 100), 180) / 100.0;
         m_ngAuroraGrain = qBound(0, common.readEntry("AuroraGrain", 30), 100);
+        m_ngAuroraDim = common.readEntry("AuroraDimInactive", true);
         const QString secondAccent = common.readEntry("AuroraSecondAccent", QString());
         m_ngAuroraSecond = secondAccent.isEmpty() ? QColor() : QColor(secondAccent);
         const QString blurMode = common.readEntry("DecorationBlur", QStringLiteral("frame")).toLower();
@@ -689,7 +690,7 @@ void Decoration::paint(QPainter *painter, const QRectF &repaintRegion)
         painter->save();
         painter->setRenderHint(QPainter::Antialiasing);
         painter->setPen(Qt::NoPen);
-        QColor frameColor = window()->color(window()->isActive() ? ColorGroup::Active : ColorGroup::Inactive, ColorRole::Frame);
+        QColor frameColor = window()->color((window()->isActive() || ngSteady()) ? ColorGroup::Active : ColorGroup::Inactive, ColorRole::Frame);
         if (m_ngGlass) {
             frameColor.setAlphaF(ngSheetAlpha(frameColor)); // Breeze NG
             painter->setCompositionMode(QPainter::CompositionMode_Source);
@@ -809,7 +810,7 @@ void Decoration::paintTitleBar(QPainter *painter, const QRectF &repaintRegion)
         if (m_ngAuroraSecond.isValid()) { // the user's own second light, as in the widget style
             second = QColor::fromHslF(m_ngAuroraSecond.hslHueF() < 0 ? hue : m_ngAuroraSecond.hslHueF(), qBound(0.60, m_ngAuroraSecond.hslSaturationF() * 1.4, 0.95), 0.64);
         }
-        const qreal strength = (titleBarColor().lightnessF() < 0.5 ? 1.0 : 0.70) * (window()->isActive() ? 1.0 : 0.6) * m_ngAuroraLights;
+        const qreal strength = (titleBarColor().lightnessF() < 0.5 ? 1.0 : 0.70) * ((window()->isActive() || ngSteady()) ? 1.0 : 0.6) * m_ngAuroraLights;
         const qreal radius = qBound(260.0, rect.width() * 0.55, 620.0);
         auto light = [&](const QPointF &centre, qreal r, QColor colour, qreal alpha) {
             QRadialGradient gradient(centre, r);

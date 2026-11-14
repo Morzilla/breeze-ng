@@ -305,7 +305,7 @@ void Helper::renderAuroraLights(QPainter *painter, const QRectF &windowRect, con
     if (const QColor chosen(StyleConfigData::auroraSecondAccent()); chosen.isValid() && !StyleConfigData::auroraSecondAccent().isEmpty()) {
         second = QColor::fromHslF(chosen.hslHueF() < 0 ? hue : chosen.hslHueF(), qBound(0.60, chosen.hslSaturationF() * 1.4, 0.95), 0.64);
     }
-    const qreal strength = (isDark(palette) ? 1.0 : 0.70) * (active ? 1.0 : 0.6) * qBound(0, StyleConfigData::auroraLights(), 180) / 100.0;
+    const qreal strength = (isDark(palette) ? 1.0 : 0.70) * ((active || !StyleConfigData::auroraDimInactive()) ? 1.0 : 0.6) * qBound(0, StyleConfigData::auroraLights(), 180) / 100.0;
     if (strength <= 0.0) {
         return;
     }
@@ -1986,9 +1986,6 @@ void Helper::renderTabBarTab(QPainter *painter,
     if (pillBar && (!selected || _aurora)) {
         // Breeze NG: a tab at rest is a faint pill, a little brighter under the pointer
         // (Aurora: the current one too, brighter: no tongue in the opaque colour of the page, the page is glass)
-        if (_aurora) {
-            clearUnder(painter, frameRect);
-        }
         qreal veil = selected ? 0.16 : _aurora ? auroraVeil(palette, true) : 0.06;
         if (animated) {
             veil += 0.06 * animation;
@@ -2002,6 +1999,11 @@ void Helper::renderTabBarTab(QPainter *painter,
             pill.adjust(4, 2, -4, -2);
         }
         const qreal radius = (north || south) ? pill.height() / 2.0 : pill.width() / 2.0;
+        if (_aurora) {
+            // a clean sheet under the pill only: the rectangle of the current tab reaches over its neighbours, and
+            // clearing all of it cut the round end off the tab before it
+            clearUnder(painter, pill);
+        }
         painter->setPen(Qt::NoPen);
         // Aurora: the current tab wears the accent
         painter->setBrush(selected && _aurora ? auroraAccent(palette, veil + 0.16) : alphaColor(ink(palette), veil));

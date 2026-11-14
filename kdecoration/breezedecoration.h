@@ -104,6 +104,12 @@ private:
     bool m_ngAuroraLight = false;
     qreal m_ngAuroraLights = 1.0;
     int m_ngAuroraGrain = 30;
+    bool m_ngAuroraDim = true;
+    //* Breeze NG Aurora with "dim windows in the background" off: the frame looks the same in front and behind
+    bool ngSteady() const
+    {
+        return m_ngAurora && !m_ngAuroraDim;
+    }
     QColor m_ngAuroraSecond;
     QString m_ngBlurMode = QStringLiteral("frame");
     bool ngAurora() const;

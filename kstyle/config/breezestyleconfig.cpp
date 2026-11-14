@@ -667,6 +667,9 @@ QWidget *StyleConfig::pageAurora()
         m_auroraLight = new QCheckBox(ngText("Aurora Light: a lighter, airier glass (off: dark tones)", "Aurora Light: un vetro più chiaro e arioso (spento: toni scuri)"), m_auroraGroup);
         group->addWidget(m_auroraLight);
         connect(m_auroraLight, &QCheckBox::toggled, this, &StyleConfig::updateChanged);
+        m_auroraDim = new QCheckBox(ngText("Windows in the background dim their lights and title bar", "Le finestre in secondo piano attenuano luci e barra del titolo"), m_auroraGroup);
+        group->addWidget(m_auroraDim);
+        connect(m_auroraDim, &QCheckBox::toggled, this, &StyleConfig::updateChanged);
         auto *aurora = new QFormLayout();
         m_auroraBody = slider(15, 90, m_auroraGroup);
         m_auroraPanel = slider(0, 25, m_auroraGroup);
@@ -971,7 +974,8 @@ void StyleConfig::save()
     StyleConfigData::setAuroraButtonVeil(m_auroraButton->value());
     StyleConfigData::setAuroraLights(m_auroraLights->value());
     StyleConfigData::setAuroraGrain(m_auroraGrain->value());
-    const bool secondChanged = StyleConfigData::auroraSecondAccent() != m_auroraSecond;
+    const bool secondChanged = StyleConfigData::auroraSecondAccent() != m_auroraSecond || StyleConfigData::auroraDimInactive() != m_auroraDim->isChecked();
+    StyleConfigData::setAuroraDimInactive(m_auroraDim->isChecked());
     StyleConfigData::setAuroraSecondAccent(m_auroraSecond);
     const bool blurChanged = m_blurStrength->value() != blurStrength();
     if (blurChanged) {
@@ -1092,7 +1096,7 @@ void StyleConfig::updateChanged()
         || m_windowOpacity->value() != StyleConfigData::windowOpacity() || m_menuOpacity->value() != StyleConfigData::menuOpacity()
         || m_auroraBody->value() != StyleConfigData::auroraBodyOpacity() || m_auroraPanel->value() != StyleConfigData::auroraPanelVeil()
         || m_auroraButton->value() != StyleConfigData::auroraButtonVeil() || m_auroraLights->value() != StyleConfigData::auroraLights()
-        || m_auroraGrain->value() != StyleConfigData::auroraGrain() || m_auroraSecond != StyleConfigData::auroraSecondAccent() || (m_aurora->isChecked() && m_auroraLight->isChecked() != ngCurrentAuroraLight())
+        || m_auroraGrain->value() != StyleConfigData::auroraGrain() || m_auroraSecond != StyleConfigData::auroraSecondAccent() || m_auroraDim->isChecked() != StyleConfigData::auroraDimInactive() || (m_aurora->isChecked() && m_auroraLight->isChecked() != ngCurrentAuroraLight())
         || m_blurStrength->value() != blurStrength()
         || m_animations->isChecked() != StyleConfigData::animationsEnabled() || m_animationSpeed->value() != animationIndex()
         || m_transitions->isChecked() != StyleConfigData::stackedWidgetTransitionsEnabled() || m_mnemonics->currentIndex() != StyleConfigData::mnemonicsMode()
@@ -1127,6 +1131,7 @@ void StyleConfig::load()
     m_auroraLights->setValue(StyleConfigData::auroraLights());
     m_auroraGrain->setValue(StyleConfigData::auroraGrain());
     m_auroraSecond = StyleConfigData::auroraSecondAccent();
+    m_auroraDim->setChecked(StyleConfigData::auroraDimInactive());
     for (QAbstractButton *b : std::as_const(m_auroraSecondButtons)) {
         b->setChecked(b->property("colour").toString() == m_auroraSecond);
     }

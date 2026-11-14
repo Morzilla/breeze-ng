@@ -53,10 +53,31 @@ struct Look {
     QColor veil; // what lists stand on
     QColor ground; // everything else: nothing, in the window's own colour
     bool dark = true;
+    int body = 52; // settings of Breeze NG (breezengrc)
+    int panel = 7;
+    bool lightGlass = false; // "Breeze NG Aurora Light"
     qreal lights = 1.0; // strength of the lights behind the window
     int grain = 30; // the grain over them
+    bool dim = true; // windows in the background dim their lights
     QColor second; // the second light, if the user chose its colour
 };
+
+// The colours that depend on the palette, worked out when they are used: the plugin is made very early (at login,
+// the first application was seen to get a light grey sheet: the palette of the colour scheme was not there yet).
+void colours(Look &look)
+{
+    const QColor window = QGuiApplication::palette().color(QPalette::Window);
+    const bool dark = window.lightnessF() < 0.5;
+    look.dark = dark;
+    look.sheet = window;
+    look.sheet.setAlphaF(qMin(look.body + (dark ? (look.lightGlass ? 0 : 22) : 18), 95) / 100.0); // as Helper::windowSheetAlpha in the widget style
+    // Some components take a background colour and make it solid, or mix it with the text colour: "nothing" is the
+    // window's colour with no alpha. The veil is ink, as in the widget style.
+    look.ground = window;
+    look.ground.setAlpha(0);
+    look.veil = dark ? QColor(255, 255, 255) : QColor(0, 0, 0);
+    look.veil.setAlphaF(look.panel / 100.0 * (dark ? 1.0 : 0.75));
+}
 
 Look readLook()
 {
@@ -73,27 +94,15 @@ Look readLook()
         return look;
     }
     const KConfigGroup common = KSharedConfig::openConfig(QStringLiteral("breezengrc"))->group(QStringLiteral("Common"));
-    const int body = qBound(10, common.readEntry("AuroraBodyOpacity", 52), 95);
-    const int panel = qBound(0, common.readEntry("AuroraPanelVeil", 7), 40);
-    const QColor window = QGuiApplication::palette().color(QPalette::Window);
-    const bool dark = window.lightnessF() < 0.5;
-    look.dark = dark;
+    look.body = qBound(10, common.readEntry("AuroraBodyOpacity", 52), 95);
+    look.panel = qBound(0, common.readEntry("AuroraPanelVeil", 7), 40);
+    look.lightGlass = lightGlass;
     look.lights = qBound(0, common.readEntry("AuroraLights", 100), 180) / 100.0;
     look.grain = qBound(0, common.readEntry("AuroraGrain", 30), 100);
+    look.dim = common.readEntry("AuroraDimInactive", true);
     const QString secondAccent = common.readEntry("AuroraSecondAccent", QString());
     look.second = secondAccent.isEmpty() ? QColor() : QColor(secondAccent);
-    look.sheet = window;
-    look.sheet.setAlphaF(qMin(body + (dark ? (lightGlass ? 0 : 22) : 18), 95) / 100.0); // as Helper::windowSheetAlpha in the widget style
-    // Some components take a background colour and make it solid, or mix it with the text colour: a clear black
-    // turned their cards black, a white veil turned them white. So "nothing" is the window's colour with no alpha,
-    // and the veil is a tone lifted from it at an alpha that weighs as the veil of the widget style does.
-    look.ground = window;
-    look.ground.setAlpha(0);
-    // (the veil is ink, as in the widget style: a grey tone lifted from the window took the colour out of what lay
-    // under it, an olive cast on the lights. The dark slab under Kirigami's cards, which made a white veil a white
-    // card, is faded out: see cardShadow)
-    look.veil = dark ? QColor(255, 255, 255) : QColor(0, 0, 0);
-    look.veil.setAlphaF(panel / 100.0 * (dark ? 1.0 : 0.75));
+    colours(look);
     return look;
 }
 
@@ -160,8 +169,9 @@ public:
     void paint(QPainter *painter) override
     {
         const QRectF rect(0, 0, width(), height());
+        colours(m_look); // (with the palette of now)
         painter->fillRect(rect, m_look.sheet); // the window's glass
-        const qreal strength = (m_look.dark ? 1.0 : 0.70) * (m_window->isActive() ? 1.0 : 0.6) * m_look.lights;
+        const qreal strength = (m_look.dark ? 1.0 : 0.70) * ((m_window->isActive() || !m_look.dim) ? 1.0 : 0.6) * m_look.lights;
         if (strength > 0.0) {
             const QColor highlight = QGuiApplication::palette().color(QPalette::Active, QPalette::Highlight);
             const qreal hue = highlight.hslHueF() < 0 ? 0.58 : highlight.hslHueF();
@@ -363,11 +373,12 @@ private:
     {
         QPointer<PlatformTheme> guard(theme);
         QPointer<QObject> owner(parent);
-        const Look look = m_look;
-        auto apply = [guard, owner, look, this] {
+        auto apply = [guard, owner, this] {
             if (!guard) {
                 return;
             }
+            colours(m_look); // (with the palette of now)
+            const Look look = m_look;
             const bool window = owner && owner->inherits("QQuickWindow") && !owner->inherits("QQuickWidgetOffscreenWindow");
             if (!window && floats(owner)) {
                 if (guard->property("_breeze_ng_glass").toInt() != 0) {

@@ -5725,11 +5725,18 @@ bool Style::drawPanelItemViewItemPrimitive(const QStyleOption *option, QPainter 
     }
 
     // do nothing if no background is to be rendered
+    // (only in a view: other widgets borrow this primitive for their hover, as the folders of a location bar do, and
+    // sit on something that clearUnder does not know: there it wiped a rectangle of the field around the folder,
+    // which seemed to stick out of it. Their parent is painted again under them anyway.)
     if (!(mouseOver || selected || hasCustomBackground || hasAlternateBackground || slide)) {
-        _helper->clearUnder(painter, option->rect); // Breeze NG Glass: the veil of the last hover goes
+        if (abstractItemView) {
+            _helper->clearUnder(painter, option->rect); // Breeze NG Glass: the veil of the last hover goes
+        }
         return true;
     }
-    _helper->clearUnder(painter, option->rect);
+    if (abstractItemView) {
+        _helper->clearUnder(painter, option->rect);
+    }
 
     // define color group
     QPalette::ColorGroup colorGroup;
