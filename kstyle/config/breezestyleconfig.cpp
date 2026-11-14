@@ -132,6 +132,14 @@ void setBlurStrength(int strength)
         }
     }
     config->sync();
+#if HAVE_QTDBUS
+    // each blur effect reads its settings again when told to (KWin's own reload does not reach every one of them)
+    for (const char *effect : {"better_blur_dx", "blurplus", "blur"}) {
+        QDBusMessage message = QDBusMessage::createMethodCall(QStringLiteral("org.kde.KWin"), QStringLiteral("/Effects"), QStringLiteral("org.kde.kwin.Effects"), QStringLiteral("reconfigureEffect"));
+        message << QString::fromLatin1(effect);
+        QDBusConnection::sessionBus().send(message);
+    }
+#endif
 }
 
 void reloadKWin()
@@ -690,6 +698,62 @@ QWidget *StyleConfig::pageAurora()
         group->addWidget(auroraNote);
     }
     body->addWidget(m_auroraGroup);
+    // the second light: the accent lights the top left and the bottom right corner, a second colour the top right
+    body->addWidget(groupTitle(ngText("Second light", "Seconda luce"), w));
+    {
+        auto *row = new QHBoxLayout();
+        row->setSpacing(10);
+        auto pick = [this](const QString &colour) {
+            m_auroraSecond = colour;
+            for (QAbstractButton *b : std::as_const(m_auroraSecondButtons)) {
+                b->setChecked(b->property("colour").toString() == colour);
+            }
+            updateChanged();
+        };
+        static const char *const colours[] = {"#6a9bcc", "#3eb4a0", "#62b86a", "#9676e0", "#e06ca0", "#e8843c", "#e2b93b", "#d9534f"};
+        for (const char *hex : colours) {
+            auto *swatch = new QToolButton(w);
+            swatch->setFixedSize(30, 30);
+            swatch->setCursor(Qt::PointingHandCursor);
+            swatch->setCheckable(true);
+            swatch->setAutoRaise(true);
+            swatch->setProperty("colour", QString::fromLatin1(hex));
+            QPixmap dot(44, 44);
+            dot.fill(Qt::transparent);
+            {
+                QPainter dp(&dot);
+                dp.setRenderHint(QPainter::Antialiasing);
+                dp.setPen(Qt::NoPen);
+                dp.setBrush(QColor(QString::fromLatin1(hex)));
+                dp.drawEllipse(QRectF(4, 4, 36, 36));
+            }
+            swatch->setIcon(QIcon(dot));
+            swatch->setIconSize(QSize(22, 22));
+            const QString colour = QString::fromLatin1(hex);
+            connect(swatch, &QToolButton::clicked, this, [pick, colour] {
+                pick(colour);
+            });
+            m_auroraSecondButtons.append(swatch);
+            row->addWidget(swatch);
+        }
+        auto *automatic = new QPushButton(ngText("Next to the accent", "Vicina all'accento"), w);
+        automatic->setCheckable(true);
+        automatic->setProperty("colour", QString());
+        connect(automatic, &QPushButton::clicked, this, [pick] {
+            pick(QString());
+        });
+        m_auroraSecondButtons.append(automatic);
+        row->addSpacing(8);
+        row->addWidget(automatic);
+        row->addStretch();
+        body->addLayout(row);
+        auto *secondNote = new QLabel(ngText("The first light is the accent colour (Look). Here you choose the colour of the light in the opposite corner.",
+                                             "La prima luce è il colore d'accento (Aspetto). Qui scegli il colore della luce nell'angolo opposto."),
+                                      w);
+        secondNote->setEnabled(false);
+        secondNote->setWordWrap(true);
+        body->addWidget(secondNote);
+    }
     auto *defaults = new QPushButton(ngText("Aurora's defaults", "Valori predefiniti di Aurora"), w);
     connect(defaults, &QPushButton::clicked, this, [this] {
         m_auroraBody->setValue(52);
@@ -907,12 +971,14 @@ void StyleConfig::save()
     StyleConfigData::setAuroraButtonVeil(m_auroraButton->value());
     StyleConfigData::setAuroraLights(m_auroraLights->value());
     StyleConfigData::setAuroraGrain(m_auroraGrain->value());
+    const bool secondChanged = StyleConfigData::auroraSecondAccent() != m_auroraSecond;
+    StyleConfigData::setAuroraSecondAccent(m_auroraSecond);
     const bool blurChanged = m_blurStrength->value() != blurStrength();
     if (blurChanged) {
         setBlurStrength(m_blurStrength->value());
     }
     // the window decoration draws the title bar with the same glass and lights
-    const bool decorationChanged = blurChanged || m_auroraBody->value() != m_savedAuroraBody || m_auroraLights->value() != m_savedAuroraLights || m_auroraGrain->value() != m_savedAuroraGrain;
+    const bool decorationChanged = blurChanged || secondChanged || m_auroraBody->value() != m_savedAuroraBody || m_auroraLights->value() != m_savedAuroraLights || m_auroraGrain->value() != m_savedAuroraGrain;
     m_savedAuroraGrain = m_auroraGrain->value();
     m_savedAuroraBody = m_auroraBody->value();
     m_savedAuroraLights = m_auroraLights->value();
@@ -1026,7 +1092,7 @@ void StyleConfig::updateChanged()
         || m_windowOpacity->value() != StyleConfigData::windowOpacity() || m_menuOpacity->value() != StyleConfigData::menuOpacity()
         || m_auroraBody->value() != StyleConfigData::auroraBodyOpacity() || m_auroraPanel->value() != StyleConfigData::auroraPanelVeil()
         || m_auroraButton->value() != StyleConfigData::auroraButtonVeil() || m_auroraLights->value() != StyleConfigData::auroraLights()
-        || m_auroraGrain->value() != StyleConfigData::auroraGrain() || (m_aurora->isChecked() && m_auroraLight->isChecked() != ngCurrentAuroraLight())
+        || m_auroraGrain->value() != StyleConfigData::auroraGrain() || m_auroraSecond != StyleConfigData::auroraSecondAccent() || (m_aurora->isChecked() && m_auroraLight->isChecked() != ngCurrentAuroraLight())
         || m_blurStrength->value() != blurStrength()
         || m_animations->isChecked() != StyleConfigData::animationsEnabled() || m_animationSpeed->value() != animationIndex()
         || m_transitions->isChecked() != StyleConfigData::stackedWidgetTransitionsEnabled() || m_mnemonics->currentIndex() != StyleConfigData::mnemonicsMode()
@@ -1060,6 +1126,10 @@ void StyleConfig::load()
     m_auroraButton->setValue(StyleConfigData::auroraButtonVeil());
     m_auroraLights->setValue(StyleConfigData::auroraLights());
     m_auroraGrain->setValue(StyleConfigData::auroraGrain());
+    m_auroraSecond = StyleConfigData::auroraSecondAccent();
+    for (QAbstractButton *b : std::as_const(m_auroraSecondButtons)) {
+        b->setChecked(b->property("colour").toString() == m_auroraSecond);
+    }
     m_savedAuroraGrain = m_auroraGrain->value();
     m_blurStrength->setValue(blurStrength());
     m_savedAuroraBody = m_auroraBody->value();

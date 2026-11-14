@@ -55,6 +55,7 @@ struct Look {
     bool dark = true;
     qreal lights = 1.0; // strength of the lights behind the window
     int grain = 30; // the grain over them
+    QColor second; // the second light, if the user chose its colour
 };
 
 Look readLook()
@@ -79,6 +80,8 @@ Look readLook()
     look.dark = dark;
     look.lights = qBound(0, common.readEntry("AuroraLights", 100), 180) / 100.0;
     look.grain = qBound(0, common.readEntry("AuroraGrain", 30), 100);
+    const QString secondAccent = common.readEntry("AuroraSecondAccent", QString());
+    look.second = secondAccent.isEmpty() ? QColor() : QColor(secondAccent);
     look.sheet = window;
     look.sheet.setAlphaF(qMin(body + (dark ? (lightGlass ? 0 : 22) : 18), 95) / 100.0); // as Helper::windowSheetAlpha in the widget style
     // Some components take a background colour and make it solid, or mix it with the text colour: a clear black
@@ -164,7 +167,10 @@ public:
             const qreal hue = highlight.hslHueF() < 0 ? 0.58 : highlight.hslHueF();
             const qreal saturation = qBound(0.60, highlight.hslSaturationF() * 1.4, 0.95);
             const QColor accent = QColor::fromHslF(hue, saturation, 0.62);
-            const QColor second = QColor::fromHslF(std::fmod(hue + 0.17, 1.0), saturation, 0.64);
+            QColor second = QColor::fromHslF(std::fmod(hue + 0.17, 1.0), saturation, 0.64);
+            if (m_look.second.isValid()) {
+                second = QColor::fromHslF(m_look.second.hslHueF() < 0 ? hue : m_look.second.hslHueF(), qBound(0.60, m_look.second.hslSaturationF() * 1.4, 0.95), 0.64);
+            }
             const qreal radius = qBound(260.0, rect.width() * 0.55, 620.0);
             auto light = [&](const QPointF &centre, qreal r, QColor colour, qreal alpha) {
                 QRadialGradient gradient(centre, r);

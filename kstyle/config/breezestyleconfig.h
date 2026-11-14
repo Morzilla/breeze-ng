@@ -7,6 +7,8 @@
 
 #pragma once
 
+#include <QAbstractButton>
+#include <QList>
 #include <QWidget>
 
 class QCheckBox;
@@ -102,6 +104,8 @@ private:
     QWidget *m_auroraGroup = nullptr;
     int m_savedAuroraBody = 52;
     QCheckBox *m_auroraLight = nullptr;
+    QString m_auroraSecond; // the second light's colour (#rrggbb), empty: next to the accent
+    QList<QAbstractButton *> m_auroraSecondButtons;
     int m_savedAuroraLights = 100;
 
     // controls and animations

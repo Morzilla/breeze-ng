@@ -65,6 +65,11 @@
       <default>100</default>
     </entry>
     <!-- Breeze NG Aurora: the grain over the lights (0-100), against the bands of faint gradients on 6 bit panels -->
+    <!-- Breeze NG Aurora: the colour of the second light (the top right corner), as #rrggbb; empty: a hue next to
+         the accent's -->
+    <entry name="AuroraSecondAccent" type="String">
+      <default></default>
+    </entry>
     <entry name="AuroraGrain" type="Int">
       <default>30</default>
     </entry>

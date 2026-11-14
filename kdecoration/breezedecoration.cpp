@@ -282,8 +282,8 @@ void Decoration::updateTitleBar()
 
 void Decoration::ngApplyBlurRegion()
 {
-    // breezengrc [Common] DecorationBlur: "full" (the whole window's shape, the default), "frame" (only the title bar
-    // and the borders), "off" (none: the frame is see-through and sharp). With KWin 6.8's blur the title bar was seen
+    // breezengrc [Common] DecorationBlur: "frame" (only the title bar and the borders, the default: the window asks
+    // for its own part itself), "full" (the whole window's shape), "off" (none: the frame is see-through and sharp). With KWin 6.8's blur the title bar was seen
     // flashing between two pictures at every small repaint of the window; these are there to tell where it comes from.
     if (m_ngGlass && m_ngBlurMode != QLatin1String("off")) {
         QPainterPath path;
@@ -294,31 +294,15 @@ void Decoration::ngApplyBlurRegion()
             region -= QRegion(inside.toRect());
         }
         setBlurRegion(region);
-        ngSettle();
     } else {
         setBlurRegion(QRegion());
     }
 }
 
-void Decoration::ngSettle()
-{
-    // Breeze NG Glass: seen on KWin 6 with the blur behind the frame: after the window opened or was activated, the
-    // title bar stayed in two versions (one lit and blurred, one flat) in the compositor's two buffers, and every small
-    // repaint of the window (a blinking text cursor) showed the other one: the title bar flashed with the cursor.
-    // Painting the frame again over the next frames brings every buffer to the same picture.
-    for (int delay : {0, 120, 400, 1200, 3000}) {
-        QTimer::singleShot(delay, this, [this] {
-            update();
-        });
-    }
-}
 
 //________________________________________________________________
 void Decoration::updateAnimationState()
 {
-    if (m_ngGlass) {
-        ngSettle(); // the window was activated or left: see there
-    }
     if (m_shadowAnimation->duration() > 0) {
         m_shadowAnimation->setDirection(window()->isActive() ? QAbstractAnimation::Forward : QAbstractAnimation::Backward);
         m_shadowAnimation->setEasingCurve(window()->isActive() ? QEasingCurve::OutCubic : QEasingCurve::InCubic);
@@ -487,7 +471,9 @@ void Decoration::reconfigure()
         m_ngAuroraBody = qBound(10, common.readEntry("AuroraBodyOpacity", 52), 95);
         m_ngAuroraLights = qBound(0, common.readEntry("AuroraLights", 100), 180) / 100.0;
         m_ngAuroraGrain = qBound(0, common.readEntry("AuroraGrain", 30), 100);
-        const QString blurMode = common.readEntry("DecorationBlur", QStringLiteral("full")).toLower();
+        const QString secondAccent = common.readEntry("AuroraSecondAccent", QString());
+        m_ngAuroraSecond = secondAccent.isEmpty() ? QColor() : QColor(secondAccent);
+        const QString blurMode = common.readEntry("DecorationBlur", QStringLiteral("frame")).toLower();
         if (blurMode != m_ngBlurMode) {
             m_ngBlurMode = blurMode;
             ngApplyBlurRegion();
@@ -819,7 +805,10 @@ void Decoration::paintTitleBar(QPainter *painter, const QRectF &repaintRegion)
         const qreal hue = highlight.hslHueF() < 0 ? 0.58 : highlight.hslHueF();
         const qreal saturation = qBound(0.60, highlight.hslSaturationF() * 1.4, 0.95);
         const QColor accent = QColor::fromHslF(hue, saturation, 0.62); // luminous, as in the widget style
-        const QColor second = QColor::fromHslF(std::fmod(hue + 0.17, 1.0), saturation, 0.64);
+        QColor second = QColor::fromHslF(std::fmod(hue + 0.17, 1.0), saturation, 0.64);
+        if (m_ngAuroraSecond.isValid()) { // the user's own second light, as in the widget style
+            second = QColor::fromHslF(m_ngAuroraSecond.hslHueF() < 0 ? hue : m_ngAuroraSecond.hslHueF(), qBound(0.60, m_ngAuroraSecond.hslSaturationF() * 1.4, 0.95), 0.64);
+        }
         const qreal strength = (titleBarColor().lightnessF() < 0.5 ? 1.0 : 0.70) * (window()->isActive() ? 1.0 : 0.6) * m_ngAuroraLights;
         const qreal radius = qBound(260.0, rect.width() * 0.55, 620.0);
         auto light = [&](const QPointF &centre, qreal r, QColor colour, qreal alpha) {

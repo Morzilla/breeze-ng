@@ -300,7 +300,11 @@ void Helper::renderAuroraLights(QPainter *painter, const QRectF &windowRect, con
     const qreal hue = highlight.hslHueF() < 0 ? 0.58 : highlight.hslHueF();
     const qreal saturation = qBound(0.60, highlight.hslSaturationF() * 1.4, 0.95);
     const QColor accent = QColor::fromHslF(hue, saturation, 0.62);
-    const QColor second = QColor::fromHslF(std::fmod(hue + 0.17, 1.0), saturation, 0.64);
+    // the second light: the user's own colour (its hue, made luminous like the accent's), or a hue next to the accent's
+    QColor second = QColor::fromHslF(std::fmod(hue + 0.17, 1.0), saturation, 0.64);
+    if (const QColor chosen(StyleConfigData::auroraSecondAccent()); chosen.isValid() && !StyleConfigData::auroraSecondAccent().isEmpty()) {
+        second = QColor::fromHslF(chosen.hslHueF() < 0 ? hue : chosen.hslHueF(), qBound(0.60, chosen.hslSaturationF() * 1.4, 0.95), 0.64);
+    }
     const qreal strength = (isDark(palette) ? 1.0 : 0.70) * (active ? 1.0 : 0.6) * qBound(0, StyleConfigData::auroraLights(), 180) / 100.0;
     if (strength <= 0.0) {
         return;
