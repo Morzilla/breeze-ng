@@ -2778,6 +2778,8 @@ bool Style::eventFilterDockWidget(QDockWidget *dockWidget, QEvent *event)
             painter.setCompositionMode(QPainter::CompositionMode_SourceOver);
             _helper->renderAuroraLights(&painter, QRectF(dockWidget->mapFrom(dockWidget->window(), QPoint(0, 0)), dockWidget->window()->size()), dockWidget->palette(), dockWidget->isActiveWindow());
         }
+        painter.setCompositionMode(QPainter::CompositionMode_SourceOver);
+        _helper->cutCorners(&painter, dockWidget); // (a window that rounds its own corners: the dock reaches into one)
         return false;
     }
 
