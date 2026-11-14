@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: GPL-2.0-or-later
-%global commit      afb1977efc8ef639e1b2aac357314f56cef9db8d
+%global commit      efcca6e0e7f3958b31a845fd4d09adbaef9b4e90
 %global shortcommit %(c=%{commit}; echo ${c:0:7})
-%global snapdate    202611141458
+%global snapdate    202611141558
 # snapdate: date and time of the commit (YYYYMMDDHHMM), so that two snapshots of one day sort in order
 # installed apart from the system, next to Fedora's own Breeze
 %global ngprefix    /opt/ng/breeze-ng
