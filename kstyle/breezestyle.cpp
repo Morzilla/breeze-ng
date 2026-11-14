@@ -2128,6 +2128,9 @@ bool Style::eventFilterNgPopup(QWidget *popup, QEvent *event)
     } else if (event->type() == QEvent::Move && popup->property("_breeze_ng_joins").isValid()) {
         // on Wayland the compositor has the last word on where a popup goes: it slides a menu that would leave the
         // screen (the menu of a button at the right edge of a window) after Qt placed it. The span follows.
+        if (ngNudgeJoinedPopup(popup)) {
+            return false; // moved again: the next Move event brings the final place
+        }
         ngUpdateJoinSpan(popup);
         _shadowHelper->updateShadows(popup);
         popup->update();
@@ -2150,10 +2153,37 @@ bool Style::eventFilterNgPopup(QWidget *popup, QEvent *event)
             popup->setProperty("_breeze_ng_join_span", QVariant());
             popup->setProperty("_breeze_ng_join_button", QVariant());
             popup->setProperty("_breeze_ng_join_top", QVariant());
+            popup->setProperty("_breeze_ng_nudged", QVariant());
             _shadowHelper->updateShadows(popup);
         }
     }
     return false;
+}
+
+//____________________________________________________________________________
+// Breeze NG: on Wayland (Qt 6.11, KWin 6.8) a popup asked for at the left edge of its button lands one pixel to the
+// right of it, and the outline of a joined menu then steps off the button's. The offset is constant, so asking again
+// for the place minus twice the error puts it where it belongs. Only for a menu that sits within two pixels of the
+// button's left or right edge, once per opening: where the compositor places popups exactly, nothing happens.
+bool Style::ngNudgeJoinedPopup(QWidget *popup) const
+{
+    if (popup->property("_breeze_ng_nudged").toBool() || !QGuiApplication::platformName().startsWith(QLatin1String("wayland"))) {
+        return false;
+    }
+    const QRect buttonRect = popup->property("_breeze_ng_join_button").toRect();
+    if (!buttonRect.isValid()) {
+        return false;
+    }
+    int dx = popup->x() - buttonRect.left();
+    if (dx == 0 || qAbs(dx) > 2) {
+        dx = popup->geometry().right() - buttonRect.right(); // a menu aligned with the button's right edge
+        if (dx == 0 || qAbs(dx) > 2) {
+            return false;
+        }
+    }
+    popup->setProperty("_breeze_ng_nudged", true);
+    popup->move(popup->x() - 2 * dx, popup->y());
+    return true;
 }
 
 //____________________________________________________________________________
