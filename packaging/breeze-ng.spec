@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: GPL-2.0-or-later
-%global commit      5d5757bc30541beeeed1ee0cf17b8a1749d22fdd
+%global commit      9075f9a9cdb694832ae41fd6470ec31e703339e1
 %global shortcommit %(c=%{commit}; echo ${c:0:7})
-%global snapdate    202611141143
+%global snapdate    202611141235
 # snapdate: date and time of the commit (YYYYMMDDHHMM), so that two snapshots of one day sort in order
 # installed apart from the system, next to Fedora's own Breeze
 %global ngprefix    /opt/ng/breeze-ng
@@ -104,6 +104,9 @@ done
 %{_qt6_plugindir}/org.kde.kdecoration3.kcm/kcm_breezengdecoration.so
 
 %changelog
+* Sat Nov 14 2026 Morzilla <3956663+Morzilla@users.noreply.github.com> - 6.7.5^202611141235git9075f9a-1
+- Light colour scheme and light global themes; previews for the global themes
+
 * Sat Nov 14 2026 Morzilla <3956663+Morzilla@users.noreply.github.com> - 6.7.5^202611141143git5d5757b-1
 - Plasma styles Breeze NG Soft and Glass, chosen by the global themes
 
