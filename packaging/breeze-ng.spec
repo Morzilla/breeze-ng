@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: GPL-2.0-or-later
-%global commit      f8df1b28c38a0bc8e729f60da06205921a2a5c99
+%global commit      f1da5a9d3b24932ce3cd78b5089ed453a8699642
 %global shortcommit %(c=%{commit}; echo ${c:0:7})
-%global snapdate    202611141032
+%global snapdate    202611141043
 # snapdate: date and time of the commit (YYYYMMDDHHMM), so that two snapshots of one day sort in order
 # installed apart from the system, next to Fedora's own Breeze
 %global ngprefix    /opt/ng/breeze-ng
@@ -88,6 +88,9 @@ done
 %{_qt6_plugindir}/org.kde.kdecoration3.kcm/kcm_breezengdecoration.so
 
 %changelog
+* Sat Nov 14 2026 Morzilla <3956663+Morzilla@users.noreply.github.com> - 6.7.5^202611141043gitf1da5a9-1
+- Radio button dot antialiased and centred
+
 * Sat Nov 14 2026 Morzilla <3956663+Morzilla@users.noreply.github.com> - 6.7.5^202611141032gitf8df1b2-1
 - Joined menus on Wayland are anchored to the button's rectangle: exactly lined up
 
