@@ -4,7 +4,7 @@
 %global snapdate    20261113
 # installed apart from the system, next to Fedora's own Breeze
 %global ngprefix    /opt/ng/breeze-ng
-# its programs find its libraries through an RPATH to %{ngprefix}: on purpose, since they have the same names as
+# its programs find its libraries through an RPATH to /opt/ng/breeze-ng: on purpose, since they have the same names as
 # Fedora's Breeze libraries and must not be put on the system's library path
 %global __brp_check_rpaths %{nil}
 
