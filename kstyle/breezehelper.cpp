@@ -177,9 +177,16 @@ QColor Helper::ink(const QPalette &palette)
 QColor Helper::menuSheet(const QPalette &palette, bool alpha, QColor *outline, bool joined) const
 {
     QColor background = frameBackgroundColor(palette);
+    if (_aurora) {
+        // Aurora: a menu is glass like the window it opens on, a tone lifted from the window's colour (the darker
+        // frame colour at 78 % was a dark block on the glass)
+        background = KColorUtils::mix(palette.color(QPalette::Window), ink(palette), 0.10);
+    }
     // a menu joined to a button is opaque: only then can the button be painted in exactly its colour (Aurora: the
     // menu stays see-through and blurred, and the button is laid from nothing in the same sheet: joinedFill)
-    const int menuOpacity = (joined && !_aurora) ? 100 : ((isGlass() && StyleConfigData::menuOpacity() >= 100) ? 78 : StyleConfigData::menuOpacity());
+    // (38 %: behind a menu lies its own window, already glass: a thin sheet over its blur reads as the same glass)
+    const int glassOpacity = _aurora ? 38 : 78;
+    const int menuOpacity = (joined && !_aurora) ? 100 : ((isGlass() && StyleConfigData::menuOpacity() >= 100) ? glassOpacity : StyleConfigData::menuOpacity());
     QColor edge = isGlass() ? alphaColor(ink(palette), 0.16) : frameOutlineColor(palette);
     if (menuOpacity < 100 && alpha) {
         background.setAlphaF(menuOpacity / 100.0);
@@ -419,13 +426,8 @@ void Helper::joinedFill(QPainter *painter, const QPainterPath &path, const QColo
 {
     painter->save();
     painter->setRenderHint(QPainter::Antialiasing, true);
-    if (_aurora && sheet.alpha() < 255) {
-        painter->setCompositionMode(QPainter::CompositionMode_DestinationOut);
-        painter->setPen(Qt::NoPen);
-        painter->setBrush(Qt::black);
-        painter->drawPath(path);
-        painter->setCompositionMode(QPainter::CompositionMode_SourceOver);
-    }
+    // (the sheet goes over the window's glass, not in its place: the menu shows its sheet over the blurred window,
+    // the button its sheet over the window itself. Taking the glass away under the button left it lighter.)
     painter->setPen(pen);
     painter->setBrush(sheet);
     painter->drawPath(path);

@@ -61,6 +61,7 @@ protected Q_SLOTS:
 private:
     QWidget *pageLook();
     QWidget *pageTransparency();
+    QWidget *pageAurora();
     QWidget *pageControls();
     QWidget *pageWindows();
     QWidget *pageEffects();

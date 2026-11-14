@@ -158,9 +158,8 @@ public:
     {
         return _aurora;
     }
-    //* Breeze NG: fill the shape of a button (or menu bar title) joined to its open menu with the menu's sheet. With a
-    //* see-through sheet the window's own glass is taken away under the shape first: the menu has only its sheet over
-    //* the blur, the button must have no more.
+    //* Breeze NG: fill the shape of a button (or menu bar title) joined to its open menu with the menu's sheet (see-through
+    //* in Aurora, laid over the window's glass).
     void joinedFill(QPainter *painter, const QPainterPath &path, const QColor &sheet, const QPen &pen = QPen(Qt::NoPen)) const;
     //* Breeze NG: background of text fields
     QColor inputBackground(const QPalette &palette) const;

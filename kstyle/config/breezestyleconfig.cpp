@@ -491,7 +491,7 @@ StyleConfig::StyleConfig(QWidget *parent)
     m_nav->setSpacing(2);
     m_nav->setFixedWidth(220);
     m_nav->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Expanding);
-    m_nav->setMinimumHeight(6 * 40 + 12); // all the pages, never a scroll bar
+    m_nav->setMinimumHeight(7 * 40 + 12); // all the pages, never a scroll bar
     setMinimumSize(900, 560); // (the dialog scrolls the whole module: the pages need no scroll areas of their own)
     m_pages = new QStackedWidget(this);
     layout->addWidget(m_nav);
@@ -504,6 +504,7 @@ StyleConfig::StyleConfig(QWidget *parent)
     };
     add(QStringLiteral("preferences-desktop-theme-global"), ngText("Look", "Aspetto"), pageLook());
     add(QStringLiteral("preferences-desktop-effects"), ngText("Transparency", "Trasparenza"), pageTransparency());
+    add(QStringLiteral("preferences-desktop-color"), QStringLiteral("Aurora"), pageAurora());
     add(QStringLiteral("preferences-desktop"), ngText("Controls and animations", "Controlli e animazioni"), pageControls());
     add(QStringLiteral("window"), ngText("Windows", "Finestre"), pageWindows());
     add(QStringLiteral("kwin"), ngText("KWin effects", "Effetti di KWin"), pageEffects());
@@ -633,12 +634,28 @@ QWidget *StyleConfig::pageTransparency()
     note->setEnabled(false);
     note->setWordWrap(true);
     body->addWidget(note);
+    body->addStretch();
+    for (QSlider *s : {m_windowOpacity, m_menuOpacity}) {
+        connect(s, &QSlider::valueChanged, this, &StyleConfig::updateChanged);
+    }
+    return w;
+}
+
+QWidget *StyleConfig::pageAurora()
+{
+    QVBoxLayout *body = nullptr;
+    QWidget *w = page(QStringLiteral("Aurora"),
+                      ngText("Everything that shapes the Aurora look: how see-through the glass is, how much the surfaces on it stand out, the lights, the grain, the blur. "
+                             "They apply when Aurora is the look chosen in “Look”.",
+                             "Tutto ciò che dà forma ad Aurora: quanto è trasparente il vetro, quanto risaltano le superfici che ci stanno sopra, le luci, la grana, la sfocatura. "
+                             "Valgono quando Aurora è la variante scelta in «Aspetto»."),
+                      &body);
     // Aurora has its own: the glass of the window, the veil of what lies on it, the lights behind
     m_auroraGroup = new QWidget(w);
     {
         auto *group = new QVBoxLayout(m_auroraGroup);
         group->setContentsMargins(0, 0, 0, 0);
-        group->addWidget(groupTitle(QStringLiteral("Aurora"), m_auroraGroup));
+        group->addWidget(groupTitle(ngText("Glass", "Vetro"), m_auroraGroup));
         m_auroraLight = new QCheckBox(ngText("Aurora Light: a lighter, airier glass (off: dark tones)", "Aurora Light: un vetro più chiaro e arioso (spento: toni scuri)"), m_auroraGroup);
         group->addWidget(m_auroraLight);
         connect(m_auroraLight, &QCheckBox::toggled, this, &StyleConfig::updateChanged);
@@ -656,6 +673,7 @@ QWidget *StyleConfig::pageTransparency()
         m_auroraLightsValue = new QLabel(m_auroraGroup);
         m_blurStrengthValue = new QLabel(m_auroraGroup);
         aurora->addRow(ngText("Window opacity", "Opacità della finestra"), sliderRow(m_auroraBody, m_auroraBodyValue, m_auroraGroup));
+        m_auroraBody->setToolTip(ngText("The glass of Aurora Light; Aurora with dark tones adds 22 to it", "Il vetro di Aurora Light; Aurora a toni scuri ne aggiunge 22"));
         aurora->addRow(ngText("Sidebar, cards, lists", "Barra laterale, schede, liste"), sliderRow(m_auroraPanel, m_auroraPanelValue, m_auroraGroup));
         aurora->addRow(ngText("Buttons and fields", "Pulsanti e campi"), sliderRow(m_auroraButton, m_auroraButtonValue, m_auroraGroup));
         aurora->addRow(ngText("Lights", "Luci"), sliderRow(m_auroraLights, m_auroraLightsValue, m_auroraGroup));
@@ -672,8 +690,21 @@ QWidget *StyleConfig::pageTransparency()
         group->addWidget(auroraNote);
     }
     body->addWidget(m_auroraGroup);
+    auto *defaults = new QPushButton(ngText("Aurora's defaults", "Valori predefiniti di Aurora"), w);
+    connect(defaults, &QPushButton::clicked, this, [this] {
+        m_auroraBody->setValue(52);
+        m_auroraPanel->setValue(7);
+        m_auroraButton->setValue(7);
+        m_auroraLights->setValue(100);
+        m_auroraGrain->setValue(30);
+        updateChanged();
+    });
+    auto *row = new QHBoxLayout();
+    row->addWidget(defaults);
+    row->addStretch();
+    body->addLayout(row);
     body->addStretch();
-    for (QSlider *s : {m_windowOpacity, m_menuOpacity, m_auroraBody, m_auroraPanel, m_auroraButton, m_auroraLights, m_auroraGrain, m_blurStrength}) {
+    for (QSlider *s : {m_auroraBody, m_auroraPanel, m_auroraButton, m_auroraLights, m_auroraGrain, m_blurStrength}) {
         connect(s, &QSlider::valueChanged, this, &StyleConfig::updateChanged);
     }
     return w;
@@ -977,7 +1008,7 @@ void StyleConfig::updateChanged()
     m_auroraLightsValue->setText(QStringLiteral("%1 %").arg(m_auroraLights->value()));
     m_auroraGrainValue->setText(QStringLiteral("%1 %").arg(m_auroraGrain->value()));
     m_blurStrengthValue->setText(QString::number(m_blurStrength->value()));
-    m_auroraGroup->setVisible(m_aurora->isChecked());
+    m_auroraGroup->setEnabled(m_aurora->isChecked());
     static const char *const speeds[][2] = {{"Very fast", "Molto veloce"}, {"Fast", "Veloce"}, {"Normal", "Normale"}, {"Slow", "Lenta"}, {"Very slow", "Molto lenta"}};
     const int speed = qBound(0, m_animationSpeed->value(), 4);
     m_animationSpeedValue->setText(ngText(speeds[speed][0], speeds[speed][1]));
