@@ -41,6 +41,8 @@ BuildRequires:  cmake(KF6IconThemes)
 BuildRequires:  cmake(KF6KCMUtils)
 BuildRequires:  cmake(KF6WindowSystem)
 BuildRequires:  cmake(KDecoration3)
+BuildRequires:  cmake(Qt6Qml)
+BuildRequires:  cmake(KF6KirigamiPlatform)
 
 %description
 Breeze NG is a fork of KDE's Breeze widget style and window decoration with
@@ -65,9 +67,21 @@ until restarted.
 cmake -S . -B build -DCMAKE_BUILD_TYPE=RelWithDebInfo -DCMAKE_INSTALL_PREFIX=%{ngprefix} \
       -DBUILD_QT5=OFF -DBUILD_QT6=ON -DWITH_WALLPAPERS=OFF -DBUILD_CURSOR=OFF -DBUILD_TESTING=OFF
 cmake --build build -j%{?_smp_build_ncpus}
+# Aurora for Kirigami applications: a platform plugin in a directory of its own (ng/kirigami-platform/README.md)
+cmake -S ng/kirigami-platform -B build-kirigami -DCMAKE_BUILD_TYPE=RelWithDebInfo -DCMAKE_INSTALL_PREFIX=%{ngprefix} \
+      -DCMAKE_INSTALL_LIBDIR=%{_lib}
+cmake --build build-kirigami -j%{?_smp_build_ncpus}
 
 %install
 DESTDIR=%{buildroot} cmake --install build
+DESTDIR=%{buildroot} cmake --install build-kirigami
+# the Kirigami plugin has to come before the desktop style's own in the plugin path: for the whole session, from the
+# next login (the widget style and the decoration need neither this nor a login)
+mkdir -p %{buildroot}%{_sysconfdir}/xdg/plasma-workspace/env
+cat > %{buildroot}%{_sysconfdir}/xdg/plasma-workspace/env/breeze-ng-kirigami.sh <<'EOT'
+# Breeze NG: Aurora for Kirigami applications (see %{ngprefix}/share/doc or ng/kirigami-platform/README.md)
+export QT_PLUGIN_PATH="%{ngprefix}/%{_lib}/breeze-ng-kirigami${QT_PLUGIN_PATH:+:$QT_PLUGIN_PATH}"
+EOT
 # the Plasma styles (panel popups, launcher, their buttons and lists), from Fedora's default style
 for v in soft glass aurora; do
     python3 ng/plasma-style/make-plasma-style.py $v %{buildroot}%{_datadir}/plasma/desktoptheme/breeze-ng-$v
@@ -89,6 +103,7 @@ done
 %doc NG.md README.md
 %{ngprefix}
 %dir /opt/ng
+%{_sysconfdir}/xdg/plasma-workspace/env/breeze-ng-kirigami.sh
 %{_datadir}/color-schemes/BreezeNG.colors
 %{_datadir}/color-schemes/BreezeNGLight.colors
 %{_datadir}/kstyle/themes/breezeng.themerc

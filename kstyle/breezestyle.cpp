@@ -612,7 +612,9 @@ static void ngGlassQuickWalk(QObject *object, const QColor &ground, const QColor
     // (1: lists stand on a veil, 2: on the bare glass, as in a sidebar, which has its card under it. A view may be
     // met before it has its final size and be taken for the other kind: set again when the kind changes)
     const int kind = veil.alpha() > 0 ? 1 : 2;
-    if (object->inherits("Kirigami::Platform::PlatformTheme") && object->property("_breeze_ng_glass").toInt() != kind) {
+    static const bool pluginThere = !qEnvironmentVariable("QT_PLUGIN_PATH").contains(QLatin1String("breeze-ng-kirigami")) ? false : true;
+    // (with Breeze NG's Kirigami plugin in the plugin path the themes are born glass: nothing to do here)
+    if (!pluginThere && object->inherits("Kirigami::Platform::PlatformTheme") && object->property("_breeze_ng_glass").toInt() != kind) {
         object->setProperty("_breeze_ng_glass", kind);
         if (changed) {
             *changed = true;
