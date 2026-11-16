@@ -390,6 +390,67 @@ bool isBackground(const QObject *owner)
     return parent && parent->property("background").value<QQuickItem *>() == item;
 }
 
+// Calls a function when a signal found by name is sent (a signal of a QML type, unknown at compile time)
+class Relay : public QObject
+{
+    Q_OBJECT
+public:
+    Relay(QObject *parent, std::function<void()> call)
+        : QObject(parent)
+        , m_call(std::move(call))
+    {
+    }
+public Q_SLOTS:
+    void fire()
+    {
+        m_call();
+    }
+
+private:
+    std::function<void()> m_call;
+};
+
+// An icon inside a button that is on (an orientation in the display settings, a view switch): it takes the colour of
+// text on a selection, as the button's sheet is one (the deep accent on its light sheet, white on the full accent).
+// The icon asks for a theme of its own; the button above it is watched for being switched on and off.
+void checkedIcon(PlatformTheme *theme, QObject *owner, const Look &look)
+{
+    if (!theme || !owner || theme->property("_breeze_ng_checked_icon").toBool() || !QByteArray(owner->metaObject()->className()).contains("Icon")) {
+        return;
+    }
+    QObject *button = nullptr;
+    int depth = 0;
+    for (QObject *object = owner->parent(); object && depth < 4; object = object->parent(), ++depth) {
+        if (object->inherits("QQuickAbstractButton")) {
+            button = object;
+            break;
+        }
+    }
+    const QColor onSelection = look.fullSelection ? QColor(255, 255, 255) : look.onSelection;
+    if (!button || !onSelection.isValid()) {
+        return;
+    }
+    theme->setProperty("_breeze_ng_checked_icon", true);
+    QPointer<PlatformTheme> guard(theme);
+    QPointer<QObject> watched(button);
+    auto follow = [guard, watched, onSelection] {
+        if (!guard || !watched) {
+            return;
+        }
+        if (watched->property("checked").toBool()) {
+            guard->setCustomTextColor(onSelection);
+        } else {
+            guard->setCustomTextColor();
+        }
+    };
+    const int signal = button->metaObject()->indexOfSignal("checkedChanged()");
+    if (signal >= 0) {
+        auto *relay = new Relay(theme, follow);
+        QObject::connect(button, button->metaObject()->method(signal), relay, relay->metaObject()->method(relay->metaObject()->indexOfSlot("fire()")));
+    }
+    follow();
+}
+
 // The kind of the nearest theme above this object that has our colours: 1 a veil, 2 nothing (0: none; the window's
 // own does not count). A theme inherits along the items: one attached to a popup or a drawer, which are not items,
 // does not reach the items inside it.
@@ -502,6 +563,11 @@ private:
             const Look look = m_look;
             const bool window = owner && owner->inherits("QQuickWindow") && !owner->inherits("QQuickWidgetOffscreenWindow");
             sideRowAir(owner);
+            {
+                Look forIcon = m_look;
+                colours(forIcon);
+                checkedIcon(guard, owner, forIcon);
+            }
             if (!window && floats(owner)) {
                 if (guard->property("_breeze_ng_glass").toInt() != 0) {
                     guard->setCustomBackgroundColor();
