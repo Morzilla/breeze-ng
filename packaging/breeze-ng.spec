@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: GPL-2.0-or-later
-%global commit      06e3620fd641775152fc9bd0fc48ec2cdfc9e14f
+%global commit      ab0183c686cbdbf6f2df9ea80a27fc2b2510863b
 %global shortcommit %(c=%{commit}; echo ${c:0:7})
-%global snapdate    202611161358
+%global snapdate    202611161901
 # snapdate: date and time of the commit (YYYYMMDDHHMM), so that two snapshots of one day sort in order
 # installed apart from the system, next to Fedora's own Breeze
 %global ngprefix    /opt/ng/breeze-ng
@@ -122,6 +122,9 @@ done
 %{_qt6_plugindir}/org.kde.kdecoration3.kcm/kcm_breezengdecoration.so
 
 %changelog
+* Mon Nov 16 2026 Morzilla <3956663+Morzilla@users.noreply.github.com> - 6.7.5^202611161901gitab0183c-1
+- Aurora: real window opacity, sidebar opacity, grey accent, menu grain, blurred combo lists, live scheme changes
+
 * Mon Nov 16 2026 Morzilla <3956663+Morzilla@users.noreply.github.com> - 6.7.5^202611161358git06e3620-1
 - Aurora light (white frost, A/B selection), Kirigami plugin for Qt Quick apps, joined menus, relogin notice
 
