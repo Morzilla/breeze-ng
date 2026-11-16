@@ -1471,8 +1471,10 @@ void Helper::renderCheckBoxBackground(QPainter *painter,
         const QColor inkColor = ink(palette);
         const qreal on = (state == CheckOn || state == CheckPartial) ? 1.0 : (state == CheckAnimated ? animation : 0.0);
         QColor off = alphaColor(inkColor, glass ? 0.10 : 0.18); // an empty box must still read as a box
-        const QColor onColor = glass ? alphaColor(inkColor, 0.28) : palette.color(QPalette::Highlight);
-        QColor edge = glass ? alphaColor(inkColor, 0.22 + 0.18 * on) : QColor(0, 0, 0, 0);
+        // (on: the accent in every look. The application's accent, not the option's palette: a Qt Quick control
+        // brings a palette whose highlight can be the light sheet of a selection, and its box was barely tinted)
+        const QColor onColor = _aurora ? auroraAccent(QApplication::palette(), 1.0) : palette.color(QPalette::Highlight);
+        QColor edge = glass ? alphaColor(inkColor, 0.22 * (1.0 - on)) : QColor(0, 0, 0, 0);
         if (_aurora && !isDark(palette)) {
             // Aurora on a light scheme: an empty box is frost with a fine edge, not a grey disc of ink
             off = QColor(255, 255, 255, 215);
@@ -1599,8 +1601,8 @@ void Helper::renderCheckBox(QPainter *painter,
     painter->setPen(Qt::transparent);
     painter->setBrush(Qt::transparent);
 
-    // (Aurora: the box that is on is a block of the accent: its mark is white, whatever the scheme's text colour)
-    const QBrush mark = _aurora ? QBrush(QColor(255, 255, 255)) : palette.text();
+    // (the box that is on is a block of the accent in every look: its mark is the text colour on a selection)
+    const QBrush mark = _aurora ? QBrush(QColor(255, 255, 255)) : palette.highlightedText();
     auto checkPen = QPen(mark, PenWidth::Frame * 2);
     checkPen.setJoinStyle(Qt::MiterJoin);
 
@@ -1660,8 +1662,10 @@ void Helper::renderRadioButtonBackground(QPainter *painter,
         const QColor inkColor = ink(palette);
         const qreal on = state == RadioOn ? 1.0 : (state == RadioAnimated ? animation : 0.0);
         QColor off = alphaColor(inkColor, glass ? 0.10 : 0.18); // an empty box must still read as a box
-        const QColor onColor = glass ? alphaColor(inkColor, 0.28) : palette.color(QPalette::Highlight);
-        QColor edge = glass ? alphaColor(inkColor, 0.22 + 0.18 * on) : QColor(0, 0, 0, 0);
+        // (on: the accent in every look. The application's accent, not the option's palette: a Qt Quick control
+        // brings a palette whose highlight can be the light sheet of a selection, and its box was barely tinted)
+        const QColor onColor = _aurora ? auroraAccent(QApplication::palette(), 1.0) : palette.color(QPalette::Highlight);
+        QColor edge = glass ? alphaColor(inkColor, 0.22 * (1.0 - on)) : QColor(0, 0, 0, 0);
         if (_aurora && !isDark(palette)) {
             // Aurora on a light scheme: an empty box is frost with a fine edge, not a grey disc of ink
             off = QColor(255, 255, 255, 215);
@@ -1758,7 +1762,7 @@ void Helper::renderRadioButton(QPainter *painter,
     }
 
     painter->save();
-    painter->setBrush(_aurora ? QBrush(QColor(255, 255, 255)) : palette.text());
+    painter->setBrush(_aurora ? QBrush(QColor(255, 255, 255)) : palette.highlightedText()); // (on a block of the accent)
     painter->setPen(Qt::NoPen);
     // Breeze NG: antialiased like the ring around it. Without it Qt rounded the small disc unevenly: one pixel
     // narrower in height than in width and half a pixel below the ring's centre.
