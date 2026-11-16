@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: GPL-2.0-or-later
-%global commit      efcca6e0e7f3958b31a845fd4d09adbaef9b4e90
+%global commit      06e3620fd641775152fc9bd0fc48ec2cdfc9e14f
 %global shortcommit %(c=%{commit}; echo ${c:0:7})
-%global snapdate    202611141558
+%global snapdate    202611161358
 # snapdate: date and time of the commit (YYYYMMDDHHMM), so that two snapshots of one day sort in order
 # installed apart from the system, next to Fedora's own Breeze
 %global ngprefix    /opt/ng/breeze-ng
@@ -12,7 +12,7 @@
 Name:           breeze-ng
 Version:        6.7.5^%{snapdate}git%{shortcommit}
 Release:        1%{?dist}
-Summary:        Breeze widget style and window decoration with two looks, Soft and Glass
+Summary:        Breeze widget style and window decoration with three looks: Soft, Glass and Aurora Glass
 License:        GPL-2.0-or-later AND MIT AND LGPL-2.0-or-later
 URL:            https://github.com/Morzilla/breeze-ng
 Source0:        %{url}/archive/%{commit}/breeze-ng-%{shortcommit}.tar.gz
@@ -122,6 +122,9 @@ done
 %{_qt6_plugindir}/org.kde.kdecoration3.kcm/kcm_breezengdecoration.so
 
 %changelog
+* Mon Nov 16 2026 Morzilla <3956663+Morzilla@users.noreply.github.com> - 6.7.5^202611161358git06e3620-1
+- Aurora light (white frost, A/B selection), Kirigami plugin for Qt Quick apps, joined menus, relogin notice
+
 * Sat Nov 14 2026 Morzilla <3956663+Morzilla@users.noreply.github.com> - 6.7.5^202611141324git7deaab6-1
 - Aurora: a third look, glass without rims, with lights behind the windows and in buttons
 
