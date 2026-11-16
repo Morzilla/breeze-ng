@@ -52,6 +52,9 @@ void ToolsAreaManager::loadSchemeConfig(const QString &path)
 {
     const auto openFlags = path.isEmpty() ? KConfig::OpenFlag::FullConfig : KConfig::OpenFlag::NoGlobals;
     _config = KSharedConfig::openConfig(path, openFlags);
+    // Breeze NG: the shared kdeglobals was read when the application started: read it again, or a new colour scheme
+    // left the tool bars (and the location bar on them) in the old scheme's header colours
+    _config->reparseConfiguration();
 }
 
 #if QT_VERSION < QT_VERSION_CHECK(6, 0, 0)
@@ -208,12 +211,17 @@ void ToolsAreaManager::configUpdated()
     _palette = KColorScheme::createApplicationPalette(_config);
 #endif
 
-    _palette.setBrush(QPalette::Active, QPalette::Window, active.background());
-    _palette.setBrush(QPalette::Active, QPalette::WindowText, active.foreground());
-    _palette.setBrush(QPalette::Disabled, QPalette::Window, disabled.background());
-    _palette.setBrush(QPalette::Disabled, QPalette::WindowText, disabled.foreground());
-    _palette.setBrush(QPalette::Inactive, QPalette::Window, inactive.background());
-    _palette.setBrush(QPalette::Inactive, QPalette::WindowText, inactive.foreground());
+    // Breeze NG: the header colours only when the scheme has them. Without, KColorScheme's header set came from what
+    // kdeglobals held a moment before (a new scheme is written while the applications already hear of it): tool bars
+    // and the location bar on them kept the window colour of the old scheme, a light field on a dark scheme
+    if (_config && KColorScheme::isColorSetSupported(_config, KColorScheme::Header)) {
+        _palette.setBrush(QPalette::Active, QPalette::Window, active.background());
+        _palette.setBrush(QPalette::Active, QPalette::WindowText, active.foreground());
+        _palette.setBrush(QPalette::Disabled, QPalette::Window, disabled.background());
+        _palette.setBrush(QPalette::Disabled, QPalette::WindowText, disabled.foreground());
+        _palette.setBrush(QPalette::Inactive, QPalette::Window, inactive.background());
+        _palette.setBrush(QPalette::Inactive, QPalette::WindowText, inactive.foreground());
+    }
 
     for (const WindowToolBars &windowToolBars : _windows) {
         for (const auto &toolbar : windowToolBars.toolBars) {

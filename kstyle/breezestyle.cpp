@@ -3098,6 +3098,22 @@ void Style::loadConfiguration()
     // widget explorer
     _widgetExplorer->setEnabled(StyleConfigData::widgetExplorerEnabled());
     _widgetExplorer->setDrawWidgetRects(StyleConfigData::drawWidgetRects());
+
+    // Breeze NG: what is open shows the new settings at once (opacity, veils, lights, selections): the values were
+    // read again above, but the windows kept what they had painted until something repainted them by chance. A
+    // moment later, so that every window has had the change too.
+    QTimer::singleShot(0, this, [] {
+        const auto widgets = QApplication::topLevelWidgets();
+        for (QWidget *widget : widgets) {
+            if (widget->isVisible()) {
+                widget->update();
+                const auto children = widget->findChildren<QWidget *>();
+                for (QWidget *child : children) {
+                    child->update();
+                }
+            }
+        }
+    });
 }
 
 //___________________________________________________________________________________________________________________
