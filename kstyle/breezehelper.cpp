@@ -247,7 +247,7 @@ qreal Helper::windowSheetAlpha() const
         const int body = qBound(10, StyleConfigData::auroraBodyOpacity(), 95);
         // the setting is the glass of Aurora Light; Aurora (dark tones) holds more of the window's colour; under a
         // light colour scheme a dark desktop behind would turn the window grey: less see-through there too
-        return qMin(body + (isDark(QApplication::palette()) ? (_auroraLight ? 0 : 22) : 38), 95) / 100.0;
+        return qMin(body + (isDark(QApplication::palette()) ? (_auroraLight ? 0 : 22) : 18), 95) / 100.0;
     }
     return opacity / 100.0;
 }
@@ -380,6 +380,7 @@ void Helper::renderAuroraLights(QPainter *painter, const QRectF &windowRect, con
     // light schemes: a wash of the accent over the whole sheet, barely there, under the lights (the sheet itself is
     // denser there too: what lies behind the window greyed it)
     if (!isDark(palette)) {
+        painter->fillRect(windowRect, QColor(255, 255, 255, 84)); // a breath of white first: light whatever is behind the glass
         QColor wash = accent;
         wash.setAlphaF(qMin(1.0, 0.20 * strength));
         painter->fillRect(windowRect, wash);

@@ -441,7 +441,7 @@ qreal Decoration::ngSheetAlpha(const QColor &sheet) const
     if (!m_ngAurora) {
         return 0.70;
     }
-    return qMin(m_ngAuroraBody + (sheet.lightnessF() < 0.5 ? (m_ngAuroraLight ? 0 : 22) : 38), 95) / 100.0; // as Helper::windowSheetAlpha
+    return qMin(m_ngAuroraBody + (sheet.lightnessF() < 0.5 ? (m_ngAuroraLight ? 0 : 22) : 18), 95) / 100.0; // as Helper::windowSheetAlpha
 }
 
 bool Decoration::ngAurora() const
@@ -823,6 +823,7 @@ void Decoration::paintTitleBar(QPainter *painter, const QRectF &repaintRegion)
             painter->fillRect(rect, gradient);
         };
         if (titleBarColor().lightnessF() >= 0.5) { // (as Helper::renderAuroraLights: the wash of the accent on light schemes)
+            painter->fillRect(rect, QColor(255, 255, 255, 84));
             QColor wash = accent;
             wash.setAlphaF(qMin(1.0, 0.20 * strength));
             painter->fillRect(rect, wash);
