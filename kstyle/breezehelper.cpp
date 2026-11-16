@@ -242,7 +242,7 @@ qreal Helper::windowSheetAlpha() const
         const int body = qBound(10, StyleConfigData::auroraBodyOpacity(), 95);
         // the setting is the glass of Aurora Light; Aurora (dark tones) holds more of the window's colour; under a
         // light colour scheme a dark desktop behind would turn the window grey: less see-through there too
-        return qMin(body + (isDark(QApplication::palette()) ? (_auroraLight ? 0 : 22) : 32), 95) / 100.0;
+        return qMin(body + (isDark(QApplication::palette()) ? (_auroraLight ? 0 : 22) : 38), 95) / 100.0;
     }
     return opacity / 100.0;
 }

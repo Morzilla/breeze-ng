@@ -441,7 +441,7 @@ qreal Decoration::ngSheetAlpha(const QColor &sheet) const
     if (!m_ngAurora) {
         return 0.70;
     }
-    return qMin(m_ngAuroraBody + (sheet.lightnessF() < 0.5 ? (m_ngAuroraLight ? 0 : 22) : 32), 95) / 100.0; // as Helper::windowSheetAlpha
+    return qMin(m_ngAuroraBody + (sheet.lightnessF() < 0.5 ? (m_ngAuroraLight ? 0 : 22) : 38), 95) / 100.0; // as Helper::windowSheetAlpha
 }
 
 bool Decoration::ngAurora() const
