@@ -611,6 +611,19 @@ private:
             colours(m_look); // (with the palette of now)
             const Look look = m_look;
             const bool window = owner && owner->inherits("QQuickWindow") && !owner->inherits("QQuickWidgetOffscreenWindow");
+            // a Qt Quick view inside a window of widgets (System Settings' sidebar and pages) is drawn offscreen and
+            // cleared with its own colour, white by default: it showed white for a moment before the widget style
+            // made it glass. Cleared to nothing from the first frame
+            for (QObject *up = owner; up; up = up->parent()) {
+                if (auto item = qobject_cast<QQuickItem *>(up)) {
+                    QQuickWindow *itemWindow = item->window();
+                    if (itemWindow && itemWindow->inherits("QQuickWidgetOffscreenWindow") && !itemWindow->property("_breeze_ng_clear").toBool()) {
+                        itemWindow->setProperty("_breeze_ng_clear", true);
+                        itemWindow->setColor(Qt::transparent);
+                    }
+                    break;
+                }
+            }
             sideRowAir(owner);
             {
                 Look forIcon = m_look;
