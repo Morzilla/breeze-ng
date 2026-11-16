@@ -1024,6 +1024,15 @@ void Helper::renderMenuFrame(QPainter *painter, const QRectF &rect, const QColor
 
         // render
         painter->drawRoundedRect(frameRect, radius, radius);
+        // Breeze NG Aurora: the menu has the windows' grain too (the same tile, so that both look of one material)
+        if (_aurora && color.isValid()) {
+            if (const int grain = qBound(0, StyleConfigData::auroraGrain(), 100); grain > 0) {
+                QPainterPath shape;
+                shape.addRoundedRect(frameRect, radius, radius);
+                painter->setClipPath(shape, Qt::IntersectClip);
+                painter->drawTiledPixmap(frameRect, ngGrainTile(grain));
+            }
+        }
 
     } else {
         painter->setRenderHint(QPainter::Antialiasing, false);
