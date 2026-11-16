@@ -76,7 +76,7 @@ void colours(Look &look)
     const bool dark = window.lightnessF() < 0.5;
     look.dark = dark;
     look.sheet = window;
-    look.sheet.setAlphaF(qMin(look.body + (dark ? (look.lightGlass ? 0 : 22) : 18), 95) / 100.0); // as Helper::windowSheetAlpha in the widget style
+    look.sheet.setAlphaF(qBound(10, look.body - ((dark && look.lightGlass) ? 22 : 0), 100) / 100.0); // as Helper::windowSheetAlpha in the widget style
     // Some components take a background colour and make it solid, or mix it with the text colour: "nothing" is the
     // window's colour with no alpha. The veil is ink, as in the widget style.
     look.ground = window;
@@ -107,7 +107,7 @@ Look readLook()
         return look;
     }
     const KConfigGroup common = KSharedConfig::openConfig(QStringLiteral("breezengrc"))->group(QStringLiteral("Common"));
-    look.body = qBound(10, common.readEntry("AuroraBodyOpacity", 52), 95);
+    look.body = qBound(10, common.readEntry("AuroraBodyOpacity", 60), 100);
     look.panel = qBound(0, common.readEntry("AuroraPanelVeil", 7), 40);
     look.lightGlass = lightGlass;
     look.lights = qBound(0, common.readEntry("AuroraLights", 100), 180) / 100.0;

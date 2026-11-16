@@ -254,10 +254,10 @@ qreal Helper::windowSheetAlpha() const
     const int opacity = qBound(20, StyleConfigData::windowOpacity(), 100);
     // Aurora: more see-through; less so under a light scheme, where a dark desktop behind would turn the window grey
     if (_aurora) {
-        const int body = qBound(10, StyleConfigData::auroraBodyOpacity(), 95);
-        // the setting is the glass of Aurora Light; Aurora (dark tones) holds more of the window's colour; under a
-        // light colour scheme a dark desktop behind would turn the window grey: less see-through there too
-        return qMin(body + (isDark(QApplication::palette()) ? (_auroraLight ? 0 : 22) : 18), 95) / 100.0;
+        const int body = qBound(10, StyleConfigData::auroraBodyOpacity(), 100);
+        // the setting is the window's real opacity (it used to get 18-22 added out of sight: 74 % was 96 %, an
+        // opaque window); Aurora Light, the airier glass, takes 22 off it on a dark scheme
+        return qBound(10, body - ((isDark(QApplication::palette()) && _auroraLight) ? 22 : 0), 100) / 100.0;
     }
     return opacity / 100.0;
 }

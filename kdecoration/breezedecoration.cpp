@@ -441,7 +441,7 @@ qreal Decoration::ngSheetAlpha(const QColor &sheet) const
     if (!m_ngAurora) {
         return 0.70;
     }
-    return qMin(m_ngAuroraBody + (sheet.lightnessF() < 0.5 ? (m_ngAuroraLight ? 0 : 22) : 18), 95) / 100.0; // as Helper::windowSheetAlpha
+    return qBound(10, m_ngAuroraBody - ((sheet.lightnessF() < 0.5 && m_ngAuroraLight) ? 22 : 0), 100) / 100.0; // as Helper::windowSheetAlpha
 }
 
 bool Decoration::ngAurora() const
@@ -468,7 +468,7 @@ void Decoration::reconfigure()
         auto config = KSharedConfig::openConfig(QStringLiteral("breezengrc"));
         config->reparseConfiguration();
         const auto common = config->group(QStringLiteral("Common"));
-        m_ngAuroraBody = qBound(10, common.readEntry("AuroraBodyOpacity", 52), 95);
+        m_ngAuroraBody = qBound(10, common.readEntry("AuroraBodyOpacity", 60), 100);
         m_ngAuroraLights = qBound(0, common.readEntry("AuroraLights", 100), 180) / 100.0;
         m_ngAuroraGrain = qBound(0, common.readEntry("AuroraGrain", 30), 100);
         m_ngAuroraDim = common.readEntry("AuroraDimInactive", true);

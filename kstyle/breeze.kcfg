@@ -53,7 +53,11 @@
          cards, and of buttons and fields: the same by default, so that every surface has one intensity; the strength
          of the lights behind the window -->
     <entry name="AuroraBodyOpacity" type="Int">
-      <default>52</default>
+      <default>60</default>
+    </entry>
+    <!-- Breeze NG Aurora: opacity (0-100) of the sidebar's glass (Dolphin NG, Dialog NG); -1: the window's -->
+    <entry name="AuroraSidebarOpacity" type="Int">
+      <default>-1</default>
     </entry>
     <entry name="AuroraPanelVeil" type="Int">
       <default>7</default>

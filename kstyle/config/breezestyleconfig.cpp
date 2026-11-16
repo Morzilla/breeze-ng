@@ -644,14 +644,19 @@ QWidget *StyleConfig::pageTransparency()
     m_windowOpacityValue = new QLabel(w);
     m_menuOpacityValue = new QLabel(w);
     // the window's opacity is kept per look (Glass and Aurora have their own): the row of the look chosen is shown
-    m_auroraBody = slider(15, 90, w);
+    m_auroraBody = slider(20, 100, w);
     m_auroraBodyValue = new QLabel(w);
-    m_auroraBody->setToolTip(ngText("The glass of Aurora Light; Aurora with dark tones adds 22 to it", "Il vetro di Aurora Light; Aurora a toni scuri ne aggiunge 22"));
+    m_auroraBody->setToolTip(ngText("How opaque the window's glass is. Aurora Light, the airier glass, is 22 less on a dark scheme.", "Quanto è opaco il vetro della finestra. Aurora Light, il vetro più arioso, ne toglie 22 su uno schema scuro."));
     m_blurStrength = slider(1, 15, w);
     m_blurStrengthValue = new QLabel(w);
     m_blurStrength->setToolTip(ngText("KWin's blur: one strength for the whole desktop.", "La sfocatura di KWin: una sola intensità per tutto il desktop."));
     form->addRow(ngText("Window opacity", "Opacità delle finestre"), sliderRow(m_windowOpacity, m_windowOpacityValue, w));
     form->addRow(ngText("Window opacity", "Opacità delle finestre"), sliderRow(m_auroraBody, m_auroraBodyValue, w));
+    // Aurora: the sidebar's own glass (Dolphin NG and the file dialog)
+    m_auroraSidebar = slider(0, 100, w);
+    m_auroraSidebarValue = new QLabel(w);
+    m_auroraSidebar->setToolTip(ngText("The glass of the sidebar in Dolphin NG and in the file dialog, apart from the window's.", "Il vetro della barra laterale in Dolphin NG e nella finestra Apri/Salva, a parte da quello della finestra."));
+    form->addRow(ngText("Sidebar opacity", "Opacità della barra laterale"), sliderRow(m_auroraSidebar, m_auroraSidebarValue, w));
     form->addRow(ngText("Menu opacity", "Opacità dei menu"), sliderRow(m_menuOpacity, m_menuOpacityValue, w));
     form->addRow(ngText("Blur", "Sfocatura"), sliderRow(m_blurStrength, m_blurStrengthValue, w));
     m_transparencyForm = form;
@@ -661,7 +666,7 @@ QWidget *StyleConfig::pageTransparency()
     note->setWordWrap(true);
     body->addWidget(note);
     body->addStretch();
-    for (QSlider *s : {m_windowOpacity, m_menuOpacity, m_auroraBody, m_blurStrength}) {
+    for (QSlider *s : {m_windowOpacity, m_menuOpacity, m_auroraBody, m_auroraSidebar, m_blurStrength}) {
         connect(s, &QSlider::valueChanged, this, &StyleConfig::updateChanged);
     }
     return w;
@@ -772,7 +777,7 @@ QWidget *StyleConfig::pageAurora()
     }
     auto *defaults = new QPushButton(ngText("Aurora's defaults", "Valori predefiniti di Aurora"), w);
     connect(defaults, &QPushButton::clicked, this, [this] {
-        m_auroraBody->setValue(52);
+        m_auroraBody->setValue(60);
         m_auroraPanel->setValue(7);
         m_auroraButton->setValue(7);
         m_auroraLights->setValue(100);
@@ -983,6 +988,7 @@ void StyleConfig::save()
     StyleConfigData::setWindowOpacity(m_windowOpacity->value());
     StyleConfigData::setMenuOpacity(m_menuOpacity->value());
     StyleConfigData::setAuroraBodyOpacity(m_auroraBody->value());
+    StyleConfigData::setAuroraSidebarOpacity(m_auroraSidebar->value() == m_auroraBody->value() ? -1 : m_auroraSidebar->value()); // (the same: follows the window)
     StyleConfigData::setAuroraPanelVeil(m_auroraPanel->value());
     StyleConfigData::setAuroraButtonVeil(m_auroraButton->value());
     StyleConfigData::setAuroraLights(m_auroraLights->value());
@@ -1101,6 +1107,8 @@ void StyleConfig::updateChanged()
     const bool aurora = m_aurora->isChecked(), glass = m_glass->isChecked() && !aurora;
     m_transparencyForm->setRowVisible(m_windowOpacity->parentWidget(), !aurora);
     m_transparencyForm->setRowVisible(m_auroraBody->parentWidget(), aurora);
+    m_transparencyForm->setRowVisible(m_auroraSidebar->parentWidget(), aurora);
+    m_auroraSidebarValue->setText(QStringLiteral("%1 %").arg(m_auroraSidebar->value()));
     m_windowOpacity->setEnabled(glass);
     m_blurStrength->setEnabled(glass || aurora);
     m_preview->setOpacities(aurora ? m_auroraBody->value() : m_windowOpacity->value(), m_menuOpacity->value(), glass || aurora);
@@ -1112,7 +1120,8 @@ void StyleConfig::updateChanged()
     const bool modified = (m_aurora->isChecked() ? StyleConfigData::Aurora : m_glass->isChecked() ? StyleConfigData::Glass : StyleConfigData::Soft) != ngCurrentLook()
         || m_applyDecoration->isChecked() != settings.readEntry("ApplyDecoration", true) || m_applyColours->isChecked() != settings.readEntry("ApplyColours", true)
         || m_windowOpacity->value() != StyleConfigData::windowOpacity() || m_menuOpacity->value() != StyleConfigData::menuOpacity()
-        || m_auroraBody->value() != StyleConfigData::auroraBodyOpacity() || m_auroraPanel->value() != StyleConfigData::auroraPanelVeil()
+        || m_auroraBody->value() != StyleConfigData::auroraBodyOpacity()
+        || m_auroraSidebar->value() != (StyleConfigData::auroraSidebarOpacity() < 0 ? StyleConfigData::auroraBodyOpacity() : StyleConfigData::auroraSidebarOpacity()) || m_auroraPanel->value() != StyleConfigData::auroraPanelVeil()
         || m_auroraButton->value() != StyleConfigData::auroraButtonVeil() || m_auroraLights->value() != StyleConfigData::auroraLights()
         || m_auroraGrain->value() != StyleConfigData::auroraGrain() || m_auroraSecond != StyleConfigData::auroraSecondAccent() || m_auroraDim->isChecked() != StyleConfigData::auroraDimInactive() || m_auroraFull->isChecked() != StyleConfigData::auroraFullSelection() || (m_aurora->isChecked() && m_auroraLight->isChecked() != ngCurrentAuroraLight())
         || m_blurStrength->value() != blurStrength()
@@ -1144,6 +1153,7 @@ void StyleConfig::load()
     m_windowOpacity->setValue(StyleConfigData::windowOpacity());
     m_menuOpacity->setValue(StyleConfigData::menuOpacity());
     m_auroraBody->setValue(StyleConfigData::auroraBodyOpacity());
+    m_auroraSidebar->setValue(StyleConfigData::auroraSidebarOpacity() < 0 ? StyleConfigData::auroraBodyOpacity() : StyleConfigData::auroraSidebarOpacity());
     m_auroraPanel->setValue(StyleConfigData::auroraPanelVeil());
     m_auroraButton->setValue(StyleConfigData::auroraButtonVeil());
     m_auroraLights->setValue(StyleConfigData::auroraLights());
