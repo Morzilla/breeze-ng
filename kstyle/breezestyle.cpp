@@ -1729,6 +1729,17 @@ void Style::drawPrimitive(PrimitiveElement element, const QStyleOption *option, 
 
     painter->save();
 
+    // Breeze NG Aurora: the other row of a view with alternating rows, in a glass window, is a breath of ink on the
+    // glass (the stock row filled it with the scheme's solid AlternateBase: black or white bars across the glass)
+    if (element == PE_PanelItemViewRow && _helper->isAurora() && widget && widget->window()->property("_breeze_ng_glass").toBool()) {
+        const auto row = qstyleoption_cast<const QStyleOptionViewItem *>(option);
+        if (row && (row->features & QStyleOptionViewItem::Alternate) && !(row->state & State_Selected)) {
+            painter->fillRect(row->rect, _helper->alphaColor(_helper->ink(row->palette), _helper->auroraVeil(row->palette, false) * 0.5));
+            painter->restore();
+            return;
+        }
+    }
+
     // Breeze NG Glass: the panel of a field is its frame, which lays the field's translucent background; the stock
     // panel filled the inside with the opaque Base colour first (a solid box inside the glass field)
     if (element == PE_PanelLineEdit && _helper->isGlass()) {
@@ -5782,7 +5793,11 @@ bool Style::drawPanelItemViewItemPrimitive(const QStyleOption *option, QPainter 
                                         viewItemPosition,
                                         viewItemOption->direction,
                                         option->rect,
-                                        palette.color(colorGroup, QPalette::AlternateBase),
+                                        // Breeze NG Aurora: in a glass window the other row is a breath of ink on the
+                                        // glass, not a stripe of the scheme's solid colour (black bars in a dark scheme)
+                                        (_helper->isAurora() && widget && widget->window()->property("_breeze_ng_glass").toBool())
+                                            ? _helper->alphaColor(_helper->ink(palette), _helper->auroraVeil(palette, false) * 0.5)
+                                            : palette.color(colorGroup, QPalette::AlternateBase),
                                         QColor());
     }
 
