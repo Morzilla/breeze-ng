@@ -373,6 +373,23 @@ void sideRowAir(QObject *owner)
     walk();
 }
 
+// Is this item the background of the control above it (a card's DefaultCardBackground, a form card's rounded sheet)?
+// Under a veiled control only its background takes the veil: content inside it (a table in a card) stands on that
+// veil already, and a second one made it a lighter block.
+bool isBackground(const QObject *owner)
+{
+    const auto item = qobject_cast<const QQuickItem *>(owner);
+    if (!item) {
+        return false;
+    }
+    const QByteArray name = item->metaObject()->className();
+    if (name.contains("Background") || name.startsWith("ShadowedRectangle")) {
+        return true;
+    }
+    const QQuickItem *parent = item->parentItem();
+    return parent && parent->property("background").value<QQuickItem *>() == item;
+}
+
 // The kind of the nearest theme above this object that has our colours: 1 a veil, 2 nothing (0: none; the window's
 // own does not count). A theme inherits along the items: one attached to a popup or a drawer, which are not items,
 // does not reach the items inside it.
@@ -496,7 +513,7 @@ private:
             if (const int above = (!window && guard->inherit()) ? oursAbove(owner) : 0) {
                 // It would take its colours from the theme above it, which has ours: but custom colours were seen
                 // not to reach it every time (a solid block in the middle of a glass page). Give it the same ones.
-                const bool veil = above == 1 && !sideView(owner) && (look.dark || !fillsWindow(owner));
+                const bool veil = above == 1 && !sideView(owner) && (look.dark || !fillsWindow(owner)) && isBackground(owner);
                 guard->setCustomBackgroundColor(veil ? look.veil : look.ground);
                 guard->setCustomAlternateBackgroundColor(veil ? look.veil : look.ground);
                 if (look.onSelection.isValid()) {
