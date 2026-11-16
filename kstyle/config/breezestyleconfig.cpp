@@ -572,7 +572,7 @@ QWidget *StyleConfig::pageLook()
     {
         auto *row = new QHBoxLayout();
         row->setSpacing(10);
-        static const char *const colours[] = {"#6a9bcc", "#3eb4a0", "#62b86a", "#9676e0", "#e06ca0", "#e8843c", "#e2b93b", "#d9534f", "#8b9099"}; // (the last: a neutral grey)
+        static const char *const colours[] = {"#6a9bcc", "#0078d4", "#3eb4a0", "#62b86a", "#9676e0", "#e06ca0", "#e8843c", "#e2b93b", "#d9534f", "#8b9099"}; // (#0078d4: VS Code's blue; the last: a neutral grey)
         for (const char *hex : colours) {
             auto *swatch = new QToolButton(w);
             swatch->setFixedSize(28, 28);
@@ -613,6 +613,70 @@ QWidget *StyleConfig::pageLook()
         row->addWidget(own);
         row->addStretch();
         body->addLayout(row);
+    }
+    // the second light: the accent lights the top left and the bottom right corner, a second colour the top right
+    body->addWidget(groupTitle(ngText("Second accent colour", "Colore d'accento secondario"), w));
+    {
+        auto *row = new QHBoxLayout();
+        row->setSpacing(10);
+        auto pick = [this](const QString &colour) {
+            m_auroraSecond = colour;
+            for (QAbstractButton *b : std::as_const(m_auroraSecondButtons)) {
+                b->setChecked(b->property("colour").toString() == colour);
+            }
+            updateChanged();
+        };
+        static const char *const colours[] = {"#6a9bcc", "#0078d4", "#3eb4a0", "#62b86a", "#9676e0", "#e06ca0", "#e8843c", "#e2b93b", "#d9534f", "#8b9099"}; // (#0078d4: VS Code's blue; the last: a neutral grey)
+        for (const char *hex : colours) {
+            auto *swatch = new QToolButton(w);
+            swatch->setFixedSize(30, 30);
+            swatch->setCursor(Qt::PointingHandCursor);
+            swatch->setCheckable(true);
+            swatch->setAutoRaise(true);
+            swatch->setProperty("colour", QString::fromLatin1(hex));
+            QPixmap dot(44, 44);
+            dot.fill(Qt::transparent);
+            {
+                QPainter dp(&dot);
+                dp.setRenderHint(QPainter::Antialiasing);
+                dp.setPen(Qt::NoPen);
+                dp.setBrush(QColor(QString::fromLatin1(hex)));
+                dp.drawEllipse(QRectF(4, 4, 36, 36));
+            }
+            swatch->setIcon(QIcon(dot));
+            swatch->setIconSize(QSize(22, 22));
+            const QString colour = QString::fromLatin1(hex);
+            connect(swatch, &QToolButton::clicked, this, [pick, colour] {
+                pick(colour);
+            });
+            m_auroraSecondButtons.append(swatch);
+            row->addWidget(swatch);
+        }
+        auto *automatic = new QPushButton(ngText("Next to the accent", "Vicina all'accento"), w);
+        automatic->setCheckable(true);
+        automatic->setProperty("colour", QString());
+        connect(automatic, &QPushButton::clicked, this, [pick] {
+            pick(QString());
+        });
+        m_auroraSecondButtons.append(automatic);
+        row->addSpacing(8);
+        row->addWidget(automatic);
+        auto *vscode = new QPushButton(QStringLiteral("VS Code"), w);
+        vscode->setToolTip(ngText("Accent #0078d4, second colour a neutral grey", "Accento #0078d4, colore secondario un grigio neutro"));
+        connect(vscode, &QPushButton::clicked, this, [this, pick] {
+            pick(QStringLiteral("#8b9099"));
+            const QString scheme = KSharedConfig::openConfig(QStringLiteral("kdeglobals"))->group(QStringLiteral("General")).readEntry("ColorScheme", QStringLiteral("BreezeNG"));
+            QProcess::startDetached(QStringLiteral("plasma-apply-colorscheme"), {QStringLiteral("--accent-color"), QStringLiteral("#0078d4"), scheme});
+        });
+        row->addWidget(vscode);
+        row->addStretch();
+        body->addLayout(row);
+        auto *secondNote = new QLabel(ngText("In Aurora, the light in the corner opposite the accent's. “VS Code”: VS Code's blue with a neutral grey.",
+                                             "In Aurora, la luce nell'angolo opposto a quella dell'accento. «VS Code»: il blu di VS Code con un grigio neutro."),
+                                      w);
+        secondNote->setEnabled(false);
+        secondNote->setWordWrap(true);
+        body->addWidget(secondNote);
     }
     body->addWidget(groupTitle(ngText("Together with the look", "Insieme alla variante"), w));
     m_applyDecoration = new QCheckBox(ngText("Also apply the Breeze NG window decoration", "Applica anche la decorazione delle finestre Breeze NG"), w);
@@ -719,62 +783,6 @@ QWidget *StyleConfig::pageAurora()
         group->addWidget(auroraNote);
     }
     body->addWidget(m_auroraGroup);
-    // the second light: the accent lights the top left and the bottom right corner, a second colour the top right
-    body->addWidget(groupTitle(ngText("Second light", "Seconda luce"), w));
-    {
-        auto *row = new QHBoxLayout();
-        row->setSpacing(10);
-        auto pick = [this](const QString &colour) {
-            m_auroraSecond = colour;
-            for (QAbstractButton *b : std::as_const(m_auroraSecondButtons)) {
-                b->setChecked(b->property("colour").toString() == colour);
-            }
-            updateChanged();
-        };
-        static const char *const colours[] = {"#6a9bcc", "#3eb4a0", "#62b86a", "#9676e0", "#e06ca0", "#e8843c", "#e2b93b", "#d9534f", "#8b9099"}; // (the last: a neutral grey)
-        for (const char *hex : colours) {
-            auto *swatch = new QToolButton(w);
-            swatch->setFixedSize(30, 30);
-            swatch->setCursor(Qt::PointingHandCursor);
-            swatch->setCheckable(true);
-            swatch->setAutoRaise(true);
-            swatch->setProperty("colour", QString::fromLatin1(hex));
-            QPixmap dot(44, 44);
-            dot.fill(Qt::transparent);
-            {
-                QPainter dp(&dot);
-                dp.setRenderHint(QPainter::Antialiasing);
-                dp.setPen(Qt::NoPen);
-                dp.setBrush(QColor(QString::fromLatin1(hex)));
-                dp.drawEllipse(QRectF(4, 4, 36, 36));
-            }
-            swatch->setIcon(QIcon(dot));
-            swatch->setIconSize(QSize(22, 22));
-            const QString colour = QString::fromLatin1(hex);
-            connect(swatch, &QToolButton::clicked, this, [pick, colour] {
-                pick(colour);
-            });
-            m_auroraSecondButtons.append(swatch);
-            row->addWidget(swatch);
-        }
-        auto *automatic = new QPushButton(ngText("Next to the accent", "Vicina all'accento"), w);
-        automatic->setCheckable(true);
-        automatic->setProperty("colour", QString());
-        connect(automatic, &QPushButton::clicked, this, [pick] {
-            pick(QString());
-        });
-        m_auroraSecondButtons.append(automatic);
-        row->addSpacing(8);
-        row->addWidget(automatic);
-        row->addStretch();
-        body->addLayout(row);
-        auto *secondNote = new QLabel(ngText("The first light is the accent colour (Look). Here you choose the colour of the light in the opposite corner.",
-                                             "La prima luce è il colore d'accento (Aspetto). Qui scegli il colore della luce nell'angolo opposto."),
-                                      w);
-        secondNote->setEnabled(false);
-        secondNote->setWordWrap(true);
-        body->addWidget(secondNote);
-    }
     auto *defaults = new QPushButton(ngText("Aurora's defaults", "Valori predefiniti di Aurora"), w);
     connect(defaults, &QPushButton::clicked, this, [this] {
         m_auroraBody->setValue(60);
