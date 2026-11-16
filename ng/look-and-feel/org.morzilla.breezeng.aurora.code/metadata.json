@@ -1,0 +1,16 @@
+{
+    "KPackageStructure": "Plasma/LookAndFeel",
+    "KPlugin": {
+        "Authors": [
+            {
+                "Name": "Morzilla"
+            }
+        ],
+        "Description": "Breeze NG Aurora on the neutral greys of VS Code's dark theme (colour scheme Breeze NG Code): glass with lights of the accent colour behind the windows",
+        "Id": "org.morzilla.breezeng.aurora.code",
+        "License": "GPL-2.0+",
+        "Name": "Breeze NG Aurora Code",
+        "Version": "1.0"
+    },
+    "X-Plasma-APIVersion": "2"
+}

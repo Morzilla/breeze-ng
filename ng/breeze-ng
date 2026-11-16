@@ -139,7 +139,7 @@ themes)
     cp -r "$W"/ng/look-and-feel/org.morzilla.breezeng.* "$HOME/.local/share/plasma/look-and-feel/"
     ICONS="$(kreadconfig6 --file kdeglobals --group Icons --key Theme 2>/dev/null || true)"
     if [ -n "$ICONS" ]; then
-        for v in soft glass aurora soft.light glass.light aurora.light; do
+        for v in soft glass aurora soft.light glass.light aurora.light aurora.code; do
             printf '\n[kdeglobals][Icons]\nTheme=%s\n' "$ICONS" >> "$HOME/.local/share/plasma/look-and-feel/org.morzilla.breezeng.$v/contents/defaults"
         done
     fi
