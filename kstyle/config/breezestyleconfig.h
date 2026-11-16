@@ -16,6 +16,7 @@ class QComboBox;
 class QLabel;
 class QListWidget;
 class QSlider;
+class QFormLayout;
 class QStackedWidget;
 
 namespace Breeze
@@ -83,6 +84,7 @@ private:
 
     // transparency
     NgOpacityPreview *m_preview = nullptr;
+    QFormLayout *m_transparencyForm = nullptr; // its opacity rows follow the look chosen
     QSlider *m_windowOpacity = nullptr;
     QSlider *m_menuOpacity = nullptr;
     QLabel *m_windowOpacityValue = nullptr;
