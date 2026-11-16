@@ -177,7 +177,8 @@ bool Helper::isDark(const QPalette &palette)
 
 QColor Helper::ink(const QPalette &palette)
 {
-    return isDark(palette) ? QColor(255, 255, 255) : QColor(0, 0, 0);
+    // (light schemes: a deep slate, not black: edges, separators and shades of ink stay in the tone of the text)
+    return isDark(palette) ? QColor(255, 255, 255) : QColor(30, 42, 66);
 }
 
 QColor Helper::menuSheet(const QPalette &palette, bool alpha, QColor *outline, bool joined) const
@@ -393,7 +394,7 @@ void Helper::renderAuroraLights(QPainter *painter, const QRectF &windowRect, con
     // light schemes: a wash of the accent over the whole sheet, barely there, under the lights (the sheet itself is
     // denser there too: what lies behind the window greyed it)
     if (!isDark(palette)) {
-        painter->fillRect(windowRect, QColor(255, 255, 255, 84)); // a breath of white first: light whatever is behind the glass
+        painter->fillRect(windowRect, QColor(255, 255, 255, 120)); // a breath of white first: light whatever is behind the glass
         QColor wash = accent;
         wash.setAlphaF(qMin(1.0, 0.20 * strength));
         painter->fillRect(windowRect, wash);

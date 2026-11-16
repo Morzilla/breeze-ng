@@ -823,7 +823,7 @@ void Decoration::paintTitleBar(QPainter *painter, const QRectF &repaintRegion)
             painter->fillRect(rect, gradient);
         };
         if (titleBarColor().lightnessF() >= 0.5) { // (as Helper::renderAuroraLights: the wash of the accent on light schemes)
-            painter->fillRect(rect, QColor(255, 255, 255, 84));
+            painter->fillRect(rect, QColor(255, 255, 255, 120));
             QColor wash = accent;
             wash.setAlphaF(qMin(1.0, 0.20 * strength));
             painter->fillRect(rect, wash);
