@@ -804,11 +804,11 @@ void Decoration::paintTitleBar(QPainter *painter, const QRectF &repaintRegion)
         painter->setClipPath(clip.simplified());
         const QColor highlight = QGuiApplication::palette().color(QPalette::Active, QPalette::Highlight);
         const qreal hue = highlight.hslHueF() < 0 ? 0.58 : highlight.hslHueF();
-        const qreal saturation = qBound(0.60, highlight.hslSaturationF() * 1.4, 0.95);
+        const qreal saturation = (highlight.hslSaturationF() < 0.15 ? highlight.hslSaturationF() : qBound(0.60, highlight.hslSaturationF() * 1.4, 0.95));
         const QColor accent = QColor::fromHslF(hue, saturation, (titleBarColor().lightnessF() < 0.5) ? 0.62 : 0.90); // luminous, as in the widget style
         QColor second = QColor::fromHslF(std::fmod(hue + 0.17, 1.0), saturation, (titleBarColor().lightnessF() < 0.5) ? 0.64 : 0.91);
         if (m_ngAuroraSecond.isValid()) { // the user's own second light, as in the widget style
-            second = QColor::fromHslF(m_ngAuroraSecond.hslHueF() < 0 ? hue : m_ngAuroraSecond.hslHueF(), qBound(0.60, m_ngAuroraSecond.hslSaturationF() * 1.4, 0.95), (titleBarColor().lightnessF() < 0.5) ? 0.64 : 0.91);
+            second = QColor::fromHslF(m_ngAuroraSecond.hslHueF() < 0 ? hue : m_ngAuroraSecond.hslHueF(), (m_ngAuroraSecond.hslSaturationF() < 0.15 ? m_ngAuroraSecond.hslSaturationF() : qBound(0.60, m_ngAuroraSecond.hslSaturationF() * 1.4, 0.95)), (titleBarColor().lightnessF() < 0.5) ? 0.64 : 0.91);
         }
         const qreal strength = (titleBarColor().lightnessF() < 0.5 ? 1.0 : 0.95) * ((window()->isActive() || ngSteady()) ? 1.0 : 0.6) * m_ngAuroraLights;
         const qreal radius = qBound(260.0, rect.width() * 0.55, 620.0);

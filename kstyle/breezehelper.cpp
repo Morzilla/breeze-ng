@@ -326,7 +326,7 @@ QColor Helper::auroraAccent(const QPalette &palette, qreal alpha) const
 {
     const QColor highlight = palette.color(QPalette::Active, QPalette::Highlight);
     const qreal hue = highlight.hslHueF() < 0 ? 0.58 : highlight.hslHueF();
-    const qreal saturation = qBound(0.55, highlight.hslSaturationF() * 1.3, 0.90);
+    const qreal saturation = (highlight.hslSaturationF() < 0.15 ? highlight.hslSaturationF() : qBound(0.55, highlight.hslSaturationF() * 1.3, 0.90));
     QColor accent = QColor::fromHslF(hue, saturation, isDark(palette) ? 0.66 : 0.52);
     accent.setAlphaF(alpha);
     return accent;
@@ -371,12 +371,12 @@ void Helper::renderAuroraLights(QPainter *painter, const QRectF &windowRect, con
     // would dim the window instead of lighting it)
     const QColor highlight = palette.color(QPalette::Active, QPalette::Highlight);
     const qreal hue = highlight.hslHueF() < 0 ? 0.58 : highlight.hslHueF();
-    const qreal saturation = qBound(0.60, highlight.hslSaturationF() * 1.4, 0.95);
+    const qreal saturation = (highlight.hslSaturationF() < 0.15 ? highlight.hslSaturationF() : qBound(0.60, highlight.hslSaturationF() * 1.4, 0.95));
     const QColor accent = QColor::fromHslF(hue, saturation, (isDark(palette)) ? 0.62 : 0.90);
     // the second light: the user's own colour (its hue, made luminous like the accent's), or a hue next to the accent's
     QColor second = QColor::fromHslF(std::fmod(hue + 0.17, 1.0), saturation, (isDark(palette)) ? 0.64 : 0.91);
     if (const QColor chosen(StyleConfigData::auroraSecondAccent()); chosen.isValid() && !StyleConfigData::auroraSecondAccent().isEmpty()) {
-        second = QColor::fromHslF(chosen.hslHueF() < 0 ? hue : chosen.hslHueF(), qBound(0.60, chosen.hslSaturationF() * 1.4, 0.95), (isDark(palette)) ? 0.64 : 0.91);
+        second = QColor::fromHslF(chosen.hslHueF() < 0 ? hue : chosen.hslHueF(), (chosen.hslSaturationF() < 0.15 ? chosen.hslSaturationF() : qBound(0.60, chosen.hslSaturationF() * 1.4, 0.95)), (isDark(palette)) ? 0.64 : 0.91);
     }
     const qreal strength = (isDark(palette) ? 1.0 : 0.95) * ((active || !StyleConfigData::auroraDimInactive()) ? 1.0 : 0.6) * qBound(0, StyleConfigData::auroraLights(), 180) / 100.0;
     if (strength <= 0.0) {

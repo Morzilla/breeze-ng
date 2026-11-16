@@ -243,7 +243,7 @@ protected:
             inside.addRoundedRect(window, 9, 9);
             p.save();
             p.setClipPath(inside, Qt::IntersectClip);
-            const QColor glow = QColor::fromHslF(accent.hslHueF() < 0 ? 0.58 : accent.hslHueF(), 0.8, 0.62);
+            const QColor glow = QColor::fromHslF(accent.hslHueF() < 0 ? 0.58 : accent.hslHueF(), accent.hslSaturationF() < 0.15 ? accent.hslSaturationF() : 0.8, 0.62);
             for (const auto &[centre, alpha] : {std::pair<QPointF, qreal>{window.topLeft(), 0.55}, std::pair<QPointF, qreal>{window.bottomRight(), 0.38}}) {
                 QRadialGradient light(centre, window.width() * 0.6);
                 QColor c = glow;
@@ -566,7 +566,7 @@ QWidget *StyleConfig::pageLook()
     {
         auto *row = new QHBoxLayout();
         row->setSpacing(10);
-        static const char *const colours[] = {"#6a9bcc", "#3eb4a0", "#62b86a", "#9676e0", "#e06ca0", "#e8843c", "#e2b93b", "#d9534f"};
+        static const char *const colours[] = {"#6a9bcc", "#3eb4a0", "#62b86a", "#9676e0", "#e06ca0", "#e8843c", "#e2b93b", "#d9534f", "#8b9099"}; // (the last: a neutral grey)
         for (const char *hex : colours) {
             auto *swatch = new QToolButton(w);
             swatch->setFixedSize(28, 28);
@@ -717,7 +717,7 @@ QWidget *StyleConfig::pageAurora()
             }
             updateChanged();
         };
-        static const char *const colours[] = {"#6a9bcc", "#3eb4a0", "#62b86a", "#9676e0", "#e06ca0", "#e8843c", "#e2b93b", "#d9534f"};
+        static const char *const colours[] = {"#6a9bcc", "#3eb4a0", "#62b86a", "#9676e0", "#e06ca0", "#e8843c", "#e2b93b", "#d9534f", "#8b9099"}; // (the last: a neutral grey)
         for (const char *hex : colours) {
             auto *swatch = new QToolButton(w);
             swatch->setFixedSize(30, 30);

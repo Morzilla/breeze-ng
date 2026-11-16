@@ -88,7 +88,7 @@ void colours(Look &look)
     look.onSelection = QColor();
     if (!dark && !look.fullSelection) {
         const QColor highlight = QGuiApplication::palette().color(QPalette::Active, QPalette::Highlight);
-        look.onSelection = QColor::fromHslF(highlight.hslHueF() < 0 ? 0.58 : highlight.hslHueF(), qBound(0.55, highlight.hslSaturationF() * 1.3, 0.90), 0.38);
+        look.onSelection = QColor::fromHslF(highlight.hslHueF() < 0 ? 0.58 : highlight.hslHueF(), (highlight.hslSaturationF() < 0.15 ? highlight.hslSaturationF() : qBound(0.55, highlight.hslSaturationF() * 1.3, 0.90)), 0.38);
     }
 }
 
@@ -189,11 +189,11 @@ public:
         if (strength > 0.0) {
             const QColor highlight = QGuiApplication::palette().color(QPalette::Active, QPalette::Highlight);
             const qreal hue = highlight.hslHueF() < 0 ? 0.58 : highlight.hslHueF();
-            const qreal saturation = qBound(0.60, highlight.hslSaturationF() * 1.4, 0.95);
+            const qreal saturation = (highlight.hslSaturationF() < 0.15 ? highlight.hslSaturationF() : qBound(0.60, highlight.hslSaturationF() * 1.4, 0.95));
             const QColor accent = QColor::fromHslF(hue, saturation, (m_look.dark) ? 0.62 : 0.90);
             QColor second = QColor::fromHslF(std::fmod(hue + 0.17, 1.0), saturation, (m_look.dark) ? 0.64 : 0.91);
             if (m_look.second.isValid()) {
-                second = QColor::fromHslF(m_look.second.hslHueF() < 0 ? hue : m_look.second.hslHueF(), qBound(0.60, m_look.second.hslSaturationF() * 1.4, 0.95), (m_look.dark) ? 0.64 : 0.91);
+                second = QColor::fromHslF(m_look.second.hslHueF() < 0 ? hue : m_look.second.hslHueF(), (m_look.second.hslSaturationF() < 0.15 ? m_look.second.hslSaturationF() : qBound(0.60, m_look.second.hslSaturationF() * 1.4, 0.95)), (m_look.dark) ? 0.64 : 0.91);
             }
             const qreal radius = qBound(260.0, rect.width() * 0.55, 620.0);
             auto light = [&](const QPointF &centre, qreal r, QColor colour, qreal alpha) {
