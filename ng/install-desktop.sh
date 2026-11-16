@@ -16,12 +16,12 @@
 #   --only LIST            parts to install, comma separated: dolphin,breeze,icons,dialog,effects,transcribe
 #                          (effects = Better Blur and KDE Rounded Corners, two external projects: see --licence;
 #                          transcribe = whisper.cpp and a 550 MB speech model, run on this computer: see --licence)
-#   --apply [soft|glass]   switch the desktop to Breeze NG (default soft) and to the NeoLine icons
+#   --apply [soft|glass|aurora]  switch the desktop to Breeze NG (default soft) and to the NeoLine icons
 #   --icons NAME           icon theme used when applying: NeoLine, NeoLine-White (default), NeoLine-Yellow
 #   --no-deps              do not install build dependencies (no sudo)
 #   --src DIR              keep the sources in DIR instead of ~/.local/src
 #   --jobs N               parallel compile jobs (default: half of the processors)
-#   --preset NAME          Dolphin NG settings preset: classic, soft or glass
+#   --preset NAME          Dolphin NG settings preset: classic, soft, glass or aurora
 #   --deps-only            only install the build dependencies (this is what the graphical installer runs as root)
 #   --licence              print the licence and the notices, then exit
 #
@@ -121,7 +121,7 @@ END
 while [ $# -gt 0 ]; do
     case "$1" in
         --yes|-y) YES=1 ;;
-        --apply) APPLY=soft; APPLY_SET=1; case "${2:-}" in soft|glass) APPLY="$2"; shift ;; esac ;;
+        --apply) APPLY=soft; APPLY_SET=1; case "${2:-}" in soft|glass|aurora) APPLY="$2"; shift ;; esac ;;
         --icons) ICONS="$2"; shift ;;
         --no-deps) DEPS=0 ;;
         --deps-only) DEPS_ONLY=1; YES=1 ;;
@@ -140,7 +140,7 @@ export JOBS
 # ---- the parts
 KEYS=(dolphin breeze icons dialog effects transcribe)
 NAMES=("Dolphin NG" "Breeze NG" "NeoLine icons" "Dialog NG" "Blur + corners" "Transcription")
-NOTES=("the file manager: cards view, two-line list, glass sidebar, previews" "widget style and window decoration, Soft and Glass" "outline icon theme: colour, white, yellow"
+NOTES=("the file manager: cards view, two-line list, glass sidebar, previews" "widget style and window decoration: Soft, Glass and Aurora Glass" "outline icon theme: colour, white, yellow"
        "the file dialog of every KDE app, like Dolphin NG: rows, quick preview, filters, glass sidebar"
        "Better Blur and KDE Rounded Corners: EXTERNAL projects, installed system-wide (sudo)"
        "speech to text for Dolphin NG, offline (whisper.cpp): a 550 MB model download")
@@ -261,8 +261,8 @@ if [ -n "$TTY" ]; then
         if ask "Switch the desktop to it when done (style, decoration, colours, icons)?" n; then
             APPLY=soft
             if pick breeze; then
-                choose "Which look of Breeze NG?" "Soft: opaque sheets told apart by tone" "Glass: translucent windows blurred by the compositor"
-                [ "$CHOICE" = 2 ] && APPLY=glass
+                choose "Which look of Breeze NG?" "Soft: opaque sheets told apart by tone" "Glass: translucent windows blurred by the compositor" "Aurora Glass: glass lit by the accent colour, soft lights and veils"
+                case "$CHOICE" in 2) APPLY=glass ;; 3) APPLY=aurora ;; esac
             fi
             if pick icons; then
                 choose "Which icons?" "NeoLine White: white places, file types in colour" "NeoLine: everything in the colour of its kind" "NeoLine Yellow: yellow places, file types in colour"
@@ -541,8 +541,8 @@ if want breeze; then
     if ready "Breeze NG" breeze-ng KDecoration3 KF6FrameworkIntegration KF6KCMUtils KF6ColorScheme \
         && part "Breeze NG" breeze-ng bash -c "'$BREEZE/ng/breeze-ng' build && '$BREEZE/ng/breeze-ng' env"; then
         ok "Breeze NG installed"
-        DONE+=("Breeze NG    log out and in once, then System Settings > Global Theme > Breeze NG Soft / Glass")
-        DONE+=("             or: $BREEZE/ng/breeze-ng use soft|glass   (without logging out: ... now)")
+        DONE+=("Breeze NG    log out and in once, then System Settings > Global Theme > Breeze NG Soft / Glass / Aurora")
+        DONE+=("             or: $BREEZE/ng/breeze-ng use soft|glass|aurora   (without logging out: ... now)")
     fi
 fi
 if want icons; then
@@ -618,7 +618,7 @@ if want effects; then
     DONE+=("             they need rebuilding after a KWin update: run this installer again with --only effects")
 fi
 
-# ---- a preset for the settings of Dolphin NG (the same three as its settings page)
+# ---- a preset for the settings of Dolphin NG (the three of its settings page; Aurora Glass starts from Glass)
 failed() { local f; for f in "${FAILED[@]:-}"; do case "$f" in "$1"*) return 0 ;; esac; done; return 1; }
 if [ -n "$PRESET" ] && want dolphin && ! failed "Dolphin NG"; then
     say "Dolphin NG preset: $PRESET"
@@ -627,8 +627,8 @@ if [ -n "$PRESET" ] && want dolphin && ! failed "Dolphin NG"; then
     case "$PRESET" in
         classic) key SIDEBAR plain; key DEVICES show; key SIDEBAR_FILTERS hide; key LIST columns; key ICONS show; key TILES off; key RowStyle stripe ;;
         soft) key SIDEBAR plain; key DEVICES show ;;
-        glass) key GLASS_RIM diagonal; key CARDS_MARK type ;;
-        *) warn "unknown preset: $PRESET (classic, soft, glass)" ;;
+        glass|aurora) key GLASS_RIM diagonal; key CARDS_MARK type ;;
+        *) warn "unknown preset: $PRESET (classic, soft, glass, aurora)" ;;
     esac
     ok "settings written (change them later in Dolphin NG > Configure > NG)"
 fi

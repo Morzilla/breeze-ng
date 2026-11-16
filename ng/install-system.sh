@@ -16,13 +16,13 @@
 #   /usr/local/share/applications/dolphin-ng.desktop    its menu entry ("Dolphin NG")
 #   /usr/local/share/icons/NeoLine*                 the three icon themes
 #   /usr/local/share/color-schemes/BreezeNG.colors  the colour scheme
-#   /usr/local/share/plasma/look-and-feel/org.morzilla.breezeng.*    the global themes "Breeze NG Soft / Glass"
+#   /usr/local/share/plasma/look-and-feel/org.morzilla.breezeng.*    the global themes "Breeze NG Soft / Glass / Aurora"
 #   /etc/xdg/plasma-workspace/env/ng-desktop.sh     tells every Plasma session where the style and decoration are
 #
 # The distribution's Dolphin stays the default file manager unless you pass --default (or pick "Dolphin NG" in
 # System Settings > Default Applications > File manager).
 #
-# It does not switch anybody's desktop: each user picks "Breeze NG Soft" or "Glass" in System Settings > Global
+# It does not switch anybody's desktop: each user picks "Breeze NG Soft", "Glass" or "Aurora" in System Settings > Global
 # Theme (and NeoLine in Icons) after logging out and in once.
 #
 # Options:
@@ -73,7 +73,9 @@ LOCAL=/usr/local
 ENVFILE=/etc/xdg/plasma-workspace/env/ng-desktop.sh
 FILES=("$LOCAL/bin/dolphin-ng" "$LOCAL/share/applications/dolphin-ng.desktop" "$LOCAL/share/color-schemes/BreezeNG.colors" "$LOCAL/share/kstyle/themes/breezeng.themerc" "$ENVFILE")
 TREES=("$OPT" "$LOCAL/share/icons/NeoLine" "$LOCAL/share/icons/NeoLine-White" "$LOCAL/share/icons/NeoLine-Yellow"
-       "$LOCAL/share/plasma/look-and-feel/org.morzilla.breezeng.soft" "$LOCAL/share/plasma/look-and-feel/org.morzilla.breezeng.glass")
+       "$LOCAL/share/plasma/look-and-feel/org.morzilla.breezeng.soft" "$LOCAL/share/plasma/look-and-feel/org.morzilla.breezeng.glass"
+       "$LOCAL/share/plasma/look-and-feel/org.morzilla.breezeng.aurora" "$LOCAL/share/plasma/look-and-feel/org.morzilla.breezeng.soft.light"
+       "$LOCAL/share/plasma/look-and-feel/org.morzilla.breezeng.glass.light" "$LOCAL/share/plasma/look-and-feel/org.morzilla.breezeng.aurora.light")
 
 if [ "$UNINSTALL" = 1 ]; then
     say "Removing the NG desktop from ${STAGE:-the system}"
@@ -136,7 +138,7 @@ if want breeze; then
     as_root rm -f "$BREEZE/build-system/install_manifest.txt" # written as root: the next build as you could not replace it
     put "$BREEZE/ng/color-schemes/BreezeNG.colors" "$LOCAL/share/color-schemes/BreezeNG.colors"
     put "$BREEZE/kstyle/breezeng.themerc" "$LOCAL/share/kstyle/themes/breezeng.themerc"   # the style's name and Configure button in System Settings
-    for v in soft glass; do put_tree "$BREEZE/ng/look-and-feel/org.morzilla.breezeng.$v" "$LOCAL/share/plasma/look-and-feel"; done
+    for v in soft glass aurora soft.light glass.light aurora.light; do put_tree "$BREEZE/ng/look-and-feel/org.morzilla.breezeng.$v" "$LOCAL/share/plasma/look-and-feel"; done
     # the plugin folder differs between distributions (lib64, lib, lib/x86_64-linux-gnu): find it
     style="$(find "$STAGE$OPT/breeze-ng" -name 'breezeng6.so' -path '*/styles/*' | head -n 1)"
     [ -n "$style" ] || die "the style plugin was not installed where expected under $OPT/breeze-ng"
@@ -148,7 +150,7 @@ export QT_PLUGIN_PATH="$plugins\${QT_PLUGIN_PATH:+:\$QT_PLUGIN_PATH}"
 EOT
     put "$TMP/ng-desktop.sh" "$ENVFILE"
     ok "installed in $OPT/breeze-ng; every Plasma session gets it from $ENVFILE"
-    DONE+=("Breeze NG    each user: log out and in, then System Settings > Global Theme > Breeze NG Soft / Glass")
+    DONE+=("Breeze NG    each user: log out and in, then System Settings > Global Theme > Breeze NG Soft / Glass / Aurora")
 fi
 
 # ---- 3. Dolphin NG

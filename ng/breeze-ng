@@ -1,6 +1,6 @@
 #!/bin/bash
 # SPDX-License-Identifier: GPL-2.0-or-later
-# Breeze NG: a fork of KDE's Breeze widget style and window decoration with two looks, Soft and Glass.
+# Breeze NG: a fork of KDE's Breeze widget style and window decoration with three looks: Soft, Glass and Aurora Glass.
 #   ./ng/breeze-ng build          configure, build and install into ~/.local/breeze-ng (needs the Breeze build deps)
 #   ./ng/breeze-ng env            make the plugins visible to the session (QT_PLUGIN_PATH; log out and in once)
 #   ./ng/breeze-ng now            same, for the running session: restarts Plasma (and KWin on X11) with the path
@@ -94,7 +94,7 @@ themes)
     for v in soft glass aurora; do
         python3 "$W/ng/plasma-style/make-plasma-style.py" "$v" "$HOME/.local/share/plasma/desktoptheme/breeze-ng-$v" >/dev/null
     done
-    echo "==> global themes installed: Breeze NG Soft and Glass, dark and light (colour schemes Breeze NG and Breeze NG Light, Plasma styles Breeze NG Soft/Glass)"
+    echo "==> global themes installed: Breeze NG Soft, Glass and Aurora, dark and light (colour schemes Breeze NG and Breeze NG Light, Plasma styles Breeze NG Soft/Glass/Aurora)"
     ;;
 use)
     case "$2" in

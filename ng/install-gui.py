@@ -14,12 +14,12 @@ import urllib.request
 
 try:
     from PyQt6.QtCore import QProcess, QProcessEnvironment, QRectF, QSize, Qt, QUrl, pyqtSignal as Signal
-    from PyQt6.QtGui import QColor, QDesktopServices, QFont, QLinearGradient, QPainter, QPainterPath, QPen, QPixmap, QTextCursor
+    from PyQt6.QtGui import QColor, QDesktopServices, QFont, QLinearGradient, QPainter, QPainterPath, QPen, QPixmap, QRadialGradient, QTextCursor
     from PyQt6.QtWidgets import (QApplication, QCheckBox, QComboBox, QFrame, QHBoxLayout, QLabel, QMessageBox, QPlainTextEdit, QProgressBar,
                                  QPushButton, QSpinBox, QStackedWidget, QVBoxLayout, QWidget)
 except ImportError:
     from PySide6.QtCore import QProcess, QProcessEnvironment, QRectF, QSize, Qt, QUrl, Signal
-    from PySide6.QtGui import QColor, QDesktopServices, QFont, QLinearGradient, QPainter, QPainterPath, QPen, QPixmap, QTextCursor
+    from PySide6.QtGui import QColor, QDesktopServices, QFont, QLinearGradient, QPainter, QPainterPath, QPen, QPixmap, QRadialGradient, QTextCursor
     from PySide6.QtWidgets import (QApplication, QCheckBox, QComboBox, QFrame, QHBoxLayout, QLabel, QMessageBox, QPlainTextEdit, QProgressBar,
                                    QPushButton, QSpinBox, QStackedWidget, QVBoxLayout, QWidget)
 
@@ -83,6 +83,8 @@ TEXT = {
     "soft_d": ("The NG list and cards, opaque surfaces told apart by tone", "Lista e card NG, superfici opache distinte dal tono"),
     "glass": ("Glass", "Glass"),
     "glass_d": ("Everything: glass panel, translucent windows, blur", "Tutto: pannello a vetro, finestre traslucide, sfocatura"),
+    "aurora": ("Aurora Glass", "Aurora Glass"),
+    "aurora_d": ("Glass lit by the accent colour: soft lights, veils, pill tabs", "Vetro illuminato dal colore d'accento: luci morbide, veli, schede a pillola"),
     "iconset": ("Icons", "Icone"),
     "ic_white": ("White places, file types in colour", "Luoghi bianchi, tipi di file a colori"),
     "ic_colour": ("Everything in the colour of its kind", "Tutto nel colore della sua categoria"),
@@ -151,18 +153,20 @@ QPlainTextEdit { background: #17181b; border: 1px solid #2c2f34; border-radius: 
 
 
 class Preview(QWidget):
-    """A small drawing of the Dolphin NG window in one of the three looks."""
+    """A small drawing of the Dolphin NG window in one of the four looks."""
 
     def __init__(self, look):
         super().__init__()
         self.look = look
-        self.setFixedSize(190, 118)
+        self.setFixedSize(156, 97)
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
 
     def paintEvent(self, _):
         p = QPainter(self)
         p.setRenderHint(QPainter.RenderHint.Antialiasing)
-        r = QRectF(self.rect()).adjusted(1, 1, -1, -1)
+        p.scale(self.width() / 190, self.height() / 118)   # drawn on a 190x118 sheet
+        r = QRectF(0, 0, 190, 118).adjusted(1, 1, -1, -1)
+        aurora = self.look == "aurora"
         path = QPainterPath()
         path.addRoundedRect(r, 9, 9)
         p.setClipPath(path)
@@ -172,9 +176,20 @@ class Preview(QWidget):
             g.setColorAt(1, QColor("#b56a3a"))
             p.fillRect(r, g)
             p.fillRect(r, QColor(30, 32, 36, 205))
+        elif aurora:
+            g = QLinearGradient(r.topLeft(), r.bottomRight())
+            g.setColorAt(0, QColor("#3b5f86"))
+            g.setColorAt(1, QColor("#b56a3a"))
+            p.fillRect(r, g)
+            p.fillRect(r, QColor(22, 24, 30, 190))
+            for cx, cy, rad, col in ((0.12, 0.05, 110, QColor(79, 147, 217, 120)), (0.95, 1.0, 100, QColor(170, 110, 220, 95))):
+                glow = QRadialGradient(r.left() + r.width() * cx, r.top() + r.height() * cy, rad)
+                glow.setColorAt(0, col); end = QColor(col); end.setAlpha(0); glow.setColorAt(1, end)
+                p.fillRect(r, glow)
         else:
             p.fillRect(r, QColor("#25272b"))
-        p.fillRect(QRectF(r.left(), r.top(), r.width(), 16), QColor(0, 0, 0, 60))
+        if not aurora:
+            p.fillRect(QRectF(r.left(), r.top(), r.width(), 16), QColor(0, 0, 0, 60))
         for i, c in enumerate(("#e0705b", "#6b6f76", "#6b6f76")):
             p.setBrush(QColor(c)); p.setPen(Qt.PenStyle.NoPen)
             p.drawEllipse(QRectF(r.right() - 14 - i * 12, r.top() + 4, 8, 8))
@@ -185,6 +200,11 @@ class Preview(QWidget):
             g.setColorAt(1, QColor(90, 70, 120, 190))
             p.setBrush(g); p.setPen(QPen(QColor(255, 255, 255, 60), 1))
             p.drawRoundedRect(side, 7, 7)
+        elif aurora:
+            p.setBrush(QColor(255, 255, 255, 20)); p.setPen(QPen(QColor(255, 255, 255, 34), 1))
+            p.drawRoundedRect(side, 8, 8)
+            p.setPen(Qt.PenStyle.NoPen); p.setBrush(QColor(79, 147, 217, 150))
+            p.drawRoundedRect(QRectF(side.left() + 3, side.top() + 17, side.width() - 6, 12), 5, 5)
         else:
             p.setBrush(QColor(255, 255, 255, 10 if self.look == "classic" else 16)); p.setPen(Qt.PenStyle.NoPen)
             p.drawRoundedRect(side, 0 if self.look == "classic" else 7, 0 if self.look == "classic" else 7)
@@ -207,7 +227,7 @@ class Preview(QWidget):
             for i in range(6):
                 cx, cy = x0 + (i % 2) * (cw + 6), r.top() + 24 + (i // 2) * (ch + 5)
                 card = QRectF(cx, cy, cw, ch)
-                p.setBrush(QColor(0, 0, 0, 70)); p.drawRoundedRect(card, 5, 5)
+                p.setBrush(QColor(255, 255, 255, 20) if aurora else QColor(0, 0, 0, 70)); p.drawRoundedRect(card, 5, 5)
                 if self.look == "glass":
                     g = QLinearGradient(card.topLeft(), card.topRight())
                     c = QColor(colours[i]); c.setAlpha(90); g.setColorAt(0, c); c2 = QColor(colours[i]); c2.setAlpha(0); g.setColorAt(0.8, c2)
@@ -300,7 +320,7 @@ class Installer(QWidget):
     def __init__(self):
         super().__init__()
         self.setWindowTitle(t("title"))
-        self.resize(800, 760); self.setMinimumSize(780, 740)
+        self.resize(880, 760); self.setMinimumSize(860, 740)
         self.look = "soft"
         self.proc = None
         self.queue = []
@@ -399,7 +419,7 @@ class Installer(QWidget):
         v.addWidget(label(t("look_text"), "dim"))
         row = QHBoxLayout(); row.setSpacing(12)
         self.looks = {}
-        for key in ("classic", "soft", "glass"):
+        for key in ("classic", "soft", "glass", "aurora"):
             card = Card(); c = QVBoxLayout(card); c.setContentsMargins(14, 14, 14, 14); c.setSpacing(8)
             c.addWidget(Preview(key), 0, Qt.AlignmentFlag.AlignHCenter)
             c.addWidget(label(t(key), "h2", False))
@@ -504,7 +524,7 @@ class Installer(QWidget):
         chosen = [k for k, b in self.parts.items() if b.isChecked()]
         args = ["bash", script, "--yes", "--no-deps", "--only", ",".join(chosen), "--jobs", str(self.jobs.value()), "--preset", self.look]
         if self.apply.isChecked():
-            args += ["--apply", "glass" if self.look == "glass" else "soft", "--icons", self.icons]
+            args += ["--apply", self.look if self.look in ("glass", "aurora") else "soft", "--icons", self.icons]
         self.queue = []
         if self.deps.isChecked():
             elevate = shutil.which("pkexec")
