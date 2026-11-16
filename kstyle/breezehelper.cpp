@@ -1030,6 +1030,9 @@ void Helper::renderMenuFrame(QPainter *painter, const QRectF &rect, const QColor
                 QPainterPath shape;
                 shape.addRoundedRect(frameRect, radius, radius);
                 painter->setClipPath(shape, Qt::IntersectClip);
+                // over the sheet, never in its place: a see-through menu is painted in Source mode, and the grain
+                // (nearly clear) replaced the sheet: the menu lost its glass and its opacity setting
+                painter->setCompositionMode(QPainter::CompositionMode_SourceOver);
                 painter->drawTiledPixmap(frameRect, ngGrainTile(grain));
             }
         }
