@@ -7004,6 +7004,19 @@ bool Style::drawMenuBarItemControl(const QStyleOption *option, QPainter *painter
 //___________________________________________________________________________________
 bool Style::drawMenuItemControl(const QStyleOption *option, QPainter *painter, const QWidget *widget) const
 {
+    // Breeze NG Aurora: the item under the pointer is a selection as any other: a light sheet of the accent or the
+    // full accent (the setting), with the text and marks of a selection
+    if (_helper->isAurora() && (option->state & State_Enabled) && (option->state & (State_Selected | State_Sunken))
+        && option->palette.color(QPalette::WindowText) != _helper->auroraSelectionText(option->palette)) {
+        if (const auto original = qstyleoption_cast<const QStyleOptionMenuItem *>(option)) {
+            QStyleOptionMenuItem copy(*original);
+            const QColor onSelection = _helper->auroraSelectionText(option->palette);
+            for (QPalette::ColorRole role : {QPalette::WindowText, QPalette::Text, QPalette::ButtonText, QPalette::HighlightedText}) {
+                copy.palette.setColor(role, onSelection);
+            }
+            return drawMenuItemControl(&copy, painter, widget);
+        }
+    }
     // cast option and check
     const auto menuItemOption = qstyleoption_cast<const QStyleOptionMenuItem *>(option);
     if (!menuItemOption) {
@@ -7077,6 +7090,9 @@ bool Style::drawMenuItemControl(const QStyleOption *option, QPainter *painter, c
         auto color = palette.color(QPalette::Highlight);
         if (sunken) {
             color = color.darker(110);
+        }
+        if (_helper->isAurora()) {
+            color = _helper->auroraSelection(QApplication::palette(), sunken ? 0.08 : 0.0);
         }
         const QColor outlineColor(0, 0, 0, 0);
 
