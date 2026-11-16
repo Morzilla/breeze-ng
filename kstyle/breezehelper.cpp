@@ -185,7 +185,9 @@ QColor Helper::menuSheet(const QPalette &palette, bool alpha, QColor *outline, b
     // a menu joined to a button is opaque: only then can the button be painted in exactly its colour (Aurora: the
     // menu stays see-through and blurred, and the button is laid from nothing in the same sheet: joinedFill)
     // (38 %: behind a menu lies its own window, already glass: a thin sheet over its blur reads as the same glass)
-    const int glassOpacity = _aurora ? 38 : 78;
+    // (joined to its button, the sheet is denser: the button lies on the window's own glass, the menu on the blur of
+    // whatever is under it, and a thin sheet let that difference through: two tones in one shape)
+    const int glassOpacity = _aurora ? (joined ? 74 : 38) : 78;
     const int menuOpacity = (joined && !_aurora) ? 100 : ((isGlass() && StyleConfigData::menuOpacity() >= 100) ? glassOpacity : StyleConfigData::menuOpacity());
     QColor edge = isGlass() ? alphaColor(ink(palette), 0.16) : frameOutlineColor(palette);
     if (menuOpacity < 100 && alpha) {
@@ -978,7 +980,22 @@ QRegion Helper::menuFrameRegion(const QMenu *widget)
 
         QPainterPath path;
         path.addRoundedRect(frameRect, radius, radius);
-        return QRegion(path.toFillPolygon().toPolygon()).intersected(widget->rect());
+        QRegion region = QRegion(path.toFillPolygon().toPolygon());
+        // Breeze NG: a corner under the button the menu is joined to is square (Style::ngRenderPopupPanel): it is
+        // part of the sheet, and blurred with it (left out, that corner showed the window sharp: a patch of another tone)
+        const QRect joinSpan = widget->property("_breeze_ng_join_span").toRect();
+        if (joinSpan.isValid()) {
+            const QRect rect = widget->rect();
+            const int corner = Metrics::Menu_Radius + 2;
+            const int cornerTop = joinSpan.y() <= 0 ? rect.top() : rect.bottom() - corner;
+            if (joinSpan.left() <= rect.left() + corner) {
+                region += QRect(rect.left(), cornerTop, corner, corner + 1);
+            }
+            if (joinSpan.right() >= rect.right() - corner) {
+                region += QRect(rect.right() - corner, cornerTop, corner + 1, corner + 1);
+            }
+        }
+        return region.intersected(widget->rect());
     }
 
     return QRegion(widget->rect());

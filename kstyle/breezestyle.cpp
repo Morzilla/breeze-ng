@@ -1737,7 +1737,17 @@ void Style::drawPrimitive(PrimitiveElement element, const QStyleOption *option, 
             if (panel->lineWidth > 0) {
                 drawFrameLineEditPrimitive(option, painter, widget);
             } else if (!(holder && (holder->inherits("QAbstractSpinBox") || holder->inherits("QComboBox")))) {
-                painter->fillRect(option->rect, _helper->inputBackground(option->palette)); // (inside a spin box or a combo box: theirs)
+                // (inside a spin box or a combo box: theirs)
+                if (widget && !qobject_cast<const QLineEdit *>(widget) && option->rect.height() >= 24) {
+                    // a panel that is a whole field by itself (a location bar): the corners of every other field
+                    painter->setRenderHint(QPainter::Antialiasing);
+                    painter->setPen(Qt::NoPen);
+                    painter->setBrush(_helper->inputBackground(option->palette));
+                    const qreal radius = qMin<qreal>(_helper->frameRadius(PenWidth::NoPen), option->rect.height() / 2.0);
+                    painter->drawRoundedRect(QRectF(option->rect), radius, radius);
+                } else {
+                    painter->fillRect(option->rect, _helper->inputBackground(option->palette));
+                }
             }
             painter->restore();
             return;
@@ -2716,7 +2726,13 @@ void Style::ngUpdateJoinSpan(QWidget *popup) const
         popup->setProperty("_breeze_ng_join_span", QVariant()); // slid away from the button entirely: a plain menu
         return;
     }
-    popup->setProperty("_breeze_ng_join_span", QRect(x1, popup->property("_breeze_ng_join_top").toBool() ? 0 : 1, x2 - x1 + 1, 1));
+    const QRect span(x1, popup->property("_breeze_ng_join_top").toBool() ? 0 : 1, x2 - x1 + 1, 1);
+    if (popup->property("_breeze_ng_join_span").toRect() != span) {
+        popup->setProperty("_breeze_ng_join_span", span);
+        if (_helper->isGlass() && qobject_cast<QMenu *>(popup)) {
+            _blurHelper->registerWidget(popup); // the blurred shape follows: its corner under the button is square
+        }
+    }
 }
 
 //____________________________________________________________________________
@@ -2750,7 +2766,8 @@ void Style::ngRenderPopupPanel(QPainter *painter, const QRect &rect, const QPale
         painter->drawRect(QRect(joinSpan.left() + 1, y, qMax(1, joinSpan.width() - 2), 2));
         // a corner under the button becomes square, and the side outline runs straight up to the button
         const int cornerTop = top ? rect.top() : rect.bottom() - radius;
-        const QColor sideLine = KColorUtils::overlayColors(background, outline);
+        // (a see-through sheet is laid in place of what was there, and so is its outline: the frame's own colour then)
+        const QColor sideLine = background.alpha() < 255 ? outline : KColorUtils::overlayColors(background, outline);
         if (joinSpan.left() <= rect.left() + radius) {
             painter->drawRect(QRect(rect.left(), cornerTop, radius, radius));
             painter->fillRect(QRect(rect.left(), cornerTop, 1, radius), sideLine);
@@ -4935,7 +4952,15 @@ bool Style::drawFrameLineEditPrimitive(const QStyleOption *option, QPainter *pai
 
         painter->setPen(Qt::NoPen);
         painter->setBrush(background);
-        painter->drawRect(rect);
+        if (_helper->isGlass() && rect.height() >= 24) {
+            // Breeze NG: a field a little short of the full frame (a location bar in a tool bar) is still a field:
+            // the corners of every other one, not a square block
+            painter->setRenderHint(QPainter::Antialiasing);
+            const qreal radius = qMin<qreal>(_helper->frameRadius(PenWidth::NoPen), rect.height() / 2.0);
+            painter->drawRoundedRect(QRectF(rect), radius, radius);
+        } else {
+            painter->drawRect(rect);
+        }
         return true;
 
     } else {
