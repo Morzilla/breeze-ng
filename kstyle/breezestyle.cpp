@@ -509,6 +509,11 @@ void Style::polish(QWidget *widget)
     } else if (widget->inherits("QComboBoxPrivateContainer")) {
         addEventFilter(widget);
         setTranslucentBackground(widget);
+        // Breeze NG: the list of a combo box is a menu: see-through like one, so blurred like one (without, the window
+        // under it showed through sharp, its text mixed with the list's)
+        if (_helper->hasAlphaChannel(widget) && (StyleConfigData::menuOpacity() < 100 || _helper->isGlass())) {
+            _blurHelper->registerWidget(widget);
+        }
 
     } else if (qobject_cast<QTabBar *>(widget)) {
         addEventFilter(widget); // Breeze NG Glass: see eventFilter()
