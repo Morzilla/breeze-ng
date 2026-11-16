@@ -70,13 +70,14 @@ void colours(Look &look)
     const bool dark = window.lightnessF() < 0.5;
     look.dark = dark;
     look.sheet = window;
-    look.sheet.setAlphaF(qMin(look.body + (dark ? (look.lightGlass ? 0 : 22) : 18), 95) / 100.0); // as Helper::windowSheetAlpha in the widget style
+    look.sheet.setAlphaF(qMin(look.body + (dark ? (look.lightGlass ? 0 : 22) : 32), 95) / 100.0); // as Helper::windowSheetAlpha in the widget style
     // Some components take a background colour and make it solid, or mix it with the text colour: "nothing" is the
     // window's colour with no alpha. The veil is ink, as in the widget style.
     look.ground = window;
     look.ground.setAlpha(0);
-    look.veil = dark ? QColor(255, 255, 255) : QColor(0, 0, 0);
-    look.veil.setAlphaF(look.panel / 100.0 * (dark ? 1.0 : 0.75));
+    // (light schemes: frost, white and denser, as Helper::auroraVeilColor: black ink on light glass read as grey)
+    look.veil = QColor(255, 255, 255);
+    look.veil.setAlphaF(dark ? look.panel / 100.0 : qMin(look.panel / 100.0 * 0.75 * 8.8, 0.92));
 }
 
 Look readLook()
@@ -171,15 +172,15 @@ public:
         const QRectF rect(0, 0, width(), height());
         colours(m_look); // (with the palette of now)
         painter->fillRect(rect, m_look.sheet); // the window's glass
-        const qreal strength = (m_look.dark ? 1.0 : 0.70) * ((m_window->isActive() || !m_look.dim) ? 1.0 : 0.6) * m_look.lights;
+        const qreal strength = (m_look.dark ? 1.0 : 0.95) * ((m_window->isActive() || !m_look.dim) ? 1.0 : 0.6) * m_look.lights;
         if (strength > 0.0) {
             const QColor highlight = QGuiApplication::palette().color(QPalette::Active, QPalette::Highlight);
             const qreal hue = highlight.hslHueF() < 0 ? 0.58 : highlight.hslHueF();
             const qreal saturation = qBound(0.60, highlight.hslSaturationF() * 1.4, 0.95);
-            const QColor accent = QColor::fromHslF(hue, saturation, 0.62);
-            QColor second = QColor::fromHslF(std::fmod(hue + 0.17, 1.0), saturation, 0.64);
+            const QColor accent = QColor::fromHslF(hue, saturation, (m_look.dark) ? 0.62 : 0.90);
+            QColor second = QColor::fromHslF(std::fmod(hue + 0.17, 1.0), saturation, (m_look.dark) ? 0.64 : 0.91);
             if (m_look.second.isValid()) {
-                second = QColor::fromHslF(m_look.second.hslHueF() < 0 ? hue : m_look.second.hslHueF(), qBound(0.60, m_look.second.hslSaturationF() * 1.4, 0.95), 0.64);
+                second = QColor::fromHslF(m_look.second.hslHueF() < 0 ? hue : m_look.second.hslHueF(), qBound(0.60, m_look.second.hslSaturationF() * 1.4, 0.95), (m_look.dark) ? 0.64 : 0.91);
             }
             const qreal radius = qBound(260.0, rect.width() * 0.55, 620.0);
             auto light = [&](const QPointF &centre, qreal r, QColor colour, qreal alpha) {
@@ -192,6 +193,11 @@ public:
                 gradient.setColorAt(1.0, colour);
                 painter->fillRect(rect, gradient);
             };
+            if (!m_look.dark) { // (as Helper::renderAuroraLights: the wash of the accent on light schemes)
+                QColor wash = accent;
+                wash.setAlphaF(qMin(1.0, 0.20 * strength));
+                painter->fillRect(rect, wash);
+            }
             light(rect.topLeft(), radius, accent, 0.52);
             light(rect.topRight(), radius * 0.8, second, 0.36);
             light(rect.bottomRight(), radius * 0.9, accent, 0.32);

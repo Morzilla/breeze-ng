@@ -592,8 +592,10 @@ void Style::polish(QPalette &palette)
     ParentStyleClass::polish(palette);
     if (_helper->isGlass()) {
         // the selection is translucent: selected text keeps the normal text colour
+        // (Aurora with the full accent for selections: white on it)
+        const bool full = _helper->isAurora() && _helper->auroraFullSelection();
         for (QPalette::ColorGroup group : {QPalette::Active, QPalette::Inactive, QPalette::Disabled}) {
-            palette.setColor(group, QPalette::HighlightedText, palette.color(group, QPalette::Text));
+            palette.setColor(group, QPalette::HighlightedText, full ? QColor(255, 255, 255) : palette.color(group, QPalette::Text));
         }
     }
 }
@@ -748,7 +750,7 @@ void Style::ngGlassQuick()
     const QPalette palette = QApplication::palette();
     QColor ground = palette.color(QPalette::Window); // nothing, in the window's own colour (see the Kirigami plugin)
     ground.setAlpha(0);
-    const QColor veil = _helper->alphaColor(_helper->ink(palette), _helper->auroraVeil(palette, false));
+    const QColor veil = _helper->auroraVeilColor(palette, false);
     const auto windows = QGuiApplication::allWindows();
     static const bool debug = qEnvironmentVariableIsSet("BREEZE_NG_DEBUG_QUICK");
     for (QWindow *window : windows) {
@@ -1734,7 +1736,7 @@ void Style::drawPrimitive(PrimitiveElement element, const QStyleOption *option, 
     if (element == PE_PanelItemViewRow && _helper->isAurora() && widget && widget->window()->property("_breeze_ng_glass").toBool()) {
         const auto row = qstyleoption_cast<const QStyleOptionViewItem *>(option);
         if (row && (row->features & QStyleOptionViewItem::Alternate) && !(row->state & State_Selected)) {
-            painter->fillRect(row->rect, _helper->alphaColor(_helper->ink(row->palette), _helper->auroraVeil(row->palette, false) * 0.5));
+            painter->fillRect(row->rect, _helper->auroraVeilColor(row->palette, false, 0.5));
             painter->restore();
             return;
         }
@@ -2282,7 +2284,7 @@ bool Style::eventFilter(QObject *object, QEvent *event)
                     _helper->clearUnder(&painter, child->geometry());
                     painter.setRenderHint(QPainter::Antialiasing, true);
                     painter.setPen(Qt::NoPen);
-                    painter.setBrush(_helper->alphaColor(_helper->ink(widget->palette()), _helper->auroraVeil(widget->palette(), false)));
+                    painter.setBrush(_helper->auroraVeilColor(widget->palette(), false));
                     painter.drawRoundedRect(QRectF(child->geometry()).adjusted(5, 5, -5, -5), 12, 12);
                 }
             }
@@ -4838,7 +4840,7 @@ bool Style::drawFramePrimitive(const QStyleOption *option, QPainter *painter, co
             // Dolphin NG: a rounded veil with a little air around it, no box, no lines
             painter->setRenderHint(QPainter::Antialiasing, true);
             painter->setPen(Qt::NoPen);
-            painter->setBrush(_helper->alphaColor(_helper->ink(palette), _helper->auroraVeil(palette, false)));
+            painter->setBrush(_helper->auroraVeilColor(palette, false));
             painter->drawRoundedRect(QRectF(rect).adjusted(5, 5, -5, -5), 12, 12);
             return true;
         }
@@ -4855,7 +4857,7 @@ bool Style::drawFramePrimitive(const QStyleOption *option, QPainter *painter, co
         // Aurora: a side panel is a card on the glass, as the sidebar of Dolphin NG
         painter->setRenderHint(QPainter::Antialiasing, true);
         painter->setPen(Qt::NoPen);
-        painter->setBrush(_helper->alphaColor(_helper->ink(palette), _helper->auroraVeil(palette, false)));
+        painter->setBrush(_helper->auroraVeilColor(palette, false));
         painter->drawRoundedRect(QRectF(rect).adjusted(5, 5, -5, -5), 12, 12);
     } else if (!StyleConfigData::sidePanelDrawFrame() && widget && widget->property(PropertyNames::sidePanelView).toBool()) {
         const auto outline(_helper->sidePanelOutlineColor(palette, hasFocus, opacity, mode));
@@ -4873,7 +4875,7 @@ bool Style::drawFramePrimitive(const QStyleOption *option, QPainter *painter, co
         // Breeze NG Aurora: inside a glass window a frame is a veil, not a box of the Base colour (see polishScrollArea
         // and the general rule in polish(): what keeps a solid background of its own covers the veil anyway)
         const bool veil = widget && (widget->property("_breeze_ng_veil").toBool() || (_helper->isAurora() && widget->window()->property("_breeze_ng_glass").toBool()));
-        const auto background(veil ? _helper->alphaColor(_helper->ink(palette), _helper->auroraVeil(palette, false)) : palette.base().color());
+        const auto background(veil ? _helper->auroraVeilColor(palette, false) : palette.base().color());
         const auto outline(_helper->frameOutlineColor(palette, mouseOver, hasFocus, opacity, mode));
         _helper->renderFrame(painter, rect, background, outline);
     }
@@ -5796,7 +5798,7 @@ bool Style::drawPanelItemViewItemPrimitive(const QStyleOption *option, QPainter 
                                         // Breeze NG Aurora: in a glass window the other row is a breath of ink on the
                                         // glass, not a stripe of the scheme's solid colour (black bars in a dark scheme)
                                         (_helper->isAurora() && widget && widget->window()->property("_breeze_ng_glass").toBool())
-                                            ? _helper->alphaColor(_helper->ink(palette), _helper->auroraVeil(palette, false) * 0.5)
+                                            ? _helper->auroraVeilColor(palette, false, 0.5)
                                             : palette.color(colorGroup, QPalette::AlternateBase),
                                         QColor());
     }
@@ -5844,8 +5846,9 @@ bool Style::drawPanelItemViewItemPrimitive(const QStyleOption *option, QPainter 
     if (_helper->isAurora() && !hasCustomBackground) {
         // Aurora: the selection wears the accent, as a light sheet; the hover is the veil of every other surface
         const bool dark = _helper->isDark(palette);
-        slideColor = _helper->auroraAccent(palette, dark ? 0.34 : 0.30);
-        color = selected ? _helper->auroraAccent(palette, (dark ? 0.34 : 0.30) + (mouseOver ? 0.08 : 0.0)) : _helper->alphaColor(_helper->ink(palette), _helper->auroraVeil(palette, false));
+        slideColor = _helper->auroraSelection(palette);
+        color = selected ? _helper->auroraSelection(palette, mouseOver ? 0.08 : 0.0) : _helper->auroraVeilColor(palette, false);
+        Q_UNUSED(dark)
         focusColor = QColor(0, 0, 0, 0);
     } else if (_helper->isGlass() && !hasCustomBackground) {
         const QColor inkColor = _helper->ink(palette);
@@ -6336,6 +6339,18 @@ bool Style::drawPanelStatusBarPrimitive(const QStyleOption *option, QPainter *pa
 //___________________________________________________________________________________
 bool Style::drawPushButtonLabelControl(const QStyleOption *option, QPainter *painter, const QWidget *widget) const
 {
+    // Breeze NG Aurora: the label of what is on takes the colour of text on a selection (white on the full accent,
+    // the deep accent on its light sheet in a light scheme)
+    if (_helper->isAurora() && (_helper->auroraFullSelection() || !_helper->isDark(option->palette)) && (option->state & State_On) && option->palette.color(QPalette::ButtonText) != _helper->auroraSelectionText(option->palette)) {
+        if (const auto original = qstyleoption_cast<const QStyleOptionButton *>(option)) {
+            QStyleOptionButton copy(*original);
+            const QColor onSelection = _helper->auroraSelectionText(option->palette);
+            for (QPalette::ColorRole role : {QPalette::ButtonText, QPalette::WindowText, QPalette::Text}) {
+                copy.palette.setColor(role, onSelection);
+            }
+            return drawPushButtonLabelControl(&copy, painter, widget);
+        }
+    }
     // cast option and check
     const auto buttonOption(qstyleoption_cast<const QStyleOptionButton *>(option));
     if (!buttonOption) {
@@ -6535,6 +6550,18 @@ bool Style::drawIconButtonControl(const QStyleOption *option, QPainter *painter,
 //___________________________________________________________________________________
 bool Style::drawToolButtonLabelControl(const QStyleOption *option, QPainter *painter, const QWidget *widget) const
 {
+    // Breeze NG Aurora: the label of what is on takes the colour of text on a selection (white on the full accent,
+    // the deep accent on its light sheet in a light scheme)
+    if (_helper->isAurora() && (_helper->auroraFullSelection() || !_helper->isDark(option->palette)) && (option->state & State_On) && option->palette.color(QPalette::ButtonText) != _helper->auroraSelectionText(option->palette)) {
+        if (const auto original = qstyleoption_cast<const QStyleOptionToolButton *>(option)) {
+            QStyleOptionToolButton copy(*original);
+            const QColor onSelection = _helper->auroraSelectionText(option->palette);
+            for (QPalette::ColorRole role : {QPalette::ButtonText, QPalette::WindowText, QPalette::Text}) {
+                copy.palette.setColor(role, onSelection);
+            }
+            return drawToolButtonLabelControl(&copy, painter, widget);
+        }
+    }
     // cast option and check
     const auto toolButtonOption(qstyleoption_cast<const QStyleOptionToolButton *>(option));
 
@@ -8053,6 +8080,18 @@ void Style::tabLayout(const QStyleOptionTab *opt, const QWidget *widget, QRect *
 //___________________________________________________________________________________
 bool Style::drawTabBarTabLabelControl(const QStyleOption *option, QPainter *painter, const QWidget *widget) const
 {
+    // Breeze NG Aurora: the label of what is on takes the colour of text on a selection (white on the full accent,
+    // the deep accent on its light sheet in a light scheme)
+    if (_helper->isAurora() && (_helper->auroraFullSelection() || !_helper->isDark(option->palette)) && (option->state & State_Selected) && option->palette.color(QPalette::ButtonText) != _helper->auroraSelectionText(option->palette)) {
+        if (const auto original = qstyleoption_cast<const QStyleOptionTab *>(option)) {
+            QStyleOptionTab copy(*original);
+            const QColor onSelection = _helper->auroraSelectionText(option->palette);
+            for (QPalette::ColorRole role : {QPalette::ButtonText, QPalette::WindowText, QPalette::Text}) {
+                copy.palette.setColor(role, onSelection);
+            }
+            return drawTabBarTabLabelControl(&copy, painter, widget);
+        }
+    }
     // call parent style method
 
     // we draw the focus ourselves so we don't need the parent to do it for us.

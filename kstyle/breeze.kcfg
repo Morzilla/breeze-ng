@@ -75,6 +75,11 @@
     <entry name="AuroraDimInactive" type="Bool">
       <default>true</default>
     </entry>
+    <!-- Breeze NG Aurora: what is selected or switched on (rows, the current tab, checked buttons) is a pill of the
+         full accent colour with white text, not a light sheet of the accent -->
+    <entry name="AuroraFullSelection" type="Bool">
+      <default>false</default>
+    </entry>
     <entry name="AuroraGrain" type="Int">
       <default>30</default>
     </entry>

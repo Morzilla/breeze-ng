@@ -143,13 +143,24 @@ public:
     {
         if (_aurora) {
             // Aurora: a veil, not a solid panel: the lights behind the window show through the tab pages too
-            return alphaColor(ink(palette), auroraVeil(palette, false));
+            return auroraVeilColor(palette, false);
         }
         return KColorUtils::mix(palette.color(QPalette::Window), ink(palette), isDark(palette) ? 0.08 : 0.05);
     }
     //* Breeze NG Aurora: how much ink a surface holds at rest: one intensity for panels, sidebars and cards, one for
     //* buttons and fields (the same unless the user sets them apart)
     qreal auroraVeil(const QPalette &palette, bool button) const;
+    //* Breeze NG Aurora: the veil as a colour. Dark schemes: white ink at auroraVeil(). Light schemes: frost, white
+    //* too and much denser (black ink on light glass read as grey, a dirty panel): surfaces are lighter than the glass
+    QColor auroraVeilColor(const QPalette &palette, bool button, qreal factor = 1.0, qreal more = 0.0) const;
+    //* the same for an amount of ink worked out elsewhere (a button's fill with its hover and press)
+    QColor auroraSheet(const QPalette &palette, qreal inkAlpha) const;
+    //* Breeze NG Aurora: the ground of what is selected or switched on: a light sheet of the accent, or the full
+    //* accent (setting AuroraFullSelection); \a more adds to it (hover, press)
+    QColor auroraSelection(const QPalette &palette, qreal more = 0.0) const;
+    //* the colour of text and marks on auroraSelection()
+    QColor auroraSelectionText(const QPalette &palette) const;
+    bool auroraFullSelection() const;
     //* Breeze NG Aurora: the accent as a light (its hue, always luminous), with the given alpha
     QColor auroraAccent(const QPalette &palette, qreal alpha) const;
     //* Breeze NG Aurora: is the sheet of a menu joined to its button see-through (then the button is laid as joinedFill

@@ -441,7 +441,7 @@ qreal Decoration::ngSheetAlpha(const QColor &sheet) const
     if (!m_ngAurora) {
         return 0.70;
     }
-    return qMin(m_ngAuroraBody + (sheet.lightnessF() < 0.5 ? (m_ngAuroraLight ? 0 : 22) : 18), 95) / 100.0; // as Helper::windowSheetAlpha
+    return qMin(m_ngAuroraBody + (sheet.lightnessF() < 0.5 ? (m_ngAuroraLight ? 0 : 22) : 32), 95) / 100.0; // as Helper::windowSheetAlpha
 }
 
 bool Decoration::ngAurora() const
@@ -805,12 +805,12 @@ void Decoration::paintTitleBar(QPainter *painter, const QRectF &repaintRegion)
         const QColor highlight = QGuiApplication::palette().color(QPalette::Active, QPalette::Highlight);
         const qreal hue = highlight.hslHueF() < 0 ? 0.58 : highlight.hslHueF();
         const qreal saturation = qBound(0.60, highlight.hslSaturationF() * 1.4, 0.95);
-        const QColor accent = QColor::fromHslF(hue, saturation, 0.62); // luminous, as in the widget style
-        QColor second = QColor::fromHslF(std::fmod(hue + 0.17, 1.0), saturation, 0.64);
+        const QColor accent = QColor::fromHslF(hue, saturation, (titleBarColor().lightnessF() < 0.5) ? 0.62 : 0.90); // luminous, as in the widget style
+        QColor second = QColor::fromHslF(std::fmod(hue + 0.17, 1.0), saturation, (titleBarColor().lightnessF() < 0.5) ? 0.64 : 0.91);
         if (m_ngAuroraSecond.isValid()) { // the user's own second light, as in the widget style
-            second = QColor::fromHslF(m_ngAuroraSecond.hslHueF() < 0 ? hue : m_ngAuroraSecond.hslHueF(), qBound(0.60, m_ngAuroraSecond.hslSaturationF() * 1.4, 0.95), 0.64);
+            second = QColor::fromHslF(m_ngAuroraSecond.hslHueF() < 0 ? hue : m_ngAuroraSecond.hslHueF(), qBound(0.60, m_ngAuroraSecond.hslSaturationF() * 1.4, 0.95), (titleBarColor().lightnessF() < 0.5) ? 0.64 : 0.91);
         }
-        const qreal strength = (titleBarColor().lightnessF() < 0.5 ? 1.0 : 0.70) * ((window()->isActive() || ngSteady()) ? 1.0 : 0.6) * m_ngAuroraLights;
+        const qreal strength = (titleBarColor().lightnessF() < 0.5 ? 1.0 : 0.95) * ((window()->isActive() || ngSteady()) ? 1.0 : 0.6) * m_ngAuroraLights;
         const qreal radius = qBound(260.0, rect.width() * 0.55, 620.0);
         auto light = [&](const QPointF &centre, qreal r, QColor colour, qreal alpha) {
             QRadialGradient gradient(centre, r);
@@ -822,6 +822,11 @@ void Decoration::paintTitleBar(QPainter *painter, const QRectF &repaintRegion)
             gradient.setColorAt(1.0, colour);
             painter->fillRect(rect, gradient);
         };
+        if (titleBarColor().lightnessF() >= 0.5) { // (as Helper::renderAuroraLights: the wash of the accent on light schemes)
+            QColor wash = accent;
+            wash.setAlphaF(qMin(1.0, 0.20 * strength));
+            painter->fillRect(rect, wash);
+        }
         light(QPointF(rect.left(), rect.bottom() + 1), radius, accent, 0.52);
         light(QPointF(rect.right() + 1, rect.bottom() + 1), radius * 0.8, second, 0.36);
         if (m_ngAuroraGrain > 0) {

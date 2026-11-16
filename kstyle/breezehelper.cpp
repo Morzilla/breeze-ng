@@ -242,7 +242,7 @@ qreal Helper::windowSheetAlpha() const
         const int body = qBound(10, StyleConfigData::auroraBodyOpacity(), 95);
         // the setting is the glass of Aurora Light; Aurora (dark tones) holds more of the window's colour; under a
         // light colour scheme a dark desktop behind would turn the window grey: less see-through there too
-        return qMin(body + (isDark(QApplication::palette()) ? (_auroraLight ? 0 : 22) : 18), 95) / 100.0;
+        return qMin(body + (isDark(QApplication::palette()) ? (_auroraLight ? 0 : 22) : 32), 95) / 100.0;
     }
     return opacity / 100.0;
 }
@@ -251,6 +251,54 @@ qreal Helper::auroraVeil(const QPalette &palette, bool button) const
 {
     const int percent = qBound(0, button ? StyleConfigData::auroraButtonVeil() : StyleConfigData::auroraPanelVeil(), 40);
     return percent / 100.0 * (isDark(palette) ? 1.0 : 0.75); // black ink weighs more than white
+}
+
+QColor Helper::auroraSheet(const QPalette &palette, qreal inkAlpha) const
+{
+    if (isDark(palette)) {
+        return alphaColor(ink(palette), qMin(inkAlpha, 0.4));
+    }
+    return QColor::fromRgbF(1.0, 1.0, 1.0, qMin(inkAlpha * 8.0, 0.92));
+}
+
+QColor Helper::auroraVeilColor(const QPalette &palette, bool button, qreal factor, qreal more) const
+{
+    if (isDark(palette)) {
+        return alphaColor(ink(palette), qMin(auroraVeil(palette, button) * factor + more, 1.0));
+    }
+    // (auroraVeil() is 3/4 of the setting on light schemes: 7 % gives 0.46 for panels, 0.55 for buttons and fields)
+    return QColor::fromRgbF(1.0, 1.0, 1.0, qMin((auroraVeil(palette, button) * (button ? 10.5 : 8.8) * factor) + more * 3.0, 0.92));
+}
+
+bool Helper::auroraFullSelection() const
+{
+    return StyleConfigData::auroraFullSelection();
+}
+
+QColor Helper::auroraSelection(const QPalette &palette, qreal more) const
+{
+    const bool dark = isDark(palette);
+    if (auroraFullSelection()) {
+        QColor accent = auroraAccent(palette, 1.0);
+        float h, s, l;
+        accent.getHslF(&h, &s, &l);
+        return QColor::fromHslF(h, s, qBound(0.0, (dark ? 0.54 : 0.52) + more * 0.5, 1.0)); // deep enough for white text
+    }
+    return auroraAccent(palette, qMin(1.0, (dark ? 0.34 : 0.22) + more));
+}
+
+QColor Helper::auroraSelectionText(const QPalette &palette) const
+{
+    if (auroraFullSelection()) {
+        return QColor(255, 255, 255);
+    }
+    if (!isDark(palette)) {
+        // on a light sheet of the accent: the accent itself, deep enough to read
+        float h, s, l;
+        auroraAccent(palette, 1.0).getHslF(&h, &s, &l);
+        return QColor::fromHslF(h, s, 0.38);
+    }
+    return palette.color(QPalette::Active, QPalette::Text);
 }
 
 QColor Helper::auroraAccent(const QPalette &palette, qreal alpha) const
@@ -296,18 +344,20 @@ void Helper::renderAuroraLights(QPainter *painter, const QRectF &windowRect, con
     // three soft lights: the accent from the top left corner, a neighbouring hue from the top right, the accent again
     // from the bottom right. The window decoration draws the same two top ones in the title bar, from the same
     // centres (the top corners of the window's contents), so they run on without a seam.
+    // (light schemes: pastel lights. At the lightness of the dark schemes they are darker than the light sheet and
+    // dimmed the window to grey instead of tinting it)
     // lights, not paint: the hue of the accent, but always luminous (a scheme's highlight may be a dark blue, which
     // would dim the window instead of lighting it)
     const QColor highlight = palette.color(QPalette::Active, QPalette::Highlight);
     const qreal hue = highlight.hslHueF() < 0 ? 0.58 : highlight.hslHueF();
     const qreal saturation = qBound(0.60, highlight.hslSaturationF() * 1.4, 0.95);
-    const QColor accent = QColor::fromHslF(hue, saturation, 0.62);
+    const QColor accent = QColor::fromHslF(hue, saturation, (isDark(palette)) ? 0.62 : 0.90);
     // the second light: the user's own colour (its hue, made luminous like the accent's), or a hue next to the accent's
-    QColor second = QColor::fromHslF(std::fmod(hue + 0.17, 1.0), saturation, 0.64);
+    QColor second = QColor::fromHslF(std::fmod(hue + 0.17, 1.0), saturation, (isDark(palette)) ? 0.64 : 0.91);
     if (const QColor chosen(StyleConfigData::auroraSecondAccent()); chosen.isValid() && !StyleConfigData::auroraSecondAccent().isEmpty()) {
-        second = QColor::fromHslF(chosen.hslHueF() < 0 ? hue : chosen.hslHueF(), qBound(0.60, chosen.hslSaturationF() * 1.4, 0.95), 0.64);
+        second = QColor::fromHslF(chosen.hslHueF() < 0 ? hue : chosen.hslHueF(), qBound(0.60, chosen.hslSaturationF() * 1.4, 0.95), (isDark(palette)) ? 0.64 : 0.91);
     }
-    const qreal strength = (isDark(palette) ? 1.0 : 0.70) * ((active || !StyleConfigData::auroraDimInactive()) ? 1.0 : 0.6) * qBound(0, StyleConfigData::auroraLights(), 180) / 100.0;
+    const qreal strength = (isDark(palette) ? 1.0 : 0.95) * ((active || !StyleConfigData::auroraDimInactive()) ? 1.0 : 0.6) * qBound(0, StyleConfigData::auroraLights(), 180) / 100.0;
     if (strength <= 0.0) {
         return;
     }
@@ -322,6 +372,13 @@ void Helper::renderAuroraLights(QPainter *painter, const QRectF &windowRect, con
         gradient.setColorAt(1.0, colour);
         painter->fillRect(windowRect, gradient);
     };
+    // light schemes: a wash of the accent over the whole sheet, barely there, under the lights (the sheet itself is
+    // denser there too: what lies behind the window greyed it)
+    if (!isDark(palette)) {
+        QColor wash = accent;
+        wash.setAlphaF(qMin(1.0, 0.20 * strength));
+        painter->fillRect(windowRect, wash);
+    }
     light(windowRect.topLeft(), radius, accent, 0.52);
     light(windowRect.topRight(), radius * 0.8, second, 0.36);
     light(windowRect.bottomRight(), radius * 0.9, accent, 0.32);
@@ -467,7 +524,7 @@ QColor Helper::inputBackground(const QPalette &palette) const
 {
     const QColor base = palette.color(QPalette::Base);
     // Aurora: the same veil as the buttons, so that every surface has one intensity
-    return _aurora ? alphaColor(ink(palette), auroraVeil(palette, true)) : isGlass() ? alphaColor(base, 0.62) : base;
+    return _aurora ? auroraVeilColor(palette, true) : isGlass() ? alphaColor(base, 0.62) : base;
 }
 
 QColor Helper::frameOutlineColor(const QPalette &palette, bool mouseOver, bool hasFocus, qreal opacity, AnimationMode mode) const
@@ -1141,10 +1198,10 @@ void Helper::renderNgButtonFrame(QPainter *painter,
     } else if (down) {
         fill += 0.08;
     }
-    QColor bg = alphaColor(inkColor, qMin(fill, 0.4));
+    QColor bg = _aurora ? auroraSheet(palette, fill) : alphaColor(inkColor, qMin(fill, 0.4));
     if (_aurora && checked) {
         // Aurora: what is on wears the accent
-        bg = auroraAccent(palette, (dark ? 0.34 : 0.30) + (fill - 0.18));
+        bg = auroraSelection(palette, fill - 0.18);
     }
     if (_aurora && defaultButton && !checked) {
         // Aurora: the primary action is a sheet of the accent
@@ -2043,7 +2100,7 @@ void Helper::renderTabBarTab(QPainter *painter,
         // the round ends off the neighbours of the current tab, whose rectangle reaches over them.)
         painter->setPen(Qt::NoPen);
         // Aurora: the current tab wears the accent
-        painter->setBrush(selected && _aurora ? auroraAccent(palette, veil + 0.16) : alphaColor(ink(palette), veil));
+        painter->setBrush(selected && _aurora ? auroraSelection(palette, veil - 0.16) : _aurora ? auroraSheet(palette, veil) : alphaColor(ink(palette), veil));
         painter->drawRoundedRect(pill, radius, radius);
         return;
     }
