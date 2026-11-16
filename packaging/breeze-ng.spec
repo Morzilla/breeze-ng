@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: GPL-2.0-or-later
-%global commit      3682ce8c4b6e9f20d59efa9e1af4b399c08030ee
+%global commit      974d94c8989ad3969edab2bdcb736287d39d7c6a
 %global shortcommit %(c=%{commit}; echo ${c:0:7})
-%global snapdate    202611161922
+%global snapdate    202611161933
 # snapdate: date and time of the commit (YYYYMMDDHHMM), so that two snapshots of one day sort in order
 # installed apart from the system, next to Fedora's own Breeze
 %global ngprefix    /opt/ng/breeze-ng
@@ -123,6 +123,9 @@ done
 %{_qt6_plugindir}/org.kde.kdecoration3.kcm/kcm_breezengdecoration.so
 
 %changelog
+* Mon Nov 16 2026 Morzilla <3956663+Morzilla@users.noreply.github.com> - 6.7.5^202611161933git974d94c-1
+- Qt Quick: no crash in System Settings' Global Theme, no white sidebar, no stutter
+
 * Mon Nov 16 2026 Morzilla <3956663+Morzilla@users.noreply.github.com> - 6.7.5^202611161922git3682ce8-1
 - Breeze NG Code colour scheme
 
