@@ -98,13 +98,15 @@ Everything is stored in `breezengrc`. The variant follows the decoration theme c
 `Breeze NG Glass`), which is what the global themes and the Look page set; `[Common] Variant=Soft|Glass` is the
 fallback.
 
-<img src="ng/screenshots/settings-look.png" width="640" alt="Breeze NG settings: Look (Soft or Glass, with the decoration and the colour scheme)">
+<img src="ng/screenshots/settings-look.png" width="640" alt="Breeze NG settings: Look (Soft, Glass or Aurora, the accent colour, with the decoration and the colour scheme)">
 
-| Transparency | Controls and animations |
+| Transparency | Aurora |
 |---|---|
-| <img src="ng/screenshots/settings-transparency.png" width="400" alt="Breeze NG settings: Transparency, with a live preview"> | <img src="ng/screenshots/settings-controls.png" width="400" alt="Breeze NG settings: Controls and animations"> |
-| **Windows** | **KWin effects** |
-| <img src="ng/screenshots/settings-windows.png" width="400" alt="Breeze NG settings: Windows"> | <img src="ng/screenshots/settings-effects.png" width="400" alt="Breeze NG settings: whether the two external KWin effects are installed and on"> |
+| <img src="ng/screenshots/settings-transparency.png" width="400" alt="Breeze NG settings: Transparency, with a live preview"> | <img src="ng/screenshots/settings-aurora.png" width="400" alt="Breeze NG settings: Aurora (the glass, the surfaces on it, the lights, the grain, the blur, the colour of selections)"> |
+| **Controls and animations** | **Windows** |
+| <img src="ng/screenshots/settings-controls.png" width="400" alt="Breeze NG settings: Controls and animations"> | <img src="ng/screenshots/settings-windows.png" width="400" alt="Breeze NG settings: Windows"> |
+| **KWin effects** | |
+| <img src="ng/screenshots/settings-effects.png" width="400" alt="Breeze NG settings: whether the two external KWin effects are installed and on"> | |
 
 ## Everything at once
 

@@ -13,9 +13,24 @@
 > |---|---|
 > | <img src="ng/screenshots/aurora-settings-dark.png" width="400" alt="Breeze NG in Aurora Glass, dark"> | <img src="ng/screenshots/aurora-settings-light.png" width="400" alt="Breeze NG in Aurora Glass, light"> |
 >
+> What it adds to Breeze:
+>
+> - **Three looks**: *Soft* (solid surfaces told apart by tone, no outlines at rest), *Glass* (translucent windows and
+>   menus with the desktop blurred behind) and *Aurora Glass* (glass without rims, soft lights of your accent colour
+>   behind each window, veils instead of lines), each with a dark and a light colour scheme and a global theme.
+> - **The whole desktop in the same look**: the widget style, the window decoration, the Plasma style (panel, launcher,
+>   popups) and, in Aurora, the Qt Quick applications too (System Settings, Info Centre, Discover).
+> - **No separator lines**, menus as padded rounded panels that join the button they open from, tabs as one sheet with
+>   their panel, pill tabs in Aurora, a soft glow inside the field or button that has the focus.
+> - **Your accent colour everywhere**: one click in the settings tints selections, sliders and Aurora's lights.
+> - **A settings window of its own** (System Settings › Application Style › Breeze NG › Configure): transparency,
+>   Aurora's glass and lights, animations, window dragging, shadows.
+>
+> **Every look and setting in detail, with pictures: [NG.md](NG.md).**
+>
 > **Try it with the graphical installer:** [what it does and how to run it](NG.md#everything-at-once) (it sets up Breeze NG and, if you want, the rest of the NG desktop: Dolphin NG, the NeoLine icons, Dialog NG, all in your home folder).
 >
-> Everything about the three looks is in [NG.md](NG.md); the rest of this file is the original Breeze README.
+> The rest of this file is the original Breeze README.
 
 # Breeze
 
