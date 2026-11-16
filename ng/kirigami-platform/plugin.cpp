@@ -410,6 +410,64 @@ private:
     std::function<void()> m_call;
 };
 
+// A plain Rectangle that covers (nearly) the whole window in the scheme's solid base or window colour is the page's
+// background painted by the application itself (Elisa's main view is one: palette.base, not Kirigami's theme): in
+// Aurora it hid the glass, the body was a solid block under a glass title bar. It is cleared to show the glass.
+void unfillCovers(QQuickWindow *window)
+{
+    if (!window || window->property("_breeze_ng_cover_hook").toBool()) {
+        return;
+    }
+    window->setProperty("_breeze_ng_cover_hook", true);
+    auto walk = [window] {
+        const QPalette palette = QGuiApplication::palette();
+        const QColor base = palette.color(QPalette::Base), ground = palette.color(QPalette::Window);
+        const QSizeF size = window->size();
+        auto close = [](const QColor &a, const QColor &b) {
+            return qAbs(a.red() - b.red()) + qAbs(a.green() - b.green()) + qAbs(a.blue() - b.blue()) <= 6;
+        };
+        std::function<void(QQuickItem *, int)> visit = [&](QQuickItem *node, int depth) {
+            if (node->inherits("QQuickRectangle") && !node->property("_breeze_ng_unfilled").toBool() && node->width() >= size.width() * 0.8
+                && node->height() >= size.height() * 0.6) {
+                const QColor colour = node->property("color").value<QColor>();
+                // the scheme's colour as the application has it, or (Qt Quick's own palette can differ a little) a neutral
+                // grey of the same lightness as the window
+                const bool neutral = colour.hslSaturationF() < 0.12 && qAbs(colour.lightnessF() - ground.lightnessF()) < 0.12;
+                if (colour.alpha() == 255 && (close(colour, base) || close(colour, ground) || neutral)) {
+                    node->setProperty("_breeze_ng_unfilled", true);
+                    node->setProperty("color", QColor(Qt::transparent));
+                    // its binding (palette.base) puts the colour back when the palette changes: cleared again then
+                    auto *relay = new Relay(node, [node] {
+                        if (node->property("color").value<QColor>().alpha() == 255) {
+                            node->setProperty("color", QColor(Qt::transparent));
+                        }
+                    });
+                    QObject::connect(node, SIGNAL(colorChanged()), relay, SLOT(fire()), Qt::QueuedConnection);
+                }
+            }
+            if (depth < 6) { // (such backgrounds sit near the top of the tree)
+                const auto children = node->childItems();
+                for (QQuickItem *child : children) {
+                    visit(child, depth + 1);
+                }
+            }
+        };
+        visit(window->contentItem(), 0);
+    };
+    auto last = std::make_shared<QElapsedTimer>();
+    QObject::connect(window, &QQuickWindow::afterAnimating, window, [walk, last] {
+        if (!last->isValid() || last->elapsed() > 400) {
+            last->start();
+            walk();
+        }
+    });
+    // (a window at rest does not animate: look a few times while it fills, too)
+    for (int delay : {0, 150, 400, 900, 1600, 3000, 5000}) {
+        QTimer::singleShot(delay, window, walk);
+    }
+}
+
+
 // An icon inside a button that is on (an orientation in the display settings, a view switch): it takes the colour of
 // text on a selection, as the button's sheet is one (the deep accent on its light sheet, white on the full accent).
 // The icon asks for a theme of its own; the button above it is watched for being switched on and off.
@@ -642,6 +700,7 @@ private:
                     QObject::connect(quickWindow, &QQuickWindow::colorChanged, quickWindow, clear, Qt::QueuedConnection);
                     quickWindow->setColor(Qt::transparent);
                     new AuroraBackdrop(quickWindow, look);
+                    unfillCovers(quickWindow);
                     if (qEnvironmentVariableIsSet("BREEZE_NG_DEBUG_QUICK")) {
                         QTimer::singleShot(4000, quickWindow, [quickWindow] {
                             dumpItems(quickWindow->contentItem(), 0);
