@@ -269,7 +269,7 @@ QColor Helper::auroraSheet(const QPalette &palette, qreal inkAlpha) const
     if (isDark(palette)) {
         return alphaColor(ink(palette), qMin(inkAlpha, 0.4));
     }
-    return QColor::fromRgbF(1.0, 1.0, 1.0, qMin(inkAlpha * 8.0, 0.92));
+    return QColor::fromRgbF(1.0, 1.0, 1.0, qMin(inkAlpha * 15.0, 0.94)); // (7 % gives 0.79: a button or a field is white on the frost)
 }
 
 QColor Helper::auroraVeilColor(const QPalette &palette, bool button, qreal factor, qreal more) const
@@ -278,7 +278,7 @@ QColor Helper::auroraVeilColor(const QPalette &palette, bool button, qreal facto
         return alphaColor(ink(palette), qMin(auroraVeil(palette, button) * factor + more, 1.0));
     }
     // (auroraVeil() is 3/4 of the setting on light schemes: 7 % gives 0.46 for panels, 0.55 for buttons and fields)
-    return QColor::fromRgbF(1.0, 1.0, 1.0, qMin((auroraVeil(palette, button) * (button ? 10.5 : 8.8) * factor) + more * 3.0, 0.92));
+    return QColor::fromRgbF(1.0, 1.0, 1.0, qMin((auroraVeil(palette, button) * (button ? 15.0 : 8.8) * factor) + more * 3.0, 0.94));
 }
 
 bool Helper::auroraFullSelection() const
@@ -295,7 +295,14 @@ QColor Helper::auroraSelection(const QPalette &palette, qreal more) const
         accent.getHslF(&h, &s, &l);
         return QColor::fromHslF(h, s, qBound(0.0, (dark ? 0.54 : 0.52) + more * 0.5, 1.0)); // deep enough for white text
     }
-    return auroraAccent(palette, qMin(1.0, (dark ? 0.34 : 0.22) + more));
+    if (dark) {
+        return auroraAccent(palette, qMin(1.0, 0.34 + more));
+    }
+    // light schemes: a light sheet of the accent on frost, as one colour (on the bare glass the accent alone was a
+    // dark patch): white at 0.55 with the accent at 0.22 over it
+    const QColor accent = auroraAccent(palette, 1.0);
+    const qreal a = qMin(0.5, 0.22 + more), w = 0.55 * (1.0 - a), alpha = w + a;
+    return QColor::fromRgbF((w + accent.redF() * a) / alpha, (w + accent.greenF() * a) / alpha, (w + accent.blueF() * a) / alpha, alpha);
 }
 
 QColor Helper::auroraSelectionText(const QPalette &palette) const
@@ -1560,7 +1567,9 @@ void Helper::renderCheckBox(QPainter *painter,
     painter->setPen(Qt::transparent);
     painter->setBrush(Qt::transparent);
 
-    auto checkPen = QPen(palette.text(), PenWidth::Frame * 2);
+    // (Aurora: the box that is on is a block of the accent: its mark is white, whatever the scheme's text colour)
+    const QBrush mark = _aurora ? QBrush(QColor(255, 255, 255)) : palette.text();
+    auto checkPen = QPen(mark, PenWidth::Frame * 2);
     checkPen.setJoinStyle(Qt::MiterJoin);
 
     switch (state) {
@@ -1571,7 +1580,7 @@ void Helper::renderCheckBox(QPainter *painter,
         painter->drawPath(path);
         break;
     case CheckPartial:
-        painter->setBrush(palette.text());
+        painter->setBrush(mark);
         painter->drawRect(leftDot);
         painter->drawRect(centerDot);
         painter->drawRect(rightDot);
@@ -1717,7 +1726,7 @@ void Helper::renderRadioButton(QPainter *painter,
     }
 
     painter->save();
-    painter->setBrush(palette.text());
+    painter->setBrush(_aurora ? QBrush(QColor(255, 255, 255)) : palette.text());
     painter->setPen(Qt::NoPen);
     // Breeze NG: antialiased like the ring around it. Without it Qt rounded the small disc unevenly: one pixel
     // narrower in height than in width and half a pixel below the ring's centre.
