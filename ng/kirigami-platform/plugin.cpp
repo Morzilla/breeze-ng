@@ -617,6 +617,24 @@ private:
                 colours(forIcon);
                 checkedIcon(guard, owner, forIcon);
             }
+            // the indicators of switches and check boxes draw their track and handle in the theme's background
+            // colour: made see-through, the handle vanished and the track was a dark smudge. They keep the scheme's
+            // solid colours (as in the widget style)
+            if (!window && owner) {
+                bool indicator = false;
+                for (QObject *up = owner; up && !indicator; up = up->parent()) {
+                    const QByteArray name = up->metaObject()->className();
+                    indicator = name.startsWith("SwitchIndicator") || name.startsWith("CheckIndicator");
+                }
+                if (indicator) {
+                    if (guard->property("_breeze_ng_glass").toInt() != 0) {
+                        guard->setCustomBackgroundColor();
+                        guard->setCustomAlternateBackgroundColor();
+                        guard->setProperty("_breeze_ng_glass", 0);
+                    }
+                    return;
+                }
+            }
             if (!window && floats(owner)) {
                 if (guard->property("_breeze_ng_glass").toInt() != 0) {
                     guard->setCustomBackgroundColor();
