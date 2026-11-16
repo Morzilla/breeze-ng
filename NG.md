@@ -2,9 +2,18 @@
 
 <img src="ng/logo.png" width="96" align="right" alt="Breeze NG logo">
 
-A fork of KDE's [Breeze](https://invent.kde.org/plasma/breeze) widget style and window decoration with two looks
-that go further than the original: **Soft** and **Glass**. It installs next to the stock Breeze, under its own
-names, and leaves it untouched.
+A fork of KDE's [Breeze](https://invent.kde.org/plasma/breeze) widget style and window decoration with three looks
+that go further than the original: **Soft**, **Glass** and **Aurora Glass**. It installs next to the stock Breeze,
+under its own names, and leaves it untouched.
+
+**Fedora 44 and 45: there are ready-made packages on COPR**, no building needed:
+
+```
+sudo dnf copr enable morzilla/desktop-ng
+sudo dnf install breeze-ng
+```
+
+Log out and in again afterwards. The same repository has the rest of the NG desktop: `breeze-ng`, `dolphin-ng`, `dialog-ng`, `neoline-icons` ([project page](https://copr.fedorainfracloud.org/coprs/morzilla/desktop-ng/)).
 
 **Try it with the graphical installer: [what it does, step by step](#everything-at-once).** Pick the parts of the NG
 desktop (Breeze NG, [Dolphin NG](https://github.com/Morzilla/dolphin-ng), the NeoLine icons, Dialog NG), pick a look,
@@ -25,6 +34,24 @@ Both looks share: no separator lines anywhere, menus with padded rounded panels 
 current item, tabs that are one sheet with their panel, a neon glow inside fields and buttons that have the focus,
 and a menu opened from a button that joins it into one shape.
 
+### Aurora Glass
+
+Glass pushed further: no rims, soft lights in the accent colour behind each window, veils instead of outlines,
+pill tabs. It works with the dark and with the light colour scheme (on the light one the glass turns to frost:
+white veils, a pale sheet of the accent for what is selected). A page of its own in the settings sets how
+see-through the glass is, how much the surfaces on it stand out, the lights, the grain and the blur, and whether
+selections use a light sheet of the accent or the full accent with white text.
+
+Qt Quick applications built with Kirigami (System Settings' modules, Info Centre, System Monitor, Discover) get the
+same glass through a small platform plugin that comes with Breeze NG ([how it works](ng/kirigami-platform/README.md)).
+
+| Dark | Light |
+|---|---|
+| <img src="ng/screenshots/aurora-settings-dark.png" width="420" alt="Breeze NG's settings in Aurora Glass, dark"> | <img src="ng/screenshots/aurora-settings-light.png" width="420" alt="Breeze NG's settings in Aurora Glass, light"> |
+| <img src="ng/screenshots/aurora-qtquick-dark.png" width="420" alt="System Settings (Qt Quick) in Aurora Glass, dark"> | <img src="ng/screenshots/aurora-qtquick-light.png" width="420" alt="System Settings (Qt Quick) in Aurora Glass, light"> |
+
+### Soft and Glass
+
 ![Dolphin NG and, on the right, a small demo window with the common controls in Breeze NG Soft (ng/demo-controls.py)](ng/screenshots/desktop.png)
 
 ![Dolphin NG in Breeze NG, its glass sidebar showing the compositor's blur of the desktop](ng/screenshots/dolphin-live-blur.png)
@@ -39,9 +66,10 @@ and a menu opened from a button that joins it into one shape.
 ## Parts
 
 - `kstyle/` – the widget style, plugin key `BreezeNG`
-- `kdecoration/` – the KWin decoration `org.kde.breezeng`, themes `Breeze NG Soft` and `Breeze NG Glass`
+- `kdecoration/` – the KWin decoration `org.kde.breezeng`, themes `Breeze NG Soft`, `Breeze NG Glass` and `Breeze NG Aurora`
 - [`ng/breeze-ng`](ng/breeze-ng) – build, install and switch script
-- [`ng/look-and-feel/`](ng/look-and-feel/) – the two global themes (System Settings › Global Theme): widget style, window
+- [`ng/kirigami-platform/`](ng/kirigami-platform/) – Aurora for Qt Quick applications (Kirigami's platform plugin)
+- [`ng/look-and-feel/`](ng/look-and-feel/) – the global themes (System Settings › Global Theme), one per look and colour scheme: widget style, window
   decoration, colours and Plasma style together
 - [`ng/plasma-style/make-plasma-style.py`](ng/plasma-style/make-plasma-style.py) – builds the Plasma styles `Breeze NG Soft` and
   `Breeze NG Glass` from Plasma's default one: what Plasma draws itself (the panel's popups, the launcher, their buttons,
@@ -56,9 +84,10 @@ The installers keep the sources in `~/.local/src/breeze-ng`, so the commands bel
 System Settings › Appearance › Application Style › Breeze NG › Configure (or `~/.local/src/breeze-ng/ng/breeze-ng settings`) opens the
 settings of the style, in pages:
 
-- **Look** – Soft or Glass; choosing one also applies the Breeze NG window decoration and the BreezeNG colour
+- **Look** – Soft, Glass or Aurora, and the accent colour; choosing a look also applies the Breeze NG window decoration and the BreezeNG colour
   scheme (each can be left out).
 - **Transparency** – how see-through windows (Glass) and menus are, with a live preview.
+- **Aurora** – the glass, the surfaces on it, the lights, the grain, the blur, and the colour of selections.
 - **Controls and animations** – animation speed, keyboard shortcut underlines, scroll bar arrows, centred tabs, the
   glow inside the focused field or button (off: a thin outline), menus joining the button they open from.
 - **Windows** – where windows can be dragged from, the shadow of menus and tooltips, frames and tree lines.
