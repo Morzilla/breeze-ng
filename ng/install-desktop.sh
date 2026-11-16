@@ -339,6 +339,7 @@ if [ "$DEPS" = 1 ]; then
         # ffmpeg is only a runtime helper, and ffmpeg-free conflicts with the RPM Fusion ffmpeg many people have
         command -v ffmpeg >/dev/null || safe_pkgs dnf install ffmpeg-free || echo "ffmpeg not installed: video thumbnails in the preview may be missing"
         safe_pkgs dnf builddep dolphin breeze || safe_pkgs dnf builddep dolphin plasma-breeze || warn "the build dependencies of Dolphin and Breeze were not installed"
+        want breeze && { safe_pkgs dnf install kf6-kirigami-devel || warn "Kirigami's development files were not installed: Aurora for Qt Quick applications will be left out"; }
         want dialog && { safe_pkgs dnf builddep kf6-kio || warn "dialog: could not install the build dependencies of KIO"; }
         if want effects; then
             # what the two READMEs list for Fedora; the X11 session needs the X11 flavour of the KWin headers.
@@ -364,6 +365,7 @@ if [ "$DEPS" = 1 ]; then
             $SUDO apt-get update
             safe_pkgs apt-get build-dep dolphin breeze || die "the build dependencies of dolphin and breeze were not installed (apt-get build-dep dolphin breeze)."
         fi
+        want breeze && { safe_pkgs apt-get install libkirigami-dev || safe_pkgs apt-get install libkf6kirigami-dev || warn "Kirigami's development files were not installed: Aurora for Qt Quick applications will be left out"; }
         want dialog && { safe_pkgs apt-get install qt6-base-dev-tools; safe_pkgs apt-get build-dep kf6-kio || safe_pkgs apt-get build-dep kio || warn "dialog: could not install the build dependencies of KIO"; }
         if want effects; then
             safe_pkgs apt-get install kwin-dev qt6-base-private-dev qt6-base-dev-tools qt6-tools-dev libkf6kcmutils-dev libkf6configwidgets-dev libdrm-dev \
@@ -395,7 +397,7 @@ if [ "$DEPS" = 1 ]; then
             'cmake(KF6Config)' 'cmake(KF6KIO)' 'cmake(KF6Parts)' 'cmake(KF6Solid)' 'cmake(KF6IconThemes)' 'cmake(KF6Completion)' \
             'cmake(KF6TextWidgets)' 'cmake(KF6Notifications)' 'cmake(KF6Crash)' 'cmake(KF6WindowSystem)' 'cmake(KF6WidgetsAddons)' \
             'cmake(KF6Codecs)' 'cmake(KF6GuiAddons)' 'cmake(KF6ColorScheme)' 'cmake(KF6FileMetaData)' 'cmake(KF6Baloo)' 'cmake(KF6BalooWidgets)' \
-            'cmake(KF6FrameworkIntegration)' 'cmake(KDecoration3)' \
+            'cmake(KF6FrameworkIntegration)' 'cmake(KDecoration3)' 'cmake(KF6KirigamiPlatform)' 'cmake(Qt6Qml)' \
             || die "the build dependencies of Dolphin and Breeze were not installed (see above)."
         for optional in 'cmake(KF6DocTools)' 'cmake(KF6UserFeedback)' 'cmake(PackageKitQt6)'; do
             $SUDO zypper install -y "$optional" || true

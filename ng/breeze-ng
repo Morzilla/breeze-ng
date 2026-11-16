@@ -81,8 +81,18 @@ build)
         "$PREFIX/share/applications/kcm_breezedecoration.desktop" "$PREFIX/bin/breeze-settings6"; do
         [ -e "$stale" ] && rm -f -- "$stale"
     done
+    # Aurora for Qt Quick applications (System Settings' pages, Info Centre, Discover...): Kirigami's platform plugin.
+    # Without Kirigami's development files it is left out: the rest works, those applications stay opaque
+    if cmake -S "$W/ng/kirigami-platform" -B "$W/build-ng-kirigami" -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX="$PREFIX" >"$W/build-ng-kirigami.log" 2>&1 \
+        && nice -n 10 cmake --build "$W/build-ng-kirigami" -j"${JOBS:-4}" >>"$W/build-ng-kirigami.log" 2>&1 \
+        && cmake --install "$W/build-ng-kirigami" >>"$W/build-ng-kirigami.log" 2>&1; then
+        echo "==> Aurora for Qt Quick applications installed"
+    else
+        echo "!!  Aurora for Qt Quick applications (System Settings, Discover...) was left out: install Kirigami's development files" >&2
+        echo "    (Fedora: kf6-kirigami-devel; Debian/Ubuntu: libkirigami-dev; Arch: kirigami) and run this again. Log: $W/build-ng-kirigami.log" >&2
+    fi
     "$W/ng/breeze-ng" themes
-    echo "==> installed in $PREFIX; now: $0 env (once), then $0 use soft|glass"
+    echo "==> installed in $PREFIX; now: $0 env (once), then $0 use soft|glass|aurora"
     ;;
 env)
     mkdir -p "$(dirname "$ENVFILE")"
@@ -90,6 +100,14 @@ env)
 # Breeze NG: the fork's widget style and window decoration live under $PREFIX
 export QT_PLUGIN_PATH="$PLUGINS\${QT_PLUGIN_PATH:+:\$QT_PLUGIN_PATH}"
 EOT
+    # Aurora for Kirigami applications: its platform plugin has to come before the desktop style's own
+    KIRIGAMI=$(ls -d "$PREFIX"/lib*/breeze-ng-kirigami "$PREFIX"/lib/*/breeze-ng-kirigami 2>/dev/null | head -n1)
+    if [ -n "$KIRIGAMI" ]; then
+        cat >> "$ENVFILE" <<EOT
+# Breeze NG Aurora for Kirigami applications: its platform plugin has to come before the desktop style's own
+export QT_PLUGIN_PATH="$KIRIGAMI\${QT_PLUGIN_PATH:+:\$QT_PLUGIN_PATH}"
+EOT
+    fi
     echo "==> wrote $ENVFILE; log out and in again, then: $0 use soft|glass"
     ;;
 now)

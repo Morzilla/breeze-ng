@@ -136,6 +136,14 @@ if want breeze; then
     nice -n 10 cmake --build "$BREEZE/build-system" -j"$JOBS" >>"$TMP/breeze.log" 2>&1 || { tail -n 30 "$TMP/breeze.log"; die "Breeze NG did not build"; }
     as_root env DESTDIR="$STAGE" cmake --install "$BREEZE/build-system" >/dev/null
     as_root rm -f "$BREEZE/build-system/install_manifest.txt" # written as root: the next build as you could not replace it
+    # Aurora for Qt Quick applications: Kirigami's platform plugin (left out without Kirigami's development files)
+    if cmake -S "$BREEZE/ng/kirigami-platform" -B "$BREEZE/build-system-kirigami" -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX="$OPT/breeze-ng" >>"$TMP/breeze.log" 2>&1 \
+        && nice -n 10 cmake --build "$BREEZE/build-system-kirigami" -j"$JOBS" >>"$TMP/breeze.log" 2>&1; then
+        as_root env DESTDIR="$STAGE" cmake --install "$BREEZE/build-system-kirigami" >/dev/null
+        as_root rm -f "$BREEZE/build-system-kirigami/install_manifest.txt"
+    else
+        warn "Aurora for Qt Quick applications was left out: install Kirigami's development files and run this again"
+    fi
     put "$BREEZE/ng/color-schemes/BreezeNG.colors" "$LOCAL/share/color-schemes/BreezeNG.colors"
     put "$BREEZE/kstyle/breezeng.themerc" "$LOCAL/share/kstyle/themes/breezeng.themerc"   # the style's name and Configure button in System Settings
     for v in soft glass aurora soft.light glass.light aurora.light; do put_tree "$BREEZE/ng/look-and-feel/org.morzilla.breezeng.$v" "$LOCAL/share/plasma/look-and-feel"; done
@@ -148,6 +156,14 @@ if want breeze; then
 # Installed by install-system.sh; remove with: install-system.sh --uninstall
 export QT_PLUGIN_PATH="$plugins\${QT_PLUGIN_PATH:+:\$QT_PLUGIN_PATH}"
 EOT
+    kirigami="$(find "$STAGE$OPT/breeze-ng" -type d -name breeze-ng-kirigami | head -n 1)"
+    if [ -n "$kirigami" ]; then
+        kirigami="${kirigami#"$STAGE"}"
+        cat >> "$TMP/ng-desktop.sh" <<EOT
+# Breeze NG Aurora for Kirigami applications: its platform plugin has to come before the desktop style's own
+export QT_PLUGIN_PATH="$kirigami\${QT_PLUGIN_PATH:+:\$QT_PLUGIN_PATH}"
+EOT
+    fi
     put "$TMP/ng-desktop.sh" "$ENVFILE"
     ok "installed in $OPT/breeze-ng; every Plasma session gets it from $ENVFILE"
     DONE+=("Breeze NG    each user: log out and in, then System Settings > Global Theme > Breeze NG Soft / Glass / Aurora")

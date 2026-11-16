@@ -10,3 +10,4 @@ CMakeLists.txt.user*
 .vscode
 /build-ng/
 /deps/
+/build-ng-kirigami.log
