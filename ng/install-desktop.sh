@@ -635,7 +635,7 @@ fi
 
 if [ -n "$APPLY" ]; then
     say "Switching the desktop"
-    if want breeze && ! failed "Breeze NG"; then "$BREEZE/ng/breeze-ng" use "$APPLY" && ok "Breeze NG $APPLY"; fi
+    if want breeze && ! failed "Breeze NG"; then NG_NO_RELOGIN_NOTE=1 "$BREEZE/ng/breeze-ng" use "$APPLY" && ok "Breeze NG $APPLY"; fi
     if want icons && ! failed "NeoLine"; then
         if [ -x /usr/libexec/plasma-changeicons ]; then
             /usr/libexec/plasma-changeicons "$ICONS" >/dev/null 2>&1 || true
@@ -644,7 +644,13 @@ if [ -n "$APPLY" ]; then
         fi
         ok "icons: $ICONS"
     fi
-    want breeze && warn "the window decoration and running applications pick the style up after you log out and in"
+    want breeze && warn "applications already open pick the style up when you start them again"
+fi
+# KWin shows a new or rebuilt window decoration only after a new login: say so when that is the case
+# (the line NG-RELOGIN tells the graphical installer to offer the logout)
+if want breeze && ! failed "Breeze NG" && why=$("$BREEZE/ng/breeze-ng" relogin 2>/dev/null); then
+    warn "log out and in to see the new window title bars ($why)"
+    echo "NG-RELOGIN"
 fi
 
 if [ "${#FAILED[@]}" -gt 0 ]; then

@@ -9,6 +9,7 @@
 #   ./ng/breeze-ng off            back to the stock Breeze
 #   ./ng/breeze-ng settings       the settings window (also: System Settings > Application Style > Breeze NG > Configure)
 #   ./ng/breeze-ng status         what is active now
+#   ./ng/breeze-ng relogin        exit 0 (and say why) when KWin needs a new login to show the current decoration
 set -e
 W="$(cd "$(dirname "$(readlink -f "$0")")/.." && pwd)"   # the repository
 PREFIX="$HOME/.local/breeze-ng"
@@ -27,7 +28,41 @@ reload() {
     dbus-send --session --type=method_call --dest=org.kde.KWin /KWin org.kde.KWin.reconfigure 2>/dev/null || true
 }
 
+# KWin loads the decoration plugin once: a plugin installed or rebuilt after KWin started, or one KWin cannot find
+# (the plugin path arrives with the login), shows only after logging out and in. Says why and returns 0 when so.
+relogin_needed() {
+    local pid started plugin loaded wanted
+    pid=$(pidof kwin_wayland kwin_x11 2>/dev/null | awk '{print $1}')
+    [ -n "$pid" ] || return 1
+    # this build, or a system-wide one (/opt/ng from install-system.sh, the Qt plugin folder from the packages)
+    plugin=$(ls -t "$PLUGINS"/org.kde.kdecoration3/org.kde.breezeng.so /opt/ng/breeze-ng/lib*/plugins/org.kde.kdecoration3/org.kde.breezeng.so \
+        /usr/lib*/qt6/plugins/org.kde.kdecoration3/org.kde.breezeng.so /usr/lib/*/qt6/plugins/org.kde.kdecoration3/org.kde.breezeng.so 2>/dev/null | head -n1)
+    [ -n "$plugin" ] || return 1
+    wanted=$(kreadconfig6 --file kwinrc --group org.kde.kdecoration2 --key library 2>/dev/null || true)
+    [ "$wanted" = org.kde.breezeng ] || return 1
+    started=$(( $(date +%s) - $(ps -o etimes= -p "$pid" | tr -d ' ') ))
+    if [ "$(stat -c %Y "$plugin")" -gt "$started" ]; then
+        echo "the window decoration was installed or updated after KWin started"
+        return 0
+    fi
+    loaded=$(dbus-send --session --print-reply --dest=org.kde.KWin /KWin org.kde.KWin.supportInformation 2>/dev/null | sed -n 's/^Plugin: //p' | head -n1)
+    if [ -n "$loaded" ] && [ "$loaded" != org.kde.breezeng ]; then
+        echo "KWin does not see the Breeze NG plugins yet (it shows $loaded)"
+        return 0
+    fi
+    return 1
+}
+relogin_note() {
+    local why
+    why=$(relogin_needed) || return 0
+    printf '\n!!  Log out and in to see the new window title bars: %s.\n' "$why"
+    echo "NG-RELOGIN"
+}
+
 case "$1" in
+relogin)
+    relogin_needed
+    ;;
 build)
     mkdir -p "$W/build-ng"
     cd "$W/build-ng"
@@ -109,6 +144,10 @@ use)
     kwriteconfig6 --file kwinrc --group org.kde.kdecoration2 --key theme "Breeze NG $VARIANT"
     reload
     echo "==> Breeze NG $VARIANT. Applications already open keep their old style until restarted."
+    if [ -z "${NG_NO_RELOGIN_NOTE:-}" ]; then
+        sleep 1 # KWin applies the reconfigure asynchronously
+        relogin_note
+    fi
     ;;
 off)
     kwriteconfig6 --file kdeglobals --group KDE --key widgetStyle Breeze
@@ -127,6 +166,6 @@ status)
     [ -e "$PLUGINS/styles/breezeng6.so" ] && echo "installed:     yes" || echo "installed:     no (run: $0 build)"
     ;;
 *)
-    sed -n 2,9p "$0"
+    sed -n 2,12p "$0"
     ;;
 esac

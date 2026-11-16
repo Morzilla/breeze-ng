@@ -107,6 +107,9 @@ TEXT = {
         "then pick it in System Settings › Global Theme. Run this installer again at any time to update.",
         "Dolphin NG è nel menu delle applicazioni. Per Breeze NG esci e rientra dalla sessione una volta, così vengono trovati i nuovi plugin; "
         "poi sceglilo in Impostazioni di sistema › Tema globale. Rilancia questo installer quando vuoi per aggiornare."),
+    "relogin": ("The new window title bars appear after you log out and in: KWin, which draws them, loads them only when the session starts.",
+                "Le nuove barre del titolo delle finestre compaiono dopo che esci e rientri dalla sessione: KWin, che le disegna, le carica solo all'avvio della sessione."),
+    "logout": ("Log out now…", "Esci ora…"),
     "failed": ("Something went wrong", "Qualcosa è andato storto"),
     "report": ("Report the problem on GitHub", "Segnala il problema su GitHub"),
     "report_text": ("Every report helps the project grow and get better. The form opens already filled in with your versions and the end "
@@ -130,6 +133,7 @@ QLabel#h1 { font-size: 19pt; font-weight: 600; }
 QLabel#h2 { font-size: 13pt; font-weight: 600; }
 QLabel#dim { color: #9ea2a8; }
 QLabel#small { color: #7f848b; font-size: 9pt; }
+QLabel#warn { background: #3a3324; color: #f0d79a; border-radius: 10px; padding: 10px 14px; }
 QFrame#card { background: #292c31; border: 1px solid #33373d; border-radius: 12px; }
 QFrame#card[selected="true"] { border: 2px solid #4f8fd0; background: #2a3340; }
 QFrame#card QLabel, QFrame#card QCheckBox { background: transparent; }
@@ -323,6 +327,7 @@ class Installer(QWidget):
         self.resize(880, 760); self.setMinimumSize(860, 740)
         self.look = "soft"
         self.proc = None
+        self.relogin = False
         self.queue = []
         self.steps_total = 1
         self.steps_done = 0
@@ -465,6 +470,11 @@ class Installer(QWidget):
         self.toggle.toggled.connect(lambda on: self.filler.setVisible(not on))
         self.launch = QPushButton(t("launch")); self.launch.hide(); self.launch.clicked.connect(self.start_dolphin)
         v.addWidget(self.launch, 0, Qt.AlignmentFlag.AlignLeft)
+        # KWin shows a new or rebuilt decoration only after a new login: the installer says so with the line NG-RELOGIN
+        self.relogin_note = label(t("relogin"), "warn"); self.relogin_note.setWordWrap(True); self.relogin_note.hide()
+        v.addWidget(self.relogin_note)
+        self.logout = QPushButton(t("logout")); self.logout.hide(); self.logout.clicked.connect(self.ask_logout)
+        v.addWidget(self.logout, 0, Qt.AlignmentFlag.AlignLeft)
         # when a part fails: an invitation and a button that opens the pre-filled GitHub issue(s)
         self.report_note = label(t("report_text"), "dim"); self.report_note.setWordWrap(True); self.report_note.hide()
         v.addWidget(self.report_note)
@@ -532,6 +542,7 @@ class Installer(QWidget):
         self.queue.append((None, args))
         self.steps_total = (1 if self.deps.isChecked() else 0) + len(chosen) + 1 + (1 if self.apply.isChecked() else 0)
         self.steps_done = 0
+        self.relogin = False
         self.bar.setRange(0, 0)
         self.run_next()
 
@@ -557,6 +568,8 @@ class Installer(QWidget):
         for line in text.splitlines():
             if line.startswith("==> "):
                 self.step(line[4:].strip())
+            elif line.strip() == "NG-RELOGIN":
+                self.relogin = True
         self.log.moveCursor(QTextCursor.MoveOperation.End)
         self.log.insertPlainText(text)
         self.log.moveCursor(QTextCursor.MoveOperation.End)
@@ -581,6 +594,8 @@ class Installer(QWidget):
         self.next.setText(t("close"))
         if good:
             self.launch.setVisible(self.parts["dolphin"].isChecked() and os.path.exists(os.path.expanduser("~/.local/bin/dolphin-ng")))
+            self.relogin_note.setVisible(self.relogin)
+            self.logout.setVisible(self.relogin)
         else:
             self.toggle.setChecked(True)
         # the installer writes one "title<TAB>link" line per part that did not install
@@ -596,6 +611,11 @@ class Installer(QWidget):
     def open_reports(self):
         for url in self.reports:
             QDesktopServices.openUrl(QUrl(url))
+
+    def ask_logout(self):
+        # Plasma's own logout screen: it asks for confirmation and lets the user cancel
+        QProcess.startDetached("dbus-send", ["--session", "--type=method_call", "--dest=org.kde.LogoutPrompt",
+                                             "/LogoutPrompt", "org.kde.LogoutPrompt.promptLogout"])
 
     def start_dolphin(self):
         QProcess.startDetached(os.path.expanduser("~/.local/bin/dolphin-ng"), [])
