@@ -28,6 +28,8 @@
 #include <QMdiArea>
 #include <QMenuBar>
 #include <QPainter>
+#include <QTabBar>
+#include <QTabWidget>
 #include <QStyleOption>
 #include <QTreeView>
 #include <QWindow>
@@ -428,8 +430,12 @@ bool Helper::glassLayers(const QPainter *painter, QColor *base, QList<QColor> *p
         if (parent->inherits("QTabWidget") && child->inherits("QTabBar")) {
             continue; // the tab bar is beside the panel of its tab widget, not on it
         }
-        if (parent->inherits("QTabWidget")) {
-            panels->prepend(tabPanelColor(parent->palette()));
+        if (const auto tabWidget = qobject_cast<const QTabWidget *>(parent)) {
+            // only where the tab widget paints its panel: not in document mode (Qt then draws no panel; Gwenview's
+            // sidebar is one, and its buttons stood on squares of a panel that was not there), nor without its tab bar
+            if (!tabWidget->documentMode() && tabWidget->tabBar() && tabWidget->tabBar()->isVisible()) {
+                panels->prepend(tabPanelColor(parent->palette()));
+            }
         } else if (parent->inherits("QGroupBox")) {
             panels->prepend(frameBackgroundColor(parent->palette()));
         }
