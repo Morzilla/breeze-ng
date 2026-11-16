@@ -30,7 +30,11 @@
 #include <QPalette>
 #include <QPluginLoader>
 #include <QPointer>
+#include <QQuickRenderControl>
 #include <QTimer>
+#include <functional>
+#include <memory>
+#include <QElapsedTimer>
 #include <QWindow>
 #include <QImage>
 #include <QPainter>
@@ -253,6 +257,11 @@ void dumpItems(QQuickItem *item, int depth)
         return;
     }
     const QVariant colour = item->property("color");
+    static const bool all = qgetenv("BREEZE_NG_DEBUG_QUICK") == "2"; // every large item, coloured or not
+    if (all && item->isVisible() && item->width() > 900 && item->height() > 300) {
+        qWarning("breeze-ng kirigami big: %s %dx%d flags %d opacity %.2f clip %d color %s", item->metaObject()->className(), int(item->width()), int(item->height()),
+                 int(item->flags()), item->opacity(), item->clip(), colour.isValid() ? qPrintable(colour.value<QColor>().name(QColor::HexArgb)) : "-");
+    }
     if (item->isVisible() && item->width() > 100 && item->height() > 60 && colour.isValid() && colour.value<QColor>().alpha() > 0) {
         QByteArray chain;
         for (const QObject *o = item; o && chain.size() < 900; o = o->parent()) {
@@ -279,10 +288,89 @@ bool sideView(const QObject *owner)
 {
     for (const QObject *object = owner; object; object = object->parent()) {
         if (auto item = qobject_cast<const QQuickItem *>(object)) {
-            return item->window() && item->window()->property("_breeze_ng_side").toBool();
+            QQuickWindow *window = item->window();
+            if (!window) {
+                return false;
+            }
+            if (window->property("_breeze_ng_side").toBool()) {
+                return true; // (the widget style says so, when it has looked: it may be later than this)
+            }
+            // the same rule as the widget style's, from here: a narrow, tall view at the side of the window it is shown in
+            const QWindow *host = QQuickRenderControl::renderWindowFor(window);
+            return host && host != window && window->width() * 5 <= host->width() * 2 && window->height() * 2 > host->height();
         }
     }
     return false;
+}
+
+// Is this the theme of an item that fills (nearly) the window it is in? That is a page, not a card on it: on a light
+// scheme, where the veil is dense frost, a veil over the whole page (and another over the list inside it) made the
+// window a white slab under a tinted title bar.
+bool fillsWindow(const QObject *owner)
+{
+    for (const QObject *object = owner; object; object = object->parent()) {
+        if (auto item = qobject_cast<const QQuickItem *>(object)) {
+            const QQuickWindow *window = item->window();
+            return window && item->width() >= window->width() * 0.8 && item->height() >= window->height() * 0.6;
+        }
+    }
+    return false;
+}
+
+// A row of a sidebar (an item delegate in a side view): air around its selection, as the rows of Dolphin NG's sidebar,
+// which stand 8 px in from the card's edges with their text further in. The delegates fill the list's width and paint
+// their background edge to edge: insets move the background in, padding moves the content with it.
+void giveAir(QObject *owner)
+{
+    owner->setProperty("_breeze_ng_air", true);
+    const qreal inset = 8;
+    for (const char *name : {"leftInset", "rightInset"}) {
+        owner->setProperty(name, inset);
+    }
+    for (const char *name : {"topInset", "bottomInset"}) {
+        owner->setProperty(name, 1.0);
+    }
+    for (const char *name : {"leftPadding", "rightPadding"}) {
+        owner->setProperty(name, owner->property(name).toReal() + inset);
+    }
+}
+
+// The delegates do not ask for a theme of their own, and a list makes them as it scrolls: once a sidebar's window is
+// known, its rows are looked at after its animations, now and then
+void sideRowAir(QObject *owner)
+{
+    if (!owner || !sideView(owner)) {
+        return;
+    }
+    const auto item = qobject_cast<QQuickItem *>(owner);
+    QQuickWindow *window = item ? item->window() : nullptr;
+    if (!window || window->property("_breeze_ng_air_hook").toBool()) {
+        return;
+    }
+    window->setProperty("_breeze_ng_air_hook", true);
+    auto walk = [window] {
+        std::function<void(QQuickItem *, int)> visit = [&](QQuickItem *node, int depth) {
+            if (node->inherits("QQuickItemDelegate") && !node->property("_breeze_ng_air").toBool()) {
+                node->setProperty("_breeze_ng_air", true);
+                giveAir(node);
+            }
+            if (depth < 40) {
+                const auto children = node->childItems();
+                for (QQuickItem *child : children) {
+                    visit(child, depth + 1);
+                }
+            }
+        };
+        visit(window->contentItem(), 0);
+    };
+    auto last = std::make_shared<QElapsedTimer>();
+    QObject::connect(window, &QQuickWindow::afterAnimating, window, [walk, last] {
+        if (!last->isValid() || last->elapsed() > 250) {
+            last->start();
+            walk();
+        }
+    });
+    walk();
 }
 
 // The kind of the nearest theme above this object that has our colours: 1 a veil, 2 nothing (0: none; the window's
@@ -396,6 +484,7 @@ private:
             colours(m_look); // (with the palette of now)
             const Look look = m_look;
             const bool window = owner && owner->inherits("QQuickWindow") && !owner->inherits("QQuickWidgetOffscreenWindow");
+            sideRowAir(owner);
             if (!window && floats(owner)) {
                 if (guard->property("_breeze_ng_glass").toInt() != 0) {
                     guard->setCustomBackgroundColor();
@@ -407,7 +496,7 @@ private:
             if (const int above = (!window && guard->inherit()) ? oursAbove(owner) : 0) {
                 // It would take its colours from the theme above it, which has ours: but custom colours were seen
                 // not to reach it every time (a solid block in the middle of a glass page). Give it the same ones.
-                const bool veil = above == 1 && !sideView(owner);
+                const bool veil = above == 1 && !sideView(owner) && (look.dark || !fillsWindow(owner));
                 guard->setCustomBackgroundColor(veil ? look.veil : look.ground);
                 guard->setCustomAlternateBackgroundColor(veil ? look.veil : look.ground);
                 if (look.onSelection.isValid()) {
@@ -415,14 +504,13 @@ private:
                 }
                 guard->setProperty("_breeze_ng_glass", veil ? 5 : 6);
                 cardShadow(owner);
-            messageGlass(owner);
                 messageGlass(owner);
                 return;
             }
             const bool view = guard->colorSet() == PlatformTheme::View && !window;
             // (a sidebar view inside a window of widgets has its card painted under it by the widget style, which
             // marks the view's window: no veil of its own on top of that)
-            const bool veiled = view && !onVeil(owner) && !sideView(owner);
+            const bool veiled = view && !onVeil(owner) && !sideView(owner) && (look.dark || !fillsWindow(owner));
             // (the window's own theme is nothing too: the sheet is painted once, by the backdrop; as the window's
             // colour it was laid again by every item that took its colour from the window)
             const QColor background = veiled ? look.veil : look.ground;
@@ -434,10 +522,42 @@ private:
             guard->setProperty("_breeze_ng_glass", window ? 4 : veiled ? 1 : view ? 3 : 2); // (the widget style's own pass leaves these alone)
             cardShadow(owner);
             messageGlass(owner);
-            if (window && !owner->property("_breeze_ng_blur").toBool()) {
-                owner->setProperty("_breeze_ng_blur", true);
-                owner->installEventFilter(new BlurBehind(owner));
-                if (auto quickWindow = qobject_cast<QQuickWindow *>(owner.data())) {
+            // the window this item is shown in: its glass is set up here too, when the window's own theme came
+            // first in a way that missed it (the Welcome Center was seen with a plain white window: QQuickWindow's
+            // own default colour, no sheet and no lights, under a title bar that had them)
+            QObject *glassOwner = window ? owner.data() : nullptr;
+            if (!glassOwner && owner) {
+                for (QObject *object = owner; object; object = object->parent()) {
+                    if (auto item = qobject_cast<QQuickItem *>(object)) {
+                        QQuickWindow *itemWindow = item->window();
+                        if (itemWindow && !itemWindow->inherits("QQuickWidgetOffscreenWindow") && itemWindow->format().hasAlpha()) {
+                            glassOwner = itemWindow;
+                        }
+                        break;
+                    }
+                }
+            }
+            if (glassOwner && !glassOwner->property("_breeze_ng_blur").toBool()) {
+                glassOwner->setProperty("_breeze_ng_blur", true);
+                glassOwner->installEventFilter(new BlurBehind(glassOwner));
+                if (auto shown = qobject_cast<QWindow *>(glassOwner); shown && shown->handle()) {
+                    KWindowEffects::enableBlurBehind(shown, true); // (already on screen: no expose to wait for)
+                }
+                if (qEnvironmentVariableIsSet("BREEZE_NG_DEBUG_QUICK")) {
+                    qWarning("breeze-ng kirigami: glass for %s (from %s)", glassOwner->metaObject()->className(), owner ? owner->metaObject()->className() : "-");
+                }
+                if (auto quickWindow = qobject_cast<QQuickWindow *>(glassOwner)) {
+                    // The window is cleared with its colour as it is, not premultiplied: "nothing in the window's
+                    // colour" (the ground, alpha 0) was added by the compositor to what lies behind the window, which
+                    // made the body brighter than the title bar (on a light scheme, plain white). The window itself
+                    // is cleared to true nothing, whatever Kirigami binds its colour to.
+                    auto clear = [quickWindow] {
+                        if (quickWindow->color().alpha() == 0 && quickWindow->color() != QColor(Qt::transparent)) {
+                            quickWindow->setColor(Qt::transparent);
+                        }
+                    };
+                    QObject::connect(quickWindow, &QQuickWindow::colorChanged, quickWindow, clear, Qt::QueuedConnection);
+                    quickWindow->setColor(Qt::transparent);
                     new AuroraBackdrop(quickWindow, look);
                     if (qEnvironmentVariableIsSet("BREEZE_NG_DEBUG_QUICK")) {
                         QTimer::singleShot(4000, quickWindow, [quickWindow] {
