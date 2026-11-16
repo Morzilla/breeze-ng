@@ -27,6 +27,7 @@
 #include <QMainWindow>
 #include <QMdiArea>
 #include <QMenuBar>
+#include <QAbstractScrollArea>
 #include <QPainter>
 #include <QTabBar>
 #include <QTabWidget>
@@ -424,7 +425,19 @@ bool Helper::glassLayers(const QPainter *painter, QColor *base, QList<QColor> *p
     // window sheet with the panel's fill over it (clearing to the bare sheet would punch a hole in the panel)
     const QWidget *child = widget;
     for (const QWidget *parent = widget->parentWidget(); parent && parent != window; child = parent, parent = parent->parentWidget()) {
-        if (parent->autoFillBackground() || parent->inherits("QAbstractScrollArea")) {
+        if (const auto scrollArea = qobject_cast<const QAbstractScrollArea *>(parent)) {
+            // a view the style made see-through (its viewport no longer fills itself): what lies under its entries is
+            // the window's glass, with the view's veil when it has one. Not cleared there, the translucent selection
+            // that slides from entry to entry piled up at every frame into a solid block over the text.
+            if (scrollArea->viewport() && scrollArea->viewport()->property("_breeze_ng_unfilled").toBool() && !scrollArea->autoFillBackground()) {
+                if (scrollArea->property("_breeze_ng_veil").toBool()) {
+                    panels->prepend(auroraVeilColor(scrollArea->palette(), false));
+                }
+                continue;
+            }
+            return false; // an opaque surface of its own
+        }
+        if (parent->autoFillBackground()) {
             return false; // an opaque surface of its own
         }
         if (parent->inherits("QTabWidget") && child->inherits("QTabBar")) {

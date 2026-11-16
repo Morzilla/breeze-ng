@@ -525,6 +525,12 @@ StyleConfig::StyleConfig(QWidget *parent)
     });
     // BREEZE_NG_SETTINGS_PAGE=0..5 opens on that page (screenshots, links from elsewhere)
     m_nav->setCurrentRow(qBound(0, qEnvironmentVariableIntValue("BREEZE_NG_SETTINGS_PAGE"), m_pages->count() - 1));
+    // BREEZE_NG_SETTINGS_SWITCH=N: a moment after opening, go to page N, as a click would (to watch the selection move)
+    if (qEnvironmentVariableIsSet("BREEZE_NG_SETTINGS_SWITCH")) {
+        QTimer::singleShot(2500, this, [this] {
+            m_nav->setCurrentRow(qBound(0, qEnvironmentVariableIntValue("BREEZE_NG_SETTINGS_SWITCH"), m_pages->count() - 1));
+        });
+    }
 
     load();
     // the first page is laid out before the dialog has its size: lay the whole module out again once it is shown
