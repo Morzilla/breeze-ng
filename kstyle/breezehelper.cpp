@@ -166,7 +166,13 @@ QColor transparentize(const QColor &color, qreal amount)
 
 bool Helper::isDark(const QPalette &palette)
 {
-    return palette.color(QPalette::Window).lightnessF() < 0.5;
+    // (a see-through window colour is a veil, not a ground: a Qt Quick control on a veil gets the veil as its
+    // window colour, white on a dark scheme. The text tells then)
+    const QColor window = palette.color(QPalette::Window);
+    if (window.alpha() < 200) {
+        return palette.color(QPalette::Active, QPalette::WindowText).lightnessF() >= 0.5;
+    }
+    return window.lightnessF() < 0.5;
 }
 
 QColor Helper::ink(const QPalette &palette)
@@ -1425,10 +1431,15 @@ void Helper::renderCheckBoxBackground(QPainter *painter,
         const bool glass = hasRims(); // Aurora: as Soft
         const QColor inkColor = ink(palette);
         const qreal on = (state == CheckOn || state == CheckPartial) ? 1.0 : (state == CheckAnimated ? animation : 0.0);
-        const QColor off = alphaColor(inkColor, glass ? 0.10 : 0.18); // an empty box must still read as a box
+        QColor off = alphaColor(inkColor, glass ? 0.10 : 0.18); // an empty box must still read as a box
         const QColor onColor = glass ? alphaColor(inkColor, 0.28) : palette.color(QPalette::Highlight);
-        QColor fill = KColorUtils::mix(off, onColor, on);
         QColor edge = glass ? alphaColor(inkColor, 0.22 + 0.18 * on) : QColor(0, 0, 0, 0);
+        if (_aurora && !isDark(palette)) {
+            // Aurora on a light scheme: an empty box is frost with a fine edge, not a grey disc of ink
+            off = QColor(255, 255, 255, 215);
+            edge = alphaColor(inkColor, 0.26 * (1.0 - on));
+        }
+        QColor fill = KColorUtils::mix(off, onColor, on);
         if (neutalHighlight) {
             edge = neutralText(palette);
         }
@@ -1607,10 +1618,15 @@ void Helper::renderRadioButtonBackground(QPainter *painter,
         const bool glass = hasRims(); // Aurora: as Soft
         const QColor inkColor = ink(palette);
         const qreal on = state == RadioOn ? 1.0 : (state == RadioAnimated ? animation : 0.0);
-        const QColor off = alphaColor(inkColor, glass ? 0.10 : 0.18); // an empty box must still read as a box
+        QColor off = alphaColor(inkColor, glass ? 0.10 : 0.18); // an empty box must still read as a box
         const QColor onColor = glass ? alphaColor(inkColor, 0.28) : palette.color(QPalette::Highlight);
-        QColor fill = KColorUtils::mix(off, onColor, on);
         QColor edge = glass ? alphaColor(inkColor, 0.22 + 0.18 * on) : QColor(0, 0, 0, 0);
+        if (_aurora && !isDark(palette)) {
+            // Aurora on a light scheme: an empty box is frost with a fine edge, not a grey disc of ink
+            off = QColor(255, 255, 255, 215);
+            edge = alphaColor(inkColor, 0.26 * (1.0 - on));
+        }
+        QColor fill = KColorUtils::mix(off, onColor, on);
         if (neutalHighlight) {
             edge = neutralText(palette);
         }
@@ -1829,8 +1845,13 @@ void Helper::renderSliderHandle(QPainter *painter, const QRectF &rect, const QCo
             disc = darkSurface ? disc.darker(115) : disc.lighter(115);
         }
         painter->setPen(Qt::NoPen);
+        if (_aurora && !darkSurface) {
+            // Aurora on a light scheme: a white knob with a fine edge (a dark disc was a hole in the frost)
+            disc = sunken ? QColor(236, 240, 246) : QColor(255, 255, 255);
+            painter->setPen(QPen(QColor(43, 54, 72, 90), 1));
+        }
         painter->setBrush(disc);
-        painter->drawEllipse(rect.adjusted(2, 2, -2, -2));
+        painter->drawEllipse(rect.adjusted(2.5, 2.5, -2.5, -2.5));
         painter->restore();
         return;
     }

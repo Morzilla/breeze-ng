@@ -60,6 +60,8 @@ struct Look {
     int grain = 30; // the grain over them
     bool dim = true; // windows in the background dim their lights
     QColor second; // the second light, if the user chose its colour
+    bool fullSelection = false; // selections in the full accent with white text
+    QColor onSelection; // text on a selection, where it is not the scheme's own
 };
 
 // The colours that depend on the palette, worked out when they are used: the plugin is made very early (at login,
@@ -78,6 +80,12 @@ void colours(Look &look)
     // (light schemes: frost, white and denser, as Helper::auroraVeilColor: black ink on light glass read as grey)
     look.veil = QColor(255, 255, 255);
     look.veil.setAlphaF(dark ? look.panel / 100.0 : qMin(look.panel / 100.0 * 0.75 * 8.8, 0.92));
+    // a selected row is a light sheet of the accent: on a light scheme its text is the deep accent, not white
+    look.onSelection = QColor();
+    if (!dark && !look.fullSelection) {
+        const QColor highlight = QGuiApplication::palette().color(QPalette::Active, QPalette::Highlight);
+        look.onSelection = QColor::fromHslF(highlight.hslHueF() < 0 ? 0.58 : highlight.hslHueF(), qBound(0.55, highlight.hslSaturationF() * 1.3, 0.90), 0.38);
+    }
 }
 
 Look readLook()
@@ -101,6 +109,7 @@ Look readLook()
     look.lights = qBound(0, common.readEntry("AuroraLights", 100), 180) / 100.0;
     look.grain = qBound(0, common.readEntry("AuroraGrain", 30), 100);
     look.dim = common.readEntry("AuroraDimInactive", true);
+    look.fullSelection = common.readEntry("AuroraFullSelection", false);
     const QString secondAccent = common.readEntry("AuroraSecondAccent", QString());
     look.second = secondAccent.isEmpty() ? QColor() : QColor(secondAccent);
     colours(look);
@@ -401,6 +410,9 @@ private:
                 const bool veil = above == 1 && !sideView(owner);
                 guard->setCustomBackgroundColor(veil ? look.veil : look.ground);
                 guard->setCustomAlternateBackgroundColor(veil ? look.veil : look.ground);
+                if (look.onSelection.isValid()) {
+                    guard->setCustomHighlightedTextColor(look.onSelection);
+                }
                 guard->setProperty("_breeze_ng_glass", veil ? 5 : 6);
                 cardShadow(owner);
             messageGlass(owner);
@@ -416,6 +428,9 @@ private:
             const QColor background = veiled ? look.veil : look.ground;
             guard->setCustomBackgroundColor(background);
             guard->setCustomAlternateBackgroundColor(veiled ? look.veil : look.ground);
+            if (look.onSelection.isValid()) {
+                guard->setCustomHighlightedTextColor(look.onSelection);
+            }
             guard->setProperty("_breeze_ng_glass", window ? 4 : veiled ? 1 : view ? 3 : 2); // (the widget style's own pass leaves these alone)
             cardShadow(owner);
             messageGlass(owner);
