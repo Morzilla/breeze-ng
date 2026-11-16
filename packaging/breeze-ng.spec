@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: GPL-2.0-or-later
-%global commit      974d94c8989ad3969edab2bdcb736287d39d7c6a
+%global commit      06c167d8eafb8f46376784416c8bba5ffa69d467
 %global shortcommit %(c=%{commit}; echo ${c:0:7})
-%global snapdate    202611161933
+%global snapdate    202611161949
 # snapdate: date and time of the commit (YYYYMMDDHHMM), so that two snapshots of one day sort in order
 # installed apart from the system, next to Fedora's own Breeze
 %global ngprefix    /opt/ng/breeze-ng
@@ -123,6 +123,9 @@ done
 %{_qt6_plugindir}/org.kde.kdecoration3.kcm/kcm_breezengdecoration.so
 
 %changelog
+* Mon Nov 16 2026 Morzilla <3956663+Morzilla@users.noreply.github.com> - 6.7.5^202611161949git06c167d-1
+- Menus keep their glass with the grain
+
 * Mon Nov 16 2026 Morzilla <3956663+Morzilla@users.noreply.github.com> - 6.7.5^202611161933git974d94c-1
 - Qt Quick: no crash in System Settings' Global Theme, no white sidebar, no stutter
 
