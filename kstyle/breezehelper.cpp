@@ -180,19 +180,24 @@ QColor Helper::menuSheet(const QPalette &palette, bool alpha, QColor *outline, b
     if (_aurora) {
         // Aurora: a menu is glass like the window it opens on, a tone lifted from the window's colour (the darker
         // frame colour at 78 % was a dark block on the glass)
-        background = KColorUtils::mix(palette.color(QPalette::Window), ink(palette), 0.10);
+        // (light schemes: frost. A tone towards the ink was a grey slab on the light glass: the sheet goes towards
+        // white there, and holds more of it)
+        background = isDark(palette) ? KColorUtils::mix(palette.color(QPalette::Window), ink(palette), 0.10) : KColorUtils::mix(palette.color(QPalette::Window), QColor(255, 255, 255), 0.70);
     }
     // a menu joined to a button is opaque: only then can the button be painted in exactly its colour (Aurora: the
     // menu stays see-through and blurred, and the button is laid from nothing in the same sheet: joinedFill)
     // (38 %: behind a menu lies its own window, already glass: a thin sheet over its blur reads as the same glass)
     // (joined to its button, the sheet is denser: the button lies on the window's own glass, the menu on the blur of
     // whatever is under it, and a thin sheet let that difference through: two tones in one shape)
-    const int glassOpacity = _aurora ? (joined ? 74 : 38) : 78;
+    const int glassOpacity = _aurora ? (isDark(palette) ? (joined ? 74 : 38) : (joined ? 84 : 72)) : 78;
     const int menuOpacity = (joined && !_aurora) ? 100 : ((isGlass() && StyleConfigData::menuOpacity() >= 100) ? glassOpacity : StyleConfigData::menuOpacity());
     QColor edge = isGlass() ? alphaColor(ink(palette), 0.16) : frameOutlineColor(palette);
     if (menuOpacity < 100 && alpha) {
         background.setAlphaF(menuOpacity / 100.0);
         edge = alphaColor(ink(palette), isGlass() ? 0.16 : 0.12);
+        if (_aurora && !isDark(palette)) {
+            edge = QColor(255, 255, 255, 190); // frost has a bright hairline edge
+        }
     } else if (isSoft()) {
         edge = alphaColor(ink(palette), 0.10);
     }
