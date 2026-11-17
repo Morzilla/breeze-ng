@@ -615,7 +615,15 @@ if want effects; then
         build_effect "Better Blur DX" https://github.com/xarblu/kwin-effects-better-blur-dx 'better_blur_dx*.so' better_blur_dx -DCMAKE_INSTALL_PREFIX=/usr
         build_effect "KDE Rounded Corners" https://github.com/matinlotfali/KDE-Rounded-Corners 'kwin4_effect_shapecorners.so' kwin4_effect_shapecorners -DCMAKE_INSTALL_PREFIX=/usr
     fi
-    kwriteconfig6 --file kwinrc --group Plugins --key blurEnabled false 2>/dev/null || true # KWin's own blur and Better Blur do not go together
+    # KWin's own blur and Better Blur do not go together: KWin's is switched off only when Better Blur is really there
+    # (it was switched off always: where Better Blur did not build, nothing blurred any more, and the glass showed the
+    # windows behind it sharp)
+    if effect_present 'better_blur_dx*.so'; then
+        kwriteconfig6 --file kwinrc --group Plugins --key blurEnabled false 2>/dev/null || true
+    else
+        kwriteconfig6 --file kwinrc --group Plugins --key blurEnabled true 2>/dev/null || true
+        warn "Better Blur DX is not installed: KWin's own blur stays on"
+    fi
     DONE+=("Effects      log out and in (or restart KWin); settings in System Settings > Window Management > Desktop Effects")
     DONE+=("             they need rebuilding after a KWin update: run this installer again with --only effects")
 fi
