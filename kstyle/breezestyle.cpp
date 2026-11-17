@@ -578,7 +578,8 @@ void Style::polish(QWidget *widget)
         auto dialogButtonBox = qobject_cast<QDialogButtonBox *>(pushButton->parent());
         pushButton->setAutoDefault(autoDefaultNoDialog || (autoDefaultInDialog && dialogButtonBox));
     }
-    if (_toolsAreaManager->hasHeaderColors()) {
+    // (not in a glass window: the header colours made a solid band across the glass, nearly black with a dark header set)
+    if (_toolsAreaManager->hasHeaderColors() && !_helper->isGlass()) {
         // style TitleWidget and Search KPageView to look the same as KDE System Settings
         if (widget->objectName() == QLatin1String("KPageView::TitleWidget")) {
             widget->setAutoFillBackground(true);
