@@ -30,8 +30,8 @@ bash <(curl -fsSL https://raw.githubusercontent.com/Morzilla/breeze-ng/ng/ng/ins
 | selection | the accent colour in content views, a tone in side panels | a pale sheet of light |
 | windows | opaque, 14 px corners, title on the left, disc buttons | 70 % opaque with blur, same frame |
 
-Both looks share: no separator lines anywhere, menus with padded rounded panels and a solid accent block on the
-current item, tabs that are one sheet with their panel, a neon glow inside fields and buttons that have the focus,
+Both looks share: no separator lines anywhere, menus with padded rounded panels and a light sheet of the accent on
+the item under the pointer, tabs that are one sheet with their panel, a neon glow inside fields and buttons that have the focus,
 and a menu opened from a button that joins it into one shape.
 
 ### Aurora Glass
@@ -55,6 +55,25 @@ same glass through a small platform plugin that comes with Breeze NG ([how it wo
 ![Dolphin NG and, on the right, a small demo window with the common controls in Breeze NG Soft (ng/demo-controls.py)](ng/screenshots/desktop.png)
 
 ![Dolphin NG in Breeze NG, its glass sidebar showing the compositor's blur of the desktop](ng/screenshots/dolphin-live-blur.png)
+
+### The global themes
+
+Nine global themes (System Settings › Global Theme) set the widget style, the window decoration, the colours and the
+Plasma style together. Each colour scheme has the same name as the themes that use it:
+
+| Global theme | Colour scheme | What it looks like |
+|---|---|---|
+| Breeze NG Soft | Breeze NG | opaque, dark |
+| Breeze NG Soft Light | Breeze NG Light | opaque, light |
+| Breeze NG Grey | Breeze NG Grey | opaque, a soft grey ground with white fields and a white sidebar |
+| Breeze NG Glass | Breeze NG | see-through, dark |
+| Breeze NG Glass Light | Breeze NG Light | see-through, light |
+| Breeze NG Aurora | Breeze NG | glass lit by the accent colour, dark |
+| Breeze NG Aurora Light | Breeze NG Light | glass lit by the accent colour, light |
+| Breeze NG Aurora Airy | Breeze NG | lighter glass on the dark scheme |
+| Breeze NG Aurora Code | Breeze NG Code | the dark greys of VS Code |
+
+![Dolphin NG in each of the nine global themes](ng/screenshots/themes.png)
 
 ## Part of the NG desktop
 

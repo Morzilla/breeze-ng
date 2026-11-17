@@ -17,7 +17,8 @@
 >
 > - **Three looks**: *Soft* (solid surfaces told apart by tone, no outlines at rest), *Glass* (translucent windows and
 >   menus with the desktop blurred behind) and *Aurora Glass* (glass without rims, soft lights of your accent colour
->   behind each window, veils instead of lines), each with a dark and a light colour scheme and a global theme.
+>   behind each window, veils instead of lines), each with a dark and a light colour scheme; nine global themes in
+>   all, among them *Grey* (opaque, a soft grey ground with white fields) and *Aurora Code* (VS Code's greys).
 > - **The whole desktop in the same look**: the widget style, the window decoration, the Plasma style (panel, launcher,
 >   popups) and, in Aurora, the Qt Quick applications too (System Settings, Info Centre, Discover).
 > - **No separator lines**, menus as padded rounded panels that join the button they open from, tabs as one sheet with
