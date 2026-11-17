@@ -7120,6 +7120,9 @@ bool Style::drawMenuItemControl(const QStyleOption *option, QPainter *painter, c
         return true;
     }
 
+    // Breeze NG: the item under the pointer sits on the full accent, as a pressed one does: its text, arrow and icon
+    // take the colour of text on a selection (on a light scheme they stayed dark on the blue, hard to read)
+    const bool onAccent = sunken || (useStrongFocus && selected);
     // render hover and focus
     if (useStrongFocus && (selected || sunken)) {
         // Breeze NG: the current item sits on the accent, a solid rounded block without outline
@@ -7211,7 +7214,7 @@ bool Style::drawMenuItemControl(const QStyleOption *option, QPainter *painter, c
         // icon mode
         QIcon::Mode mode;
         if (enabled) {
-            mode = sunken ? QIcon::Selected : QIcon::Normal;
+            mode = onAccent ? QIcon::Selected : QIcon::Normal;
         } else {
             mode = QIcon::Disabled;
         }
@@ -7238,7 +7241,7 @@ bool Style::drawMenuItemControl(const QStyleOption *option, QPainter *painter, c
         const ArrowOrientation orientation(reverseLayout ? ArrowLeft : ArrowRight);
 
         // color
-        const QColor arrowColor = _helper->arrowColor(palette, sunken ? QPalette::HighlightedText : QPalette::WindowText);
+        const QColor arrowColor = _helper->arrowColor(palette, onAccent ? QPalette::HighlightedText : QPalette::WindowText);
 
         // render
         _helper->renderArrow(painter, arrowRect, arrowColor, orientation);
@@ -7256,7 +7259,7 @@ bool Style::drawMenuItemControl(const QStyleOption *option, QPainter *painter, c
         painter->setFont(menuItemOption->font);
 
         // color role
-        QPalette::ColorRole role = sunken ? QPalette::HighlightedText : QPalette::WindowText;
+        QPalette::ColorRole role = onAccent ? QPalette::HighlightedText : QPalette::WindowText;
 
         // locate accelerator and render
         const int tabPosition(text.indexOf(QLatin1Char('\t')));
