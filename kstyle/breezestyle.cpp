@@ -2723,7 +2723,17 @@ void Style::ngAnchorPopupToButton(QWidget *popup, QWidget *button, const QRect &
     if (!handle || !parentWindow) {
         return;
     }
-    const QRect anchorRect(parentWindow->mapFromGlobal(buttonGlobal.topLeft()), buttonGlobal.size());
+    QRect anchorRect(parentWindow->mapFromGlobal(buttonGlobal.topLeft()), buttonGlobal.size());
+    // with a fractional scale (125%...) the edge of the button falls inside a screen pixel, and the menu placed right
+    // under it left a thin line of whatever is behind between the two: the menu overlaps the button by one pixel
+    // (the same sheet: the seam is not seen)
+    if (const qreal dpr = parentWindow->devicePixelRatioF(); !qFuzzyCompare(dpr, std::round(dpr)) && anchorRect.height() > 2) {
+        if (below) {
+            anchorRect.setBottom(anchorRect.bottom() - 1);
+        } else {
+            anchorRect.setTop(anchorRect.top() + 1);
+        }
+    }
     // the side of the button the menu starts from: its left edge, or its right edge for a menu lined up on that side
     const bool fromRight = popup->x() != buttonGlobal.left() && popup->geometry().right() == buttonGlobal.right();
     const Qt::Edges vertical = below ? Qt::BottomEdge : Qt::TopEdge;
