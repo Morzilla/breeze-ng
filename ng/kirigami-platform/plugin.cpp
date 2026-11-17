@@ -216,7 +216,7 @@ public:
             }
             light(m_look.accentRight ? rect.topRight() : rect.topLeft(), radius, accent, 0.52); // (as the widget style)
             light(m_look.accentRight ? rect.topLeft() : rect.topRight(), radius * 0.8, second, 0.36);
-            light(rect.bottomRight(), radius * 0.9, accent, 0.32);
+            light(m_look.accentRight ? rect.bottomLeft() : rect.bottomRight(), radius * 0.9, accent, 0.32);
         }
         if (m_look.grain > 0) {
             painter->drawTiledPixmap(rect, grainTile(m_look.grain));

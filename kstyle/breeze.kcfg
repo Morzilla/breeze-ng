@@ -75,7 +75,7 @@
       <default></default>
     </entry>
     <!-- Breeze NG Aurora: the accent's light comes from the top right corner and the second light from the top left
-         (off: the other way round). The accent's light in the bottom right corner stays where it is -->
+         and its bloom at the bottom from the left (off: the other way round) -->
     <entry name="AuroraAccentRight" type="Bool">
       <default>false</default>
     </entry>
