@@ -7120,16 +7120,15 @@ bool Style::drawMenuItemControl(const QStyleOption *option, QPainter *painter, c
         return true;
     }
 
-    // Breeze NG: the item under the pointer sits on the full accent, as a pressed one does: its text, arrow and icon
-    // take the colour of text on a selection (on a light scheme they stayed dark on the blue, hard to read)
-    const bool onAccent = sunken || (useStrongFocus && selected);
+    // Breeze NG: the item under the pointer sits on a light sheet of the accent, not on the full colour (a block of
+    // full blue was too strong for something that only follows the pointer): its text, arrow and icon keep the
+    // menu's own colours, readable on it in dark and light schemes alike
+    const bool onAccent = false;
     // render hover and focus
     if (useStrongFocus && (selected || sunken)) {
         // Breeze NG: the current item sits on the accent, a solid rounded block without outline
         auto color = palette.color(QPalette::Highlight);
-        if (sunken) {
-            color = color.darker(110);
-        }
+        color.setAlphaF(sunken ? 0.40 : 0.26);
         if (_helper->isAurora()) {
             color = _helper->auroraSelection(QApplication::palette(), sunken ? 0.08 : 0.0);
         }
