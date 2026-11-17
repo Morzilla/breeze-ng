@@ -710,7 +710,7 @@ QWidget *StyleConfig::pageTransparency()
     // the window's opacity is kept per look (Glass and Aurora have their own): the row of the look chosen is shown
     m_auroraBody = slider(20, 100, w);
     m_auroraBodyValue = new QLabel(w);
-    m_auroraBody->setToolTip(ngText("How opaque the window's glass is. Aurora Light, the airier glass, is 22 less on a dark scheme.", "Quanto è opaco il vetro della finestra. Aurora Light, il vetro più arioso, ne toglie 22 su uno schema scuro."));
+    m_auroraBody->setToolTip(ngText("How opaque the window's glass is. Aurora Airy, the airier glass, is 22 less on a dark scheme.", "Quanto è opaco il vetro della finestra. Aurora Airy, il vetro più arioso, ne toglie 22 su uno schema scuro."));
     m_blurStrength = slider(1, 15, w);
     m_blurStrengthValue = new QLabel(w);
     m_blurStrength->setToolTip(ngText("KWin's blur: one strength for the whole desktop.", "La sfocatura di KWin: una sola intensità per tutto il desktop."));
@@ -751,7 +751,7 @@ QWidget *StyleConfig::pageAurora()
         auto *group = new QVBoxLayout(m_auroraGroup);
         group->setContentsMargins(0, 0, 0, 0);
         group->addWidget(groupTitle(ngText("Glass", "Vetro"), m_auroraGroup));
-        m_auroraLight = new QCheckBox(ngText("Aurora Light: a lighter, airier glass (off: dark tones)", "Aurora Light: un vetro più chiaro e arioso (spento: toni scuri)"), m_auroraGroup);
+        m_auroraLight = new QCheckBox(ngText("Aurora Airy: a lighter, airier glass (off: dark tones)", "Aurora Airy: un vetro più chiaro e arioso (spento: toni scuri)"), m_auroraGroup);
         group->addWidget(m_auroraLight);
         connect(m_auroraLight, &QCheckBox::toggled, this, &StyleConfig::updateChanged);
         m_auroraDim = new QCheckBox(ngText("Windows in the background dim their lights and title bar", "Le finestre in secondo piano attenuano luci e barra del titolo"), m_auroraGroup);

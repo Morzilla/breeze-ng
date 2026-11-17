@@ -76,7 +76,7 @@ TREES=("$OPT" "$LOCAL/share/icons/NeoLine" "$LOCAL/share/icons/NeoLine-White" "$
        "$LOCAL/share/plasma/look-and-feel/org.morzilla.breezeng.soft" "$LOCAL/share/plasma/look-and-feel/org.morzilla.breezeng.glass"
        "$LOCAL/share/plasma/look-and-feel/org.morzilla.breezeng.aurora" "$LOCAL/share/plasma/look-and-feel/org.morzilla.breezeng.soft.light"
        "$LOCAL/share/plasma/look-and-feel/org.morzilla.breezeng.glass.light" "$LOCAL/share/plasma/look-and-feel/org.morzilla.breezeng.aurora.light"
-       "$LOCAL/share/plasma/look-and-feel/org.morzilla.breezeng.aurora.code")
+       "$LOCAL/share/plasma/look-and-feel/org.morzilla.breezeng.aurora.code" "$LOCAL/share/plasma/look-and-feel/org.morzilla.breezeng.aurora.airy")
 
 if [ "$UNINSTALL" = 1 ]; then
     say "Removing the NG desktop from ${STAGE:-the system}"
@@ -147,7 +147,7 @@ if want breeze; then
     fi
     for scheme in BreezeNG BreezeNGLight BreezeNGCode; do put "$BREEZE/ng/color-schemes/$scheme.colors" "$LOCAL/share/color-schemes/$scheme.colors"; done
     put "$BREEZE/kstyle/breezeng.themerc" "$LOCAL/share/kstyle/themes/breezeng.themerc"   # the style's name and Configure button in System Settings
-    for v in soft glass aurora soft.light glass.light aurora.light aurora.code; do put_tree "$BREEZE/ng/look-and-feel/org.morzilla.breezeng.$v" "$LOCAL/share/plasma/look-and-feel"; done
+    for v in soft glass aurora soft.light glass.light aurora.light aurora.airy aurora.code; do put_tree "$BREEZE/ng/look-and-feel/org.morzilla.breezeng.$v" "$LOCAL/share/plasma/look-and-feel"; done
     # the plugin folder differs between distributions (lib64, lib, lib/x86_64-linux-gnu): find it
     style="$(find "$STAGE$OPT/breeze-ng" -name 'breezeng6.so' -path '*/styles/*' | head -n 1)"
     [ -n "$style" ] || die "the style plugin was not installed where expected under $OPT/breeze-ng"

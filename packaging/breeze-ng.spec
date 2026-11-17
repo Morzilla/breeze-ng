@@ -115,6 +115,7 @@ done
 %{_datadir}/plasma/look-and-feel/org.morzilla.breezeng.aurora
 %{_datadir}/plasma/look-and-feel/org.morzilla.breezeng.aurora.light
 %{_datadir}/plasma/look-and-feel/org.morzilla.breezeng.aurora.code
+%{_datadir}/plasma/look-and-feel/org.morzilla.breezeng.aurora.airy
 %{_datadir}/plasma/desktoptheme/breeze-ng-soft
 %{_datadir}/plasma/desktoptheme/breeze-ng-glass
 %{_datadir}/plasma/desktoptheme/breeze-ng-aurora

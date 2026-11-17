@@ -1,0 +1,16 @@
+{
+    "KPackageStructure": "Plasma/LookAndFeel",
+    "KPlugin": {
+        "Authors": [
+            {
+                "Name": "Morzilla"
+            }
+        ],
+        "Description": "Breeze NG Aurora Airy: a lighter, airier glass on the dark colours, with lights of the accent colour behind the windows",
+        "Id": "org.morzilla.breezeng.aurora.airy",
+        "License": "GPL-2.0+",
+        "Name": "Breeze NG Aurora Airy",
+        "Version": "1.0"
+    },
+    "X-Plasma-APIVersion": "2"
+}
