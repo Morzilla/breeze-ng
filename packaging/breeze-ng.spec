@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: GPL-2.0-or-later
-%global commit      9501354b66e7663873518ad9d3c5c873d08223f1
+%global commit      4e786c693dcff8b4b716e4a85c1c2d7363b937da
 %global shortcommit %(c=%{commit}; echo ${c:0:7})
-%global snapdate    202611170916
+%global snapdate    202611170937
 # snapdate: date and time of the commit (YYYYMMDDHHMM), so that two snapshots of one day sort in order
 # installed apart from the system, next to Fedora's own Breeze
 %global ngprefix    /opt/ng/breeze-ng
@@ -125,6 +125,9 @@ done
 %{_qt6_plugindir}/org.kde.kdecoration3.kcm/kcm_breezengdecoration.so
 
 %changelog
+* Tue Nov 17 2026 Morzilla <3956663+Morzilla@users.noreply.github.com> - 6.7.5^202611170937git4e786c6-1
+- No crash with the platform's own dialogs (Spectacle's colour picker)
+
 * Tue Nov 17 2026 Morzilla <3956663+Morzilla@users.noreply.github.com> - 6.7.5^202611170916git9501354-1
 - Aurora Light on the light scheme, Aurora Airy, Aurora Code, VS Code accents, accented checks, switches in Qt Quick
 
