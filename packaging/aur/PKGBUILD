@@ -1,0 +1,64 @@
+# Maintainer: Morzilla <3956663+Morzilla@users.noreply.github.com>
+# Breeze NG, built from the latest commit on GitHub. Installed under /opt/ng/breeze-ng, next to Arch's Breeze (which
+# stays untouched), with links to its plugins in Qt's plugin folder, as the Fedora package does.
+
+pkgname=breeze-ng-git
+_name=breeze-ng
+pkgver=6.7.5.r0.g0000000
+pkgrel=1
+pkgdesc="Breeze widget style and window decoration with three looks: Soft, Glass and Aurora Glass"
+arch=(x86_64)
+url="https://github.com/Morzilla/breeze-ng"
+license=(GPL-2.0-or-later MIT LGPL-2.0-or-later)
+depends=(qt6-base qt6-declarative qt6-svg frameworkintegration kcmutils kcolorscheme kconfig kcoreaddons
+         kdecoration kguiaddons ki18n kiconthemes kirigami kwidgetsaddons kwindowsystem)
+makedepends=(git cmake extra-cmake-modules python libplasma)
+provides=($_name)
+conflicts=($_name)
+source=("$_name::git+$url.git#branch=ng")
+sha256sums=(SKIP)
+_prefix=/opt/ng/breeze-ng
+
+pkgver() {
+  cd $_name
+  printf "6.7.5.r%s.g%s" "$(git rev-list --count HEAD)" "$(git rev-parse --short HEAD)"
+}
+
+build() {
+  cmake -S $_name -B build -DCMAKE_BUILD_TYPE=None -DCMAKE_INSTALL_PREFIX=$_prefix \
+        -DBUILD_QT5=OFF -DBUILD_QT6=ON -DWITH_WALLPAPERS=OFF -DBUILD_CURSOR=OFF -DBUILD_TESTING=OFF
+  cmake --build build
+  # Aurora for Kirigami applications: a platform plugin in a folder of its own (ng/kirigami-platform/README.md)
+  cmake -S $_name/ng/kirigami-platform -B build-kirigami -DCMAKE_BUILD_TYPE=None -DCMAKE_INSTALL_PREFIX=$_prefix \
+        -DCMAKE_INSTALL_LIBDIR=lib
+  cmake --build build-kirigami
+}
+
+package() {
+  DESTDIR="$pkgdir" cmake --install build
+  DESTDIR="$pkgdir" cmake --install build-kirigami
+  cd $_name
+  # the Kirigami plugin comes before the desktop style's own in the plugin path, for the whole session (from the
+  # next login; the widget style and the decoration need neither this nor a login)
+  install -dm755 "$pkgdir/etc/xdg/plasma-workspace/env"
+  printf '# Breeze NG: Aurora for Kirigami applications\nexport QT_PLUGIN_PATH="%s/lib/breeze-ng-kirigami${QT_PLUGIN_PATH:+:$QT_PLUGIN_PATH}"\n' \
+    "$_prefix" > "$pkgdir/etc/xdg/plasma-workspace/env/breeze-ng-kirigami.sh"
+  # the Plasma styles (panel popups, launcher, their buttons and lists), from Plasma's default style
+  for v in soft glass aurora; do
+    python ng/plasma-style/make-plasma-style.py $v "$pkgdir/usr/share/plasma/desktoptheme/breeze-ng-$v"
+  done
+  install -Dm644 -t "$pkgdir/usr/share/color-schemes" ng/color-schemes/BreezeNG.colors ng/color-schemes/BreezeNGLight.colors \
+    ng/color-schemes/BreezeNGCode.colors
+  install -Dm644 kstyle/breezeng.themerc "$pkgdir/usr/share/kstyle/themes/breezeng.themerc"
+  install -dm755 "$pkgdir/usr/share/plasma/look-and-feel"
+  cp -a ng/look-and-feel/org.morzilla.breezeng.* "$pkgdir/usr/share/plasma/look-and-feel/"
+  # links to the plugins in Qt's plugin folder (no QT_PLUGIN_PATH, no new login)
+  local f
+  for f in styles/breezeng6.so kstyle_config/breezengstyleconfig.so org.kde.kdecoration3/org.kde.breezeng.so \
+           org.kde.kdecoration3.kcm/kcm_breezengdecoration.so; do
+    test -e "$pkgdir$_prefix/lib/plugins/$f"
+    install -dm755 "$(dirname "$pkgdir/usr/lib/qt6/plugins/$f")"
+    ln -s "$_prefix/lib/plugins/$f" "$pkgdir/usr/lib/qt6/plugins/$f"
+  done
+  install -Dm644 -t "$pkgdir/usr/share/licenses/$pkgname" LICENSES/*
+}
