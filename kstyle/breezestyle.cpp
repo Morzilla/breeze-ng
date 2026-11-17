@@ -6387,6 +6387,19 @@ bool Style::drawPushButtonLabelControl(const QStyleOption *option, QPainter *pai
             return drawPushButtonLabelControl(&copy, painter, widget);
         }
     }
+    // Breeze NG Soft: the primary action is a block of the full accent (Helper::renderButtonFrame): its label and icon
+    // take the colour of text on a selection (on a light scheme they stayed dark on the blue)
+    if (!_helper->isGlass() && (option->state & State_Enabled) && (option->state & State_Active) && !(option->state & State_On)
+        && option->palette.color(QPalette::ButtonText) != option->palette.color(QPalette::HighlightedText)) {
+        if (const auto original = qstyleoption_cast<const QStyleOptionButton *>(option);
+            original && (original->features & QStyleOptionButton::DefaultButton) && !(original->features & QStyleOptionButton::Flat)) {
+            QStyleOptionButton copy(*original);
+            for (QPalette::ColorRole role : {QPalette::ButtonText, QPalette::WindowText, QPalette::Text}) {
+                copy.palette.setColor(role, option->palette.color(QPalette::HighlightedText));
+            }
+            return drawPushButtonLabelControl(&copy, painter, widget);
+        }
+    }
     // cast option and check
     const auto buttonOption(qstyleoption_cast<const QStyleOptionButton *>(option));
     if (!buttonOption) {
