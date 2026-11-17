@@ -365,7 +365,11 @@ void Style::polish(QWidget *widget)
     }
 
     // Breeze NG Glass: main windows and dialogs become sheets of frosted glass (the compositor blurs behind them)
+    // (not a window that never reaches the screen: a dialog standing in for the platform's own, as the colour and file
+    // dialogs with KDE's integration, is "shown" off screen by Qt, which keeps painting it: its native surface was
+    // destroyed under it and the application crashed, Spectacle's colour picker among them)
     if (_helper->isGlass() && widget->isWindow() && _helper->compositingActive() && !widget->testAttribute(Qt::WA_X11NetWmWindowTypeDND)
+        && !widget->testAttribute(Qt::WA_DontShowOnScreen)
         && (qobject_cast<QMainWindow *>(widget) || qobject_cast<QDialog *>(widget))
         // (a main window that made itself translucent, as Konsole does for its terminal, is glass too: without the
         // sheet its tool bar stood on nothing, a black strip. Dolphin NG lays its own.)
