@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: GPL-2.0-or-later
-%global commit      4e786c693dcff8b4b716e4a85c1c2d7363b937da
+%global commit      8248ee8b9877a7b3f4f9216e0d6ae8d7979db442
 %global shortcommit %(c=%{commit}; echo ${c:0:7})
-%global snapdate    202611170937
+%global snapdate    202611171131
 # snapdate: date and time of the commit (YYYYMMDDHHMM), so that two snapshots of one day sort in order
 # installed apart from the system, next to Fedora's own Breeze
 %global ngprefix    /opt/ng/breeze-ng
@@ -125,6 +125,10 @@ done
 %{_qt6_plugindir}/org.kde.kdecoration3.kcm/kcm_breezengdecoration.so
 
 %changelog
+* Tue Nov 17 2026 Morzilla <3956663+Morzilla@users.noreply.github.com> - 6.7.5^202611171131git8248ee8-1
+- Aurora: the accent's light on the right (on with the VS Code button)
+- Glass windows: no solid header band on KDE settings pages
+
 * Tue Nov 17 2026 Morzilla <3956663+Morzilla@users.noreply.github.com> - 6.7.5^202611170937git4e786c6-1
 - No crash with the platform's own dialogs (Spectacle's colour picker)
 
