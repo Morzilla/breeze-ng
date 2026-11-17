@@ -110,6 +110,7 @@ private:
     QCheckBox *m_auroraLight = nullptr;
     QCheckBox *m_auroraDim = nullptr;
     QCheckBox *m_auroraFull = nullptr;
+    QCheckBox *m_auroraAccentRight = nullptr; // the accent's light on the right, the second on the left
     QString m_auroraSecond; // the second light's colour (#rrggbb), empty: next to the accent
     QList<QAbstractButton *> m_auroraSecondButtons;
     int m_savedAuroraLights = 100;

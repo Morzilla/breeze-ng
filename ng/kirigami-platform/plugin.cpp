@@ -64,6 +64,7 @@ struct Look {
     int grain = 30; // the grain over them
     bool dim = true; // windows in the background dim their lights
     QColor second; // the second light, if the user chose its colour
+    bool accentRight = false; // the accent's light from the top right, the second light from the top left
     bool fullSelection = false; // selections in the full accent with white text
     QColor onSelection; // text on a selection, where it is not the scheme's own
 };
@@ -116,6 +117,7 @@ Look readLook()
     look.fullSelection = common.readEntry("AuroraFullSelection", false);
     const QString secondAccent = common.readEntry("AuroraSecondAccent", QString());
     look.second = secondAccent.isEmpty() ? QColor() : QColor(secondAccent);
+    look.accentRight = common.readEntry("AuroraAccentRight", false);
     colours(look);
     return look;
 }
@@ -212,8 +214,8 @@ public:
                 wash.setAlphaF(qMin(1.0, 0.20 * strength));
                 painter->fillRect(rect, wash);
             }
-            light(rect.topLeft(), radius, accent, 0.52);
-            light(rect.topRight(), radius * 0.8, second, 0.36);
+            light(m_look.accentRight ? rect.topRight() : rect.topLeft(), radius, accent, 0.52); // (as the widget style)
+            light(m_look.accentRight ? rect.topLeft() : rect.topRight(), radius * 0.8, second, 0.36);
             light(rect.bottomRight(), radius * 0.9, accent, 0.32);
         }
         if (m_look.grain > 0) {

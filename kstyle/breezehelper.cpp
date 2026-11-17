@@ -402,8 +402,11 @@ void Helper::renderAuroraLights(QPainter *painter, const QRectF &windowRect, con
         wash.setAlphaF(qMin(1.0, 0.20 * strength));
         painter->fillRect(windowRect, wash);
     }
-    light(windowRect.topLeft(), radius, accent, 0.52);
-    light(windowRect.topRight(), radius * 0.8, second, 0.36);
+    // (AuroraAccentRight: the two top lights change corners; the bottom right one is the accent either way, so the
+    // accent's side is all on the right)
+    const bool accentRight = StyleConfigData::auroraAccentRight();
+    light(accentRight ? windowRect.topRight() : windowRect.topLeft(), radius, accent, 0.52);
+    light(accentRight ? windowRect.topLeft() : windowRect.topRight(), radius * 0.8, second, 0.36);
     light(windowRect.bottomRight(), radius * 0.9, accent, 0.32);
     if (const int grain = qBound(0, StyleConfigData::auroraGrain(), 100); grain > 0) {
         painter->drawTiledPixmap(windowRect, ngGrainTile(grain), windowRect.topLeft());

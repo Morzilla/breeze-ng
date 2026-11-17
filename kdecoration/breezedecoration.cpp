@@ -474,6 +474,7 @@ void Decoration::reconfigure()
         m_ngAuroraDim = common.readEntry("AuroraDimInactive", true);
         const QString secondAccent = common.readEntry("AuroraSecondAccent", QString());
         m_ngAuroraSecond = secondAccent.isEmpty() ? QColor() : QColor(secondAccent);
+        m_ngAuroraAccentRight = common.readEntry("AuroraAccentRight", false);
         const QString blurMode = common.readEntry("DecorationBlur", QStringLiteral("frame")).toLower();
         if (blurMode != m_ngBlurMode) {
             m_ngBlurMode = blurMode;
@@ -828,8 +829,9 @@ void Decoration::paintTitleBar(QPainter *painter, const QRectF &repaintRegion)
             wash.setAlphaF(qMin(1.0, 0.20 * strength));
             painter->fillRect(rect, wash);
         }
-        light(QPointF(rect.left(), rect.bottom() + 1), radius, accent, 0.52);
-        light(QPointF(rect.right() + 1, rect.bottom() + 1), radius * 0.8, second, 0.36);
+        const QPointF leftCentre(rect.left(), rect.bottom() + 1), rightCentre(rect.right() + 1, rect.bottom() + 1);
+        light(m_ngAuroraAccentRight ? rightCentre : leftCentre, radius, accent, 0.52); // (the corners the widget style uses)
+        light(m_ngAuroraAccentRight ? leftCentre : rightCentre, radius * 0.8, second, 0.36);
         if (m_ngAuroraGrain > 0) {
             painter->drawTiledPixmap(rect, ngGrainTile(m_ngAuroraGrain), rect.topLeft());
         }
