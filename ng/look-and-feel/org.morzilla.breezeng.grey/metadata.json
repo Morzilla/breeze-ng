@@ -1,0 +1,16 @@
+{
+    "KPackageStructure": "Plasma/LookAndFeel",
+    "KPlugin": {
+        "Authors": [
+            {
+                "Name": "Morzilla"
+            }
+        ],
+        "Description": "Breeze NG Grey: opaque, a soft grey ground with white fields and a white sidebar; the Breeze NG widget style, window decoration and Plasma style with the Breeze NG Grey colours",
+        "Id": "org.morzilla.breezeng.grey",
+        "License": "GPL-2.0+",
+        "Name": "Breeze NG Grey",
+        "Version": "1.0"
+    },
+    "X-Plasma-APIVersion": "2"
+}

@@ -132,14 +132,14 @@ themes)
     # the colour scheme and the two global themes (System Settings > Global Theme): Breeze NG Soft / Glass.
     # The themes keep whatever icon theme is in use.
     mkdir -p "$HOME/.local/share/color-schemes" "$HOME/.local/share/plasma/look-and-feel"
-    cp "$W/ng/color-schemes/BreezeNG.colors" "$W/ng/color-schemes/BreezeNGLight.colors" "$W/ng/color-schemes/BreezeNGCode.colors" "$HOME/.local/share/color-schemes/"
+    cp "$W/ng/color-schemes/BreezeNG.colors" "$W/ng/color-schemes/BreezeNGLight.colors" "$W/ng/color-schemes/BreezeNGCode.colors" "$W/ng/color-schemes/BreezeNGGrey.colors" "$HOME/.local/share/color-schemes/"
     # the style's entry for System Settings > Application Style: its name and its Configure button
     mkdir -p "$HOME/.local/share/kstyle/themes"
     cp "$W/kstyle/breezeng.themerc" "$HOME/.local/share/kstyle/themes/"
     cp -r "$W"/ng/look-and-feel/org.morzilla.breezeng.* "$HOME/.local/share/plasma/look-and-feel/"
     ICONS="$(kreadconfig6 --file kdeglobals --group Icons --key Theme 2>/dev/null || true)"
     if [ -n "$ICONS" ]; then
-        for v in soft glass aurora soft.light glass.light aurora.light aurora.airy aurora.code; do
+        for v in soft glass aurora soft.light glass.light aurora.light aurora.airy aurora.code grey; do
             printf '\n[kdeglobals][Icons]\nTheme=%s\n' "$ICONS" >> "$HOME/.local/share/plasma/look-and-feel/org.morzilla.breezeng.$v/contents/defaults"
         done
     fi

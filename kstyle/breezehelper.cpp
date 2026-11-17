@@ -28,6 +28,7 @@
 #include <QMdiArea>
 #include <QMenuBar>
 #include <QAbstractScrollArea>
+#include <QListView>
 #include <QPainter>
 #include <QTabBar>
 #include <QTabWidget>
@@ -566,7 +567,19 @@ QColor Helper::inputBackground(const QPalette &palette) const
 {
     const QColor base = palette.color(QPalette::Base);
     // Aurora: the same veil as the buttons, so that every surface has one intensity
-    return _aurora ? auroraVeilColor(palette, true) : isGlass() ? alphaColor(base, 0.62) : base;
+    if (_aurora) {
+        return auroraVeilColor(palette, true);
+    }
+    if (isGlass()) {
+        return alphaColor(base, 0.62);
+    }
+    // on a toned light window whose scheme gives fields the window's own colour (Breeze NG Grey: the file area and
+    // the window are one grey ground), a field is nearly white, raised from the ground
+    const QColor window = palette.color(QPalette::Window);
+    if (qAbs(base.lightnessF() - window.lightnessF()) < 0.045 && window.lightnessF() > 0.5 && window.lightnessF() < 0.95) {
+        return KColorUtils::mix(window, QColor(255, 255, 255), 0.8);
+    }
+    return base;
 }
 
 QColor Helper::frameOutlineColor(const QPalette &palette, bool mouseOver, bool hasFocus, qreal opacity, AnimationMode mode) const

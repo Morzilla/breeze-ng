@@ -48,7 +48,7 @@ package() {
     python ng/plasma-style/make-plasma-style.py $v "$pkgdir/usr/share/plasma/desktoptheme/breeze-ng-$v"
   done
   install -Dm644 -t "$pkgdir/usr/share/color-schemes" ng/color-schemes/BreezeNG.colors ng/color-schemes/BreezeNGLight.colors \
-    ng/color-schemes/BreezeNGCode.colors
+    ng/color-schemes/BreezeNGCode.colors ng/color-schemes/BreezeNGGrey.colors
   install -Dm644 kstyle/breezeng.themerc "$pkgdir/usr/share/kstyle/themes/breezeng.themerc"
   install -dm755 "$pkgdir/usr/share/plasma/look-and-feel"
   cp -a ng/look-and-feel/org.morzilla.breezeng.* "$pkgdir/usr/share/plasma/look-and-feel/"
