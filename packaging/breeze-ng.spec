@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: GPL-2.0-or-later
-%global commit      17fe3e705c04ee49c1dc7e53e5201c90acafbef9
+%global commit      160f83c2737f01d39efcb6a999cbec47ffdda44a
 %global shortcommit %(c=%{commit}; echo ${c:0:7})
-%global snapdate    202611171230
+%global snapdate    202611172030
 # snapdate: date and time of the commit (YYYYMMDDHHMM), so that two snapshots of one day sort in order
 # installed apart from the system, next to Fedora's own Breeze
 %global ngprefix    /opt/ng/breeze-ng
@@ -127,6 +127,10 @@ done
 %{_qt6_plugindir}/org.kde.kdecoration3.kcm/kcm_breezengdecoration.so
 
 %changelog
+* Tue Nov 17 2026 Morzilla <3956663+Morzilla@users.noreply.github.com> - 6.7.5^202611172030git160f83c-1
+- Breeze NG Grey: an opaque light theme with its own colour scheme
+- Menus: a light sheet of the accent under the pointer; Soft's primary button with readable text
+
 * Tue Nov 17 2026 Morzilla <3956663+Morzilla@users.noreply.github.com> - 6.7.5^202611171230git17fe3e7-1
 - The title bar follows a new accent at once; no unblurred line under it at 125%
 - Joined menus: no thin line under the button at a fractional scale
