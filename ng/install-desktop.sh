@@ -637,7 +637,7 @@ if [ -n "$PRESET" ] && want dolphin && ! failed "Dolphin NG"; then
     case "$PRESET" in
         classic) key SIDEBAR plain; key DEVICES show; key SIDEBAR_FILTERS hide; key LIST columns; key ICONS show; key TILES off; key RowStyle stripe ;;
         soft) key SIDEBAR plain; key DEVICES show ;;
-        glass|aurora) key GLASS_RIM diagonal; key CARDS_MARK type ;;
+        glass|aurora) key GLASS_RIM diagonal ;;
         *) warn "unknown preset: $PRESET (classic, soft, glass, aurora)" ;;
     esac
     ok "settings written (change them later in Dolphin NG > Configure > NG)"
