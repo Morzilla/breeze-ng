@@ -33,6 +33,7 @@
 #include <QPainter>
 #include <QPainterPath>
 #include <cmath>
+#include <QtMath>
 #include <QPainterPath>
 #include <QTextStream>
 #include <QTimer>
@@ -258,6 +259,10 @@ bool Decoration::init()
     connect(window(), &KDecoration3::DecoratedWindow::shadedChanged, this, &Decoration::updateButtonsGeometry);
 
     connect(window(), &KDecoration3::DecoratedWindow::nextScaleChanged, this, &Decoration::updateScale);
+    // breeze-ng: a new accent or scheme repaints the lights of the title bar
+    connect(window(), &KDecoration3::DecoratedWindow::paletteChanged, this, [this] {
+        update();
+    });
 
     createButtons();
     updateShadow();
@@ -290,8 +295,14 @@ void Decoration::ngApplyBlurRegion()
         path.addRoundedRect(QRectF(QPointF(0, 0), size()), m_scaledCornerRadius, m_scaledCornerRadius);
         QRegion region(path.toFillPolygon().toPolygon());
         if (m_ngBlurMode == QLatin1String("frame")) {
-            const QRectF inside(borderLeft(), borderTop(), size().width() - borderLeft() - borderRight(), size().height() - borderTop() - borderBottom());
-            region -= QRegion(inside.toRect());
+            // the hole for the window rounds inwards: with a fractional scale the borders are fractional, and a hole
+            // rounded outwards left a sliver between the title bar and the window that nobody blurred (the desktop
+            // showed sharp through a line under the title bar)
+            const int left = qCeil(borderLeft()), top = qCeil(borderTop());
+            const int right = qFloor(size().width() - borderRight()), bottom = qFloor(size().height() - borderBottom());
+            if (right > left && bottom > top) {
+                region -= QRegion(QRect(QPoint(left, top), QPoint(right - 1, bottom - 1)));
+            }
         }
         setBlurRegion(region);
     } else {
@@ -803,7 +814,9 @@ void Decoration::paintTitleBar(QPainter *painter, const QRectF &repaintRegion)
             clip.setFillRule(Qt::WindingFill);
         }
         painter->setClipPath(clip.simplified());
-        const QColor highlight = QGuiApplication::palette().color(QPalette::Active, QPalette::Highlight);
+        // the accent from the window's palette, which KWin updates when the scheme or the accent changes (KWin's own
+        // application palette kept the accent of when it started: the title bar stayed in the old hue)
+        const QColor highlight = window()->palette().color(QPalette::Active, QPalette::Highlight);
         const qreal hue = highlight.hslHueF() < 0 ? 0.58 : highlight.hslHueF();
         const qreal saturation = (highlight.hslSaturationF() < 0.15 ? highlight.hslSaturationF() : qBound(0.60, highlight.hslSaturationF() * 1.4, 0.95));
         const QColor accent = QColor::fromHslF(hue, saturation, (titleBarColor().lightnessF() < 0.5) ? 0.62 : 0.90); // luminous, as in the widget style
