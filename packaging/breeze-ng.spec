@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: GPL-2.0-or-later
-%global commit      160f83c2737f01d39efcb6a999cbec47ffdda44a
+%global commit      8a54516d3790c78c5dad56ccc0a89bfe6a40f8f7
 %global shortcommit %(c=%{commit}; echo ${c:0:7})
-%global snapdate    202611172030
+%global snapdate    202611181131
 # snapdate: date and time of the commit (YYYYMMDDHHMM), so that two snapshots of one day sort in order
 # installed apart from the system, next to Fedora's own Breeze
 %global ngprefix    /opt/ng/breeze-ng
@@ -127,6 +127,11 @@ done
 %{_qt6_plugindir}/org.kde.kdecoration3.kcm/kcm_breezengdecoration.so
 
 %changelog
+* Wed Nov 18 2026 Morzilla <3956663+Morzilla@users.noreply.github.com> - 6.7.5^202611181131git8a54516-1
+- Settings: Defaults are saved; an Apply button in System Settings' dialog; blur back to its default
+- Buttons of message bars (errors, warnings) readable on their coloured band
+- Aurora: a menu joined to its button is opaque, the two one colour
+
 * Tue Nov 17 2026 Morzilla <3956663+Morzilla@users.noreply.github.com> - 6.7.5^202611172030git160f83c-1
 - Breeze NG Grey: an opaque light theme with its own colour scheme
 - Menus: a light sheet of the accent under the pointer; Soft's primary button with readable text
