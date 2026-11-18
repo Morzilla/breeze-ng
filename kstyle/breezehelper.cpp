@@ -202,9 +202,10 @@ QColor Helper::menuSheet(const QPalette &palette, bool alpha, QColor *outline, b
     // (38 %: behind a menu lies its own window, already glass: a thin sheet over its blur reads as the same glass)
     // (joined to its button, the sheet is denser: the button lies on the window's own glass, the menu on the blur of
     // whatever is under it, and a thin sheet let that difference through: two tones in one shape)
-    // (90-92 %: behind the menu lies the blur of its own window, behind the button the blur of the desktop; with a
-    // thinner sheet, a quarter of that difference showed and the open button was a tone apart from its menu)
-    const int glassOpacity = _aurora ? (isDark(palette) ? (joined ? 90 : 38) : (joined ? 92 : 72)) : 78;
+    // (joined: opaque. Behind the menu lies the blur of its own window, behind the button the blur of the desktop:
+    // whatever a see-through sheet let through, the open button came out a tone apart from its menu; at 74 % a
+    // quarter of the difference, at 90 % still two or three levels)
+    const int glassOpacity = _aurora ? (isDark(palette) ? (joined ? 100 : 38) : (joined ? 100 : 72)) : 78;
     const int menuOpacity = (joined && !_aurora) ? 100 : ((isGlass() && StyleConfigData::menuOpacity() >= 100) ? glassOpacity : StyleConfigData::menuOpacity());
     QColor edge = isGlass() ? alphaColor(ink(palette), 0.16) : frameOutlineColor(palette);
     if (menuOpacity < 100 && alpha) {
