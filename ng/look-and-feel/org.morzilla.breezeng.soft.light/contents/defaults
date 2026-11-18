@@ -10,3 +10,6 @@ theme=Breeze NG Soft
 
 [plasmarc][Theme]
 name=breeze-ng-soft
+
+[kdeglobals][Icons]
+Theme=NeoLine

@@ -10,3 +10,6 @@ theme=Breeze NG Aurora
 
 [plasmarc][Theme]
 name=breeze-ng-aurora
+
+[kdeglobals][Icons]
+Theme=NeoLine

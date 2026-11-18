@@ -11,3 +11,6 @@ theme=Breeze NG Glass
 
 [plasmarc][Theme]
 name=breeze-ng-glass
+
+[kdeglobals][Icons]
+Theme=NeoLine-White

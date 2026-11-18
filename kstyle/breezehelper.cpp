@@ -573,11 +573,11 @@ QColor Helper::inputBackground(const QPalette &palette) const
     if (isGlass()) {
         return alphaColor(base, 0.62);
     }
-    // on a toned light window whose scheme gives fields the window's own colour (Breeze NG Grey: the file area and
-    // the window are one grey ground), a field is nearly white, raised from the ground
+    // on a light window whose scheme gives fields the window's own colour (Breeze NG Grey and Light: the file area
+    // and the window are one ground), a field is white, raised from the ground (it could not be seen at all)
     const QColor window = palette.color(QPalette::Window);
-    if (qAbs(base.lightnessF() - window.lightnessF()) < 0.045 && window.lightnessF() > 0.5 && window.lightnessF() < 0.95) {
-        return KColorUtils::mix(window, QColor(255, 255, 255), 0.8);
+    if (qAbs(base.lightnessF() - window.lightnessF()) < 0.045 && window.lightnessF() > 0.5) {
+        return window.lightnessF() < 0.95 ? KColorUtils::mix(window, QColor(255, 255, 255), 0.8) : QColor(255, 255, 255);
     }
     return base;
 }
@@ -2162,13 +2162,14 @@ void Helper::renderTabBarTab(QPainter *painter,
     bool isQtQuickControl = stateProperties.value("isQtQuickControl");
     bool hasAlteredBackground = stateProperties.value("hasAlteredBackground");
     const bool pillBar = stateProperties.value("pillBar");
+    const bool pillsOnly = stateProperties.value("pillsOnly");
 
     // setup painter
     painter->setRenderHint(QPainter::Antialiasing, true);
     QRectF frameRect = rect;
     QColor bgBrush;
 
-    if (pillBar && (!selected || _aurora)) {
+    if ((pillBar || pillsOnly) && (!selected || _aurora || pillsOnly)) {
         // Breeze NG: a tab at rest is a faint pill, a little brighter under the pointer
         // (Aurora: the current one too, brighter: no tongue in the opaque colour of the page, the page is glass)
         qreal veil = selected ? 0.16 : _aurora ? auroraVeil(palette, true) : 0.06;
@@ -2188,7 +2189,11 @@ void Helper::renderTabBarTab(QPainter *painter,
         // the round ends off the neighbours of the current tab, whose rectangle reaches over them.)
         painter->setPen(Qt::NoPen);
         // Aurora: the current tab wears the accent
-        painter->setBrush(selected && _aurora ? auroraSelection(palette, veil - 0.16) : _aurora ? auroraSheet(palette, veil) : alphaColor(ink(palette), veil));
+        // (a bar of pills only: the current tab a pill of the bar's Base colour, which its owner sets)
+        painter->setBrush(selected && _aurora   ? auroraSelection(palette, veil - 0.16)
+                              : selected && pillsOnly ? palette.color(QPalette::Base)
+                              : _aurora               ? auroraSheet(palette, veil)
+                                                      : alphaColor(ink(palette), veil));
         painter->drawRoundedRect(pill, radius, radius);
         return;
     }

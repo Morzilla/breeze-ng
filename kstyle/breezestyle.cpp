@@ -1752,9 +1752,10 @@ void Style::drawPrimitive(PrimitiveElement element, const QStyleOption *option, 
         }
     }
 
-    // Breeze NG Glass: the panel of a field is its frame, which lays the field's translucent background; the stock
-    // panel filled the inside with the opaque Base colour first (a solid box inside the glass field)
-    if (element == PE_PanelLineEdit && _helper->isGlass()) {
+    // Breeze NG: the panel of a field is its frame, which lays the field's background; the stock panel filled the
+    // inside with the Base colour first (a solid box inside the glass field). A panel that is a field by itself (the
+    // location bar, painted as a panel since KIO 6.32) is a rounded field in every look: Soft drew a square block
+    if (element == PE_PanelLineEdit) {
         if (const auto panel = qstyleoption_cast<const QStyleOptionFrame *>(option)) {
             const QWidget *holder = widget ? widget->parentWidget() : nullptr;
             if (panel->lineWidth > 0) {
@@ -5001,9 +5002,9 @@ bool Style::drawFrameLineEditPrimitive(const QStyleOption *option, QPainter *pai
 
         painter->setPen(Qt::NoPen);
         painter->setBrush(background);
-        if (_helper->isGlass() && rect.height() >= 24) {
+        if (rect.height() >= 24) {
             // Breeze NG: a field a little short of the full frame (a location bar in a tool bar) is still a field:
-            // the corners of every other one, not a square block
+            // the corners of every other one, not a square block (in every look: Soft drew the square block)
             painter->setRenderHint(QPainter::Antialiasing);
             const qreal radius = qMin<qreal>(_helper->frameRadius(PenWidth::NoPen), rect.height() / 2.0);
             painter->drawRoundedRect(QRectF(rect), radius, radius);
@@ -8519,6 +8520,9 @@ bool Style::drawTabBarTabShapeControl(const QStyleOption *option, QPainter *pain
     // Breeze NG: tabs of a document bar (Dolphin, Kate, Konsole: no frame, the page sits right under the tabs)
     // are pills; the current one is a tongue in the colour of the page it opens on
     stateProperties["pillBar"] = tabOption->documentMode && !isStatic && !isQtQuickControl;
+    // a bar that asks for pills only (Dolphin NG's tabs in the title bar: there is no page right under them for a
+    // tongue to run into), the current tab a whole pill too
+    stateProperties["pillsOnly"] = widget && widget->property("_breeze_ng_pill_tabs").toBool();
 
     if (isStatic) {
         _helper->renderStaticTabBarTab(painter, rect, option->palette, stateProperties, corners, animation);
