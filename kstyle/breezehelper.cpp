@@ -13,6 +13,7 @@
 #include <KColorScheme>
 #include <KColorUtils>
 #include <KIconLoader>
+#include <KWindowEffects>
 #include <KWindowSystem>
 #include <qobject.h>
 #if __has_include(<KX11Extras>)
@@ -2656,6 +2657,15 @@ bool Helper::compositingActive() const
     }
 
     return true;
+}
+
+//____________________________________________________________________
+bool Helper::blurAvailable() const
+{
+    if (qEnvironmentVariableIsSet("BREEZE_NG_ASSUME_BLUR")) {
+        return true;
+    }
+    return compositingActive() && KWindowEffects::isEffectAvailable(KWindowEffects::BlurBehind);
 }
 
 //____________________________________________________________________

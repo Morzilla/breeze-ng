@@ -419,6 +419,10 @@ public:
     //* returns true if compositing is active
     bool compositingActive() const;
 
+    //* Breeze NG Glass: true if the compositor blurs behind windows (its blur effect is on). Without it the glass
+    //* would be bare: what lies behind a window shown sharp through it
+    bool blurAvailable() const;
+
     //* returns true if a given widget supports alpha channel
     bool hasAlphaChannel(const QWidget *) const;
 
