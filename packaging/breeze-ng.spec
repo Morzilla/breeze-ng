@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: GPL-2.0-or-later
-%global commit      87cd7bac1c67fa3a7e0a2db3dc6a2720d21058b2
+%global commit      636105f06be0f061a53eda51fb97fc56cfb45b98
 %global shortcommit %(c=%{commit}; echo ${c:0:7})
-%global snapdate    202611181157
+%global snapdate    202611181829
 # snapdate: date and time of the commit (YYYYMMDDHHMM), so that two snapshots of one day sort in order
 # installed apart from the system, next to Fedora's own Breeze
 %global ngprefix    /opt/ng/breeze-ng
@@ -127,6 +127,9 @@ done
 %{_qt6_plugindir}/org.kde.kdecoration3.kcm/kcm_breezengdecoration.so
 
 %changelog
+* Wed Nov 18 2026 Morzilla <3956663+Morzilla@users.noreply.github.com> - 6.7.5^202611181829git636105f-1
+- Glass only where the compositor blurs: without KWin's blur effect a window stays solid
+
 * Wed Nov 18 2026 Morzilla <3956663+Morzilla@users.noreply.github.com> - 6.7.5^202611181157git87cd7ba-1
 - Aurora: the buttons of a message bar without a dark outline
 - Settings: Defaults are saved; an Apply button in System Settings' dialog; blur back to its default
