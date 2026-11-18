@@ -113,6 +113,9 @@ settings of the style, in pages:
 - **KWin effects** – whether the two external effects the screenshots rely on (Better Blur DX for the blur, KDE
   Rounded Corners for the window corners) are installed and on, with links to them.
 
+**Apply** saves without closing the window (System Settings' own dialog has only OK, Cancel and Defaults: Breeze NG
+adds the button). **Defaults** brings back Breeze NG's values on every page; the look you chose stays.
+
 Everything is stored in `breezengrc`. The variant follows the decoration theme chosen in KWin (`Breeze NG Soft` or
 `Breeze NG Glass`), which is what the global themes and the Look page set; `[Common] Variant=Soft|Glass` is the
 fallback.
@@ -141,6 +144,11 @@ bash <(curl -fsSL https://raw.githubusercontent.com/Morzilla/breeze-ng/ng/ng/ins
 
 The graphical installer is a small wizard: pick the parts, pick a look (Classic, Soft or Glass), watch it build. It
 needs Python with PyQt6 or PySide6 and offers to install them; without them it falls back to the terminal one.
+
+To remove it all, press **Uninstall** on the wizard's first page, or run the terminal installer with `--uninstall`.
+It deletes what the parts put in your home folder (programs, themes, icons, the file dialog, sources and logs) and
+switches the desktop back to Breeze; your settings files stay. The two KWin effects are system files: it prints the
+command that removes them.
 
 Tested from a fresh install, as a normal user with sudo, in November 2026, with the parts it picks by default
 (Dolphin NG, Breeze NG, NeoLine, Dialog NG): Fedora 44, Arch, openSUSE Tumbleweed, Debian sid and Ubuntu 26.10 all
