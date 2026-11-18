@@ -2253,22 +2253,7 @@ bool Style::eventFilter(QObject *object, QEvent *event)
             // sheet of glass tinted with the colour of its kind, not a solid block of it. Its own painting is skipped;
             // the text, the icon and the buttons are its children and paint themselves.
             const QPalette palette = widget->palette();
-            QColor tint;
-            switch (widget->property("messageType").toInt()) {
-            case 0: // positive
-                tint = QColor(39, 174, 96);
-                break;
-            case 2: // warning
-                tint = _helper->neutralText(QApplication::palette());
-                break;
-            case 3: // error
-                tint = _helper->negativeText(QApplication::palette());
-                break;
-            default: // information
-                tint = _helper->auroraAccent(QApplication::palette(), 1.0);
-                break;
-            }
-            tint.setAlphaF(_helper->isDark(QApplication::palette()) ? 0.30 : 0.24);
+            const QColor tint = _helper->messageTint(widget);
             QPainter painter(widget);
             _helper->clearUnder(&painter, widget->rect());
             painter.setRenderHint(QPainter::Antialiasing, true);

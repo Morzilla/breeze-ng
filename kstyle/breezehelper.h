@@ -35,6 +35,9 @@ class Helper : public QObject
     Q_OBJECT
 
 public:
+    //* Breeze NG Aurora: the tint of an inline message (KMessageWidget), by its kind
+    QColor messageTint(const QWidget *message) const;
+
     //* constructor
     explicit Helper(KSharedConfig::Ptr);
 
@@ -459,6 +462,7 @@ public:
 protected:
     //* return rounded path in a given rect, with only selected corners rounded, and for a given radius
     QPainterPath roundedPath(const QRectF &, Corners, qreal) const;
+
 
 private:
     //* configuration

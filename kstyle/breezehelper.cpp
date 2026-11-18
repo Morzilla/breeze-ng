@@ -419,6 +419,28 @@ void Helper::renderAuroraLights(QPainter *painter, const QRectF &windowRect, con
     } // (the same grain at the same place at every repaint)
 }
 
+QColor Helper::messageTint(const QWidget *message) const
+{
+    // Breeze NG Aurora: the tint of an inline message (KMessageWidget) over the window's glass, by its kind
+    QColor tint;
+    switch (message ? message->property("messageType").toInt() : 1) {
+    case 0: // positive
+        tint = QColor(39, 174, 96);
+        break;
+    case 2: // warning
+        tint = neutralText(QApplication::palette());
+        break;
+    case 3: // error
+        tint = negativeText(QApplication::palette());
+        break;
+    default: // information
+        tint = auroraAccent(QApplication::palette(), 1.0);
+        break;
+    }
+    tint.setAlphaF(isDark(QApplication::palette()) ? 0.30 : 0.24);
+    return tint;
+}
+
 bool Helper::glassLayers(const QPainter *painter, QColor *base, QList<QColor> *panels, const QWidget **widgetOut, const QWidget **windowOut) const
 {
     if (!painter || !painter->device() || painter->device()->devType() != QInternal::Widget) {
@@ -448,6 +470,16 @@ bool Helper::glassLayers(const QPainter *painter, QColor *base, QList<QColor> *p
         }
         if (parent->autoFillBackground()) {
             return false; // an opaque surface of its own
+        }
+        if (parent->inherits("KMessageWidget")) {
+            // a button of an inline message stands on the message's band: Aurora tints it (see Style::eventFilter), the
+            // other looks let the message paint itself. Cleared to the bare window, the corners around the rounded
+            // button showed the glass through the band: a dark outline
+            if (!_aurora) {
+                return false;
+            }
+            panels->prepend(messageTint(parent));
+            continue;
         }
         if (parent->inherits("QTabWidget") && child->inherits("QTabBar")) {
             continue; // the tab bar is beside the panel of its tab widget, not on it
