@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: GPL-2.0-or-later
-%global commit      8a54516d3790c78c5dad56ccc0a89bfe6a40f8f7
+%global commit      87cd7bac1c67fa3a7e0a2db3dc6a2720d21058b2
 %global shortcommit %(c=%{commit}; echo ${c:0:7})
-%global snapdate    202611181131
+%global snapdate    202611181157
 # snapdate: date and time of the commit (YYYYMMDDHHMM), so that two snapshots of one day sort in order
 # installed apart from the system, next to Fedora's own Breeze
 %global ngprefix    /opt/ng/breeze-ng
@@ -127,7 +127,8 @@ done
 %{_qt6_plugindir}/org.kde.kdecoration3.kcm/kcm_breezengdecoration.so
 
 %changelog
-* Wed Nov 18 2026 Morzilla <3956663+Morzilla@users.noreply.github.com> - 6.7.5^202611181131git8a54516-1
+* Wed Nov 18 2026 Morzilla <3956663+Morzilla@users.noreply.github.com> - 6.7.5^202611181157git87cd7ba-1
+- Aurora: the buttons of a message bar without a dark outline
 - Settings: Defaults are saved; an Apply button in System Settings' dialog; blur back to its default
 - Buttons of message bars (errors, warnings) readable on their coloured band
 - Aurora: a menu joined to its button is opaque, the two one colour
