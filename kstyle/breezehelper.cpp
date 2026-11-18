@@ -571,7 +571,9 @@ QColor Helper::inputBackground(const QPalette &palette) const
         return auroraVeilColor(palette, true);
     }
     if (isGlass()) {
-        return alphaColor(base, 0.62);
+        // Glass: on a dark scheme the field colour at the glass' strength; on a light one a grey veil of ink, as the
+        // cards and the buttons around it (a white field on the frosted window hardly stood out)
+        return isDark(palette) ? alphaColor(base, 0.62) : alphaColor(ink(palette), 0.07);
     }
     // on a light window whose scheme gives fields the window's own colour (Breeze NG Grey and Light: the file area
     // and the window are one ground), a field is white, raised from the ground (it could not be seen at all)

@@ -1763,12 +1763,10 @@ void Style::drawPrimitive(PrimitiveElement element, const QStyleOption *option, 
             } else if (!(holder && (holder->inherits("QAbstractSpinBox") || holder->inherits("QComboBox")))) {
                 // (inside a spin box or a combo box: theirs)
                 if (widget && !qobject_cast<const QLineEdit *>(widget) && option->rect.height() >= 24) {
-                    // a panel that is a whole field by itself (a location bar): the corners of every other field
-                    painter->setRenderHint(QPainter::Antialiasing);
-                    painter->setPen(Qt::NoPen);
-                    painter->setBrush(_helper->inputBackground(option->palette));
-                    const qreal radius = qMin<qreal>(_helper->frameRadius(PenWidth::NoPen), option->rect.height() / 2.0);
-                    painter->drawRoundedRect(QRectF(option->rect), radius, radius);
+                    // a panel that is a whole field by itself (a location bar): a field like every other one, its
+                    // corners and its resting edge (Glass: the faint rim the search field beside it has)
+                    _helper->renderFrame(painter, option->rect, _helper->inputBackground(option->palette),
+                                         _helper->frameOutlineColor(option->palette, false, false, 1.0, AnimationNone));
                 } else {
                     painter->fillRect(option->rect, _helper->inputBackground(option->palette));
                 }
