@@ -450,18 +450,26 @@ if [ "$DEPS" = 1 ]; then
             [ "$SESSION" = x11 ] && command -v kwin_x11 >/dev/null && { safe_pkgs apt-get install kwin-x11-dev || true; }
         fi
     elif command -v pacman >/dev/null; then
+        # pacman --needed says "warning: X is up to date -- skipping" for every package already there: not a warning
+        # for us, and the installer's log was full of them. Its own status is kept.
+        # (grep finds nothing to print when everything is there: that is not a failure, under set -e and pipefail)
+        pac() {
+            local status=0
+            $SUDO env LC_ALL=C pacman "$@" 2>&1 | { grep -v -E '^warning: .+ is up to date -- skipping$' || true; } || status=$?
+            return "$status"
+        }
         # Arch has no "build-dep", but its packages carry their headers: installing Dolphin and Breeze themselves
         # brings every library they are built on. The rest are the tools and the few build-only libraries.
         # No "-Sy": refreshing the package lists without upgrading is a partial upgrade, which can break the desktop.
         # If a package is not found, update the system first (sudo pacman -Syu) and run this again.
-        $SUDO pacman -S --needed --noconfirm git cmake base-devel extra-cmake-modules kdoctools qt6-tools python poppler qt6-multimedia qt6-svg imagemagick ffmpeg \
+        pac -S --needed --noconfirm git cmake base-devel extra-cmake-modules kdoctools qt6-tools python poppler qt6-multimedia qt6-svg imagemagick ffmpeg \
             dolphin breeze \
             kio kxmlgui kparts knewstuff kcmutils baloo baloo-widgets kfilemetadata kuserfeedback phonon-qt6 ktextwidgets kcompletion kcodecs kcrash kdbusaddons \
             kbookmarks knotifications solid kwidgetsaddons kitemviews kjobwidgets kservice ktexteditor kwallet plasma-activities packagekit-qt6 \
             kdecoration kwindowsystem kconfigwidgets kguiaddons ki18n kiconthemes kcoreaddons kcolorscheme frameworkintegration kirigami
         if want effects; then
-            $SUDO pacman -S --needed --noconfirm qt6-tools vulkan-headers kwin || true
-            [ "$SESSION" = x11 ] && command -v kwin_x11 >/dev/null && { $SUDO pacman -S --needed --noconfirm kwin-x11 || true; }
+            pac -S --needed --noconfirm qt6-tools vulkan-headers kwin || true
+            [ "$SESSION" = x11 ] && command -v kwin_x11 >/dev/null && { pac -S --needed --noconfirm kwin-x11 || true; }
         fi
     elif command -v zypper >/dev/null; then
         $SUDO zypper install -y git cmake gcc-c++ extra-cmake-modules python3 poppler-tools qt6-multimedia-devel qt6-svg-devel ImageMagick ffmpeg \
