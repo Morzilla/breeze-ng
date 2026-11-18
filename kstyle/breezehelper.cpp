@@ -172,8 +172,10 @@ bool Helper::isDark(const QPalette &palette)
 {
     // (a see-through window colour is a veil, not a ground: a Qt Quick control on a veil gets the veil as its
     // window colour, white on a dark scheme. The text tells then)
+    // (nor is a strongly coloured one: KMessageWidget's red, orange or blue band keeps the window's text, and its
+    // buttons have to be drawn as on the window, not as on a light ground)
     const QColor window = palette.color(QPalette::Window);
-    if (window.alpha() < 200) {
+    if (window.alpha() < 200 || window.hsvSaturationF() > 0.45) {
         return palette.color(QPalette::Active, QPalette::WindowText).lightnessF() >= 0.5;
     }
     return window.lightnessF() < 0.5;

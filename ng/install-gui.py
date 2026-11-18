@@ -119,6 +119,15 @@ TEXT = {
     "failed_text": ("The details below show where it stopped. Nothing of your system was replaced.", "I dettagli qui sotto mostrano dove si è fermato. Nulla del sistema è stato sostituito."),
     "launch": ("Start Dolphin NG", "Avvia Dolphin NG"),
     "nothing": ("Select at least one part.", "Seleziona almeno una parte."),
+    "uninstall": ("Uninstall", "Disinstalla"),
+    "uninstall_ask": ("Remove Dolphin NG, Breeze NG, the NeoLine icons, Dialog NG and their sources from your home folder, and go back to "
+                      "Breeze?\n\nYour settings files are kept.",
+                      "Rimuovere Dolphin NG, Breeze NG, le icone NeoLine, Dialog NG e i loro sorgenti dalla cartella home, e tornare a "
+                      "Breeze?\n\nI file delle impostazioni restano."),
+    "removing": ("Uninstalling…", "Disinstallazione…"),
+    "removed": ("Uninstalled", "Disinstallato"),
+    "removed_text": ("The NG desktop was removed and the desktop is back to Breeze. Log out and in once to finish.",
+                     "Il desktop NG è stato rimosso e il desktop è tornato a Breeze. Esci e rientra una volta per finire."),
     "credits": ("by Morzilla, built with Claude (Anthropic) on top of KDE software", "di Morzilla, realizzato con Claude (Anthropic) su software KDE"),
 }
 
@@ -320,6 +329,12 @@ def label(text, name=None, wrap=True):
     return lab
 
 
+def installed():
+    """Something of the NG desktop in the home folder (what --uninstall removes)."""
+    home = os.path.expanduser("~")
+    return any(os.path.exists(os.path.join(home, p)) for p in (".local/breeze-ng", ".local/dolphin-ng", ".local/dialog-ng", ".local/share/icons/NeoLine"))
+
+
 class Installer(QWidget):
     def __init__(self):
         super().__init__()
@@ -360,6 +375,10 @@ class Installer(QWidget):
         self.back = QPushButton(t("back")); self.back.clicked.connect(lambda: self.go(-1))
         self.next = QPushButton(t("next")); self.next.setObjectName("primary"); self.next.clicked.connect(lambda: self.go(1))
         self.quit = QPushButton(t("quit")); self.quit.clicked.connect(self.close)
+        # on the first page, when something is installed: remove it all (install-desktop.sh --uninstall)
+        self.uninstall = QPushButton(t("uninstall")); self.uninstall.clicked.connect(self.ask_uninstall)
+        self.removing = False
+        nav.addWidget(self.uninstall)
         nav.addWidget(self.quit); nav.addWidget(self.back); nav.addWidget(self.next)
         root.addLayout(nav)
         self.update_nav()
@@ -514,11 +533,29 @@ class Installer(QWidget):
         i = self.pages.currentIndex()
         self.back.setVisible(0 < i < 3)
         self.quit.setVisible(i < 3)  # while installing, the main button itself is Cancel, then Close
+        self.uninstall.setVisible(i == 0 and installed())
         self.next.setText(t("install") if i == 2 else t("cancel") if i == 3 else t("next"))
         if i == 3:
             self.next.setObjectName(""); self.next.style().unpolish(self.next); self.next.style().polish(self.next)
 
     # ---- the work
+    def ask_uninstall(self):
+        if QMessageBox.question(self, t("uninstall"), t("uninstall_ask")) != QMessageBox.StandardButton.Yes:
+            return
+        try:
+            script = self.script()
+        except OSError as error:
+            QMessageBox.warning(self, t("uninstall"), str(error))
+            return
+        self.removing = True
+        self.run_title.setText(t("removing"))
+        self.pages.setCurrentIndex(3)
+        self.update_nav()
+        self.queue = [(None, ["bash", script, "--uninstall", "--yes"])]
+        self.steps_total, self.steps_done = 8, 0
+        self.bar.setRange(0, 0)
+        self.run_next()
+
     def script(self):
         path = os.environ.get("NG_INSTALLER_SCRIPT") or os.path.join(HERE, "install-desktop.sh")
         if not os.path.exists(path):
@@ -589,10 +626,12 @@ class Installer(QWidget):
 
     def finish(self, good, message=""):
         self.bar.setRange(0, 10); self.bar.setValue(10 if good else 0)
-        self.run_title.setText(t("done") if good else t("failed"))
-        self.run_step.setText(t("done_text") if good else (message or t("failed_text")))
+        self.run_title.setText((t("removed") if self.removing else t("done")) if good else t("failed"))
+        self.run_step.setText((t("removed_text") if self.removing else t("done_text")) if good else (message or t("failed_text")))
         self.next.setText(t("close"))
-        if good:
+        if good and self.removing:
+            self.logout.setVisible(True)
+        elif good:
             self.launch.setVisible(self.parts["dolphin"].isChecked() and os.path.exists(os.path.expanduser("~/.local/bin/dolphin-ng")))
             self.relogin_note.setVisible(self.relogin)
             self.logout.setVisible(self.relogin)

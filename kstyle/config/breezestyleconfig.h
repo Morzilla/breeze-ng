@@ -9,6 +9,7 @@
 
 #include <QAbstractButton>
 #include <QList>
+#include <QPushButton>
 #include <QWidget>
 
 class QCheckBox;
@@ -56,6 +57,9 @@ public Q_SLOTS:
     //* reset to saved configuration
     void reset();
 
+protected:
+    void showEvent(QShowEvent *event) override;
+
 protected Q_SLOTS:
 
     //* update modified state when option is checked/unchecked
@@ -73,6 +77,7 @@ private:
     int animationIndex() const;
 
     QListWidget *m_nav = nullptr;
+    QPushButton *m_applyButton = nullptr; // added to System Settings' dialog, see showEvent()
     QStackedWidget *m_pages = nullptr;
 
     // look

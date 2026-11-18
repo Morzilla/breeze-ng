@@ -24,11 +24,13 @@
 #   --preset NAME          Dolphin NG settings preset: classic, soft, glass or aurora
 #   --deps-only            only install the build dependencies (this is what the graphical installer runs as root)
 #   --licence              print the licence and the notices, then exit
+#   --uninstall            remove everything this installer put in your home folder and go back to Breeze
+#                          (with --yes: without asking). Your settings files are kept.
 #
 # This script is MIT licensed (text below, in notices()). The software it builds has its own licences.
 set -euo pipefail
 
-SRC="$HOME/.local/src" DEPS=1 APPLY="" APPLY_SET=0 ICONS="NeoLine-White" ONLY="" YES=0 PRESET="" DEPS_ONLY=0
+SRC="$HOME/.local/src" UNINSTALL=0 DEPS=1 APPLY="" APPLY_SET=0 ICONS="NeoLine-White" ONLY="" YES=0 PRESET="" DEPS_ONLY=0
 # as root (pkexec from the graphical installer) there is nothing to elevate
 SUDO="sudo"; [ "$(id -u)" = 0 ] && SUDO=""
 JOBS="${JOBS:-$(( ($(nproc 2>/dev/null || echo 4) + 1) / 2 ))}"
@@ -130,12 +132,87 @@ while [ $# -gt 0 ]; do
         --src) SRC="$2"; shift ;;
         --jobs) JOBS="$2"; shift ;;
         --licence|--license) notices; exit 0 ;;
-        -h|--help) sed -n '5,24p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; exit 0 ;;
+        --uninstall) UNINSTALL=1 ;;
+        -h|--help) sed -n '5,26p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; exit 0 ;;
         *) die "unknown option: $1 (see --help)" ;;
     esac
     shift
 done
 export JOBS
+
+# ---- uninstall: everything the parts put in the home folder, and the desktop back to Breeze
+uninstall() {
+    say "Uninstalling the NG desktop"
+    local laf scheme base
+    # 1. the look first, while the NG pieces are still there to switch away from
+    laf=$(kreadconfig6 --file kdeglobals --group KDE --key LookAndFeelPackage 2>/dev/null || true)
+    scheme=$(kreadconfig6 --file kdeglobals --group General --key ColorScheme 2>/dev/null || true)
+    base=org.kde.breezedark.desktop
+    case "$laf$scheme" in *light*|*grey*|*Light*|*Grey*) base=org.kde.breeze.desktop ;; esac
+    if [[ "$laf" == org.morzilla.breezeng.* ]] && command -v plasma-apply-lookandfeel >/dev/null; then
+        plasma-apply-lookandfeel -a "$base" >/dev/null 2>&1 && ok "global theme: back to Breeze" || warn "could not switch the global theme back: System Settings > Global Theme > Breeze"
+    fi
+    # (whatever the global theme left: style, decoration, colours, icons, Plasma style)
+    [ "$(kreadconfig6 --file kdeglobals --group KDE --key widgetStyle 2>/dev/null)" = BreezeNG ] && kwriteconfig6 --file kdeglobals --group KDE --key widgetStyle Breeze
+    if [ "$(kreadconfig6 --file kwinrc --group org.kde.kdecoration2 --key library 2>/dev/null)" = org.kde.breezeng ]; then
+        kwriteconfig6 --file kwinrc --group org.kde.kdecoration2 --key library org.kde.breeze
+        kwriteconfig6 --file kwinrc --group org.kde.kdecoration2 --key theme Breeze
+    fi
+    scheme=$(kreadconfig6 --file kdeglobals --group General --key ColorScheme 2>/dev/null || true)
+    if [[ "$scheme" == BreezeNG* ]]; then
+        if [ "$base" = org.kde.breeze.desktop ]; then plasma-apply-colorscheme BreezeLight >/dev/null 2>&1 || true
+        else plasma-apply-colorscheme BreezeDark >/dev/null 2>&1 || true; fi
+        # (without Plasma's tool: the name at least, the colours follow at the next login)
+        if [[ "$(kreadconfig6 --file kdeglobals --group General --key ColorScheme 2>/dev/null)" == BreezeNG* ]]; then
+            kwriteconfig6 --file kdeglobals --group General --key ColorScheme "$([ "$base" = org.kde.breeze.desktop ] && echo BreezeLight || echo BreezeDark)"
+        fi
+    fi
+    [[ "$(kreadconfig6 --file kdeglobals --group Icons --key Theme 2>/dev/null)" == NeoLine* ]] && kwriteconfig6 --file kdeglobals --group Icons --key Theme --delete
+    [[ "$(kreadconfig6 --file plasmarc --group Theme --key name 2>/dev/null)" == breeze-ng* ]] && kwriteconfig6 --file plasmarc --group Theme --key name --delete
+    dbus-send --session --type=signal /KWin org.kde.KWin.reloadConfig 2>/dev/null || true
+    dbus-send --session --type=signal /KGlobalSettings org.kde.KGlobalSettings.notifyChange int32:2 int32:0 2>/dev/null || true
+    ok "style, window decoration, colours and icons: Breeze"
+
+    # 2. the parts
+    local share="$HOME/.local/share"
+    rm -rf "$HOME/.local/dolphin-ng" "$share/applications/dolphin-ng.desktop" "$HOME/.local/bin/dolphin-ng" \
+        "$HOME/.local/bin/ng-transcribe" "$HOME/.local/bin/ng-job" "$share/icons/hicolor/scalable/apps/dolphin-ng.svg"
+    # Dolphin NG's toolbar file: the stock Dolphin would go on using it (it is a newer version than its own)
+    grep -qs '<gui name="dolphin" version="51"' "$share/kxmlgui5/dolphin/dolphinui.rc" && rm -f "$share/kxmlgui5/dolphin/dolphinui.rc"
+    ok "Dolphin NG removed"
+    rm -rf "$HOME/.local/breeze-ng" "$HOME/.config/plasma-workspace/env/breeze-ng.sh" "$share/kstyle/themes/breezeng.themerc" \
+        "$share"/color-schemes/BreezeNG*.colors "$share"/plasma/look-and-feel/org.morzilla.breezeng.* "$share"/plasma/desktoptheme/breeze-ng-*
+    ok "Breeze NG removed"
+    rm -rf "$share"/icons/NeoLine*
+    ok "NeoLine icons removed"
+    rm -rf "$HOME/.local/dialog-ng" "$HOME/.config/plasma-workspace/env/dialog-ng.sh"
+    ok "Dialog NG removed (the stock file dialog is back from the next login)"
+    if [ -d "$SRC/whisper.cpp" ] || [ -d "$share/ng-transcribe" ]; then
+        rm -rf "$SRC/whisper.cpp" "$share/ng-transcribe"
+        ok "transcription removed (whisper.cpp and its speech model)"
+    fi
+    rm -rf "$SRC/breeze-ng" "$SRC/dolphin-ng" "$SRC/neoline-icons" "$SRC/dialog-ng" "$SRC/dialog-ng-src" "$SRC/logs"
+    rm -rf "${XDG_CACHE_HOME:-$HOME/.cache}/ng-installer"
+    ok "sources and logs removed"
+
+    # 3. what is not in the home folder
+    local manifests=() m
+    for m in "$SRC"/external/*/build/install_manifest.txt; do [ -f "$m" ] && manifests+=("$m"); done
+    if [ ${#manifests[@]} -gt 0 ]; then
+        warn "The KWin effects (Better Blur DX, KDE Rounded Corners) are system files and stay installed; to remove them:"
+        for m in "${manifests[@]}"; do printf '      sudo xargs rm -f < %s\n' "$m"; done
+    fi
+    printf '\n  Your settings (dolphinrc, breezengrc) are kept. Log out and in once to finish.\n'
+}
+if [ "$UNINSTALL" = 1 ]; then
+    if [ "$YES" != 1 ] && [ -t 0 ]; then
+        printf '%sRemove Dolphin NG, Breeze NG, the NeoLine icons, Dialog NG and their sources, and go back to Breeze? [y/N]%s ' "$B" "$R"
+        read -r answer
+        case "$answer" in y|Y|yes|s|S|si|sì) ;; *) echo "Nothing removed."; exit 0 ;; esac
+    fi
+    uninstall
+    exit 0
+fi
 
 # ---- the parts
 KEYS=(dolphin breeze icons dialog effects transcribe)

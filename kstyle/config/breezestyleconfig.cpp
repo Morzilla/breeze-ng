@@ -17,6 +17,7 @@
 #include <QAbstractButton>
 #include <QCheckBox>
 #include <QComboBox>
+#include <QDialogButtonBox>
 #include <QCoreApplication>
 #include <QDesktopServices>
 #include <QFile>
@@ -1084,11 +1085,41 @@ void StyleConfig::save()
 //__________________________________________________________________
 void StyleConfig::defaults()
 {
+    // the page shows the defaults, while the settings in memory go back to what is saved: compared with the defaults
+    // themselves, the page matched them, said "nothing changed", and OK saved nothing (the old settings came back)
+    const int savedGrain = m_savedAuroraGrain, savedBody = m_savedAuroraBody, savedLights = m_savedAuroraLights;
     StyleConfigData::self()->setDefaults();
     load();
+    StyleConfigData::self()->load();
+    m_savedAuroraGrain = savedGrain;
+    m_savedAuroraBody = savedBody;
+    m_savedAuroraLights = savedLights;
+    // the look stays the one chosen (a global theme sets it); everything about it goes back to its defaults
+    m_blurStrength->setValue(15); // KWin's own default
     m_applyDecoration->setChecked(true);
     m_applyColours->setChecked(true);
     updateChanged();
+}
+
+void StyleConfig::showEvent(QShowEvent *event)
+{
+    QWidget::showEvent(event);
+    // System Settings' "Configure…" dialog (Application Style) has only OK, Cancel and Defaults: an Apply button saves
+    // without closing it, as in the standalone settings
+    if (m_applyButton || window() == this) {
+        return;
+    }
+    const auto boxes = window()->findChildren<QDialogButtonBox *>();
+    for (QDialogButtonBox *box : boxes) {
+        if (box->button(QDialogButtonBox::Ok) && !box->button(QDialogButtonBox::Apply) && !isAncestorOf(box)) {
+            m_applyButton = box->addButton(QDialogButtonBox::Apply);
+            m_applyButton->setEnabled(false);
+            connect(m_applyButton, &QAbstractButton::clicked, this, &StyleConfig::save);
+            connect(this, &StyleConfig::changed, m_applyButton, &QWidget::setEnabled);
+            updateChanged();
+            break;
+        }
+    }
 }
 
 //__________________________________________________________________
