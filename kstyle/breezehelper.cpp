@@ -258,6 +258,12 @@ void Helper::renderNgGlow(QPainter *painter, const QRectF &rect, const QColor &c
 
 qreal Helper::windowSheetAlpha() const
 {
+    // no blur behind: a solid sheet, not the page behind the window read through it. (The application's property too:
+    // the check runs once per process, and an application may hold more than one instance of the style, as Dolphin NG
+    // does with a proxy on its window)
+    if (_bareGlass || qApp->property("_breeze_ng_bare_glass").toBool()) {
+        return 1.0;
+    }
     const int opacity = qBound(20, StyleConfigData::windowOpacity(), 100);
     // Aurora: more see-through; less so under a light scheme, where a dark desktop behind would turn the window grey
     if (_aurora) {

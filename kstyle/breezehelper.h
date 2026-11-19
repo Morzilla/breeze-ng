@@ -420,8 +420,19 @@ public:
     bool compositingActive() const;
 
     //* Breeze NG Glass: true if the compositor blurs behind windows (its blur effect is on). Without it the glass
-    //* would be bare: what lies behind a window shown sharp through it
+    //* would be bare: what lies behind a window shown sharp through it. (Known only once the application runs: KWin
+    //* announces its blur when the event loop has turned, so asked while the first window is polished it said no)
     bool blurAvailable() const;
+
+    //* no blur behind the windows (checked a moment after the first glass window): their sheet is painted solid
+    void setBareGlass(bool bare)
+    {
+        _bareGlass = bare;
+    }
+    bool bareGlass() const
+    {
+        return _bareGlass;
+    }
 
     //* returns true if a given widget supports alpha channel
     bool hasAlphaChannel(const QWidget *) const;
@@ -476,6 +487,7 @@ private:
     KSharedConfig::Ptr _kwinConfig;
     bool _glass = false; // Breeze NG
     bool _aurora = false; // Breeze NG
+    bool _bareGlass = false; // Breeze NG: no blur behind the windows, see setBareGlass()
     bool _auroraLight = false; // Breeze NG: the lighter glass of "Breeze NG Aurora Light"
     bool glassLayers(const QPainter *painter, QColor *base, QList<QColor> *panels, const QWidget **widget, const QWidget **window) const;
 

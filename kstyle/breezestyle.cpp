@@ -364,13 +364,44 @@ void Style::polish(QWidget *widget)
         widget->clearMask();
     }
 
+    // Without the compositor's blur the glass was bare: the page behind a window read sharp through its panels.
+    // Whether there is one is known only once the application runs (KWin announces it after the first turn of the
+    // event loop, and asked now it says no): looked at a moment after the first window, once, in every application
+    // (also where the window lays its own glass, as Dolphin NG's does: the application is told by a property). Without
+    // blur the sheet of every glass window turns solid.
+    if (_helper->isGlass() && widget->isWindow() && _helper->compositingActive()) {
+        static bool blurChecked = false;
+        if (!blurChecked) {
+            blurChecked = true;
+            if (qEnvironmentVariableIsSet("BREEZE_NG_DEBUG_BLUR")) {
+                qWarning("breeze-ng blur: check scheduled by %s", widget->metaObject()->className());
+            }
+            QTimer::singleShot(1500, this, [this] {
+                if (qEnvironmentVariableIsSet("BREEZE_NG_DEBUG_BLUR")) {
+                    qWarning("breeze-ng blur: available %d", int(_helper->blurAvailable()));
+                }
+                if (_helper->blurAvailable()) {
+                    return;
+                }
+                _helper->setBareGlass(true);
+                qApp->setProperty("_breeze_ng_bare_glass", true);
+                const auto windows = QApplication::topLevelWidgets();
+                for (QWidget *window : windows) {
+                    window->update();
+                    const auto children = window->findChildren<QWidget *>();
+                    for (QWidget *child : children) {
+                        child->update();
+                    }
+                }
+            });
+        }
+    }
+
     // Breeze NG Glass: main windows and dialogs become sheets of frosted glass (the compositor blurs behind them)
     // (not a window that never reaches the screen: a dialog standing in for the platform's own, as the colour and file
     // dialogs with KDE's integration, is "shown" off screen by Qt, which keeps painting it: its native surface was
     // destroyed under it and the application crashed, Spectacle's colour picker among them)
-    // (and only where the compositor blurs: without its blur effect the glass was bare, the page behind a window read
-    // through its panels; such a window stays solid, in the scheme's colours)
-    if (_helper->isGlass() && widget->isWindow() && _helper->blurAvailable() && !widget->testAttribute(Qt::WA_X11NetWmWindowTypeDND)
+    if (_helper->isGlass() && widget->isWindow() && _helper->compositingActive() && !widget->testAttribute(Qt::WA_X11NetWmWindowTypeDND)
         && !widget->testAttribute(Qt::WA_DontShowOnScreen)
         && (qobject_cast<QMainWindow *>(widget) || qobject_cast<QDialog *>(widget))
         // (a main window that made itself translucent, as Konsole does for its terminal, is glass too: without the
