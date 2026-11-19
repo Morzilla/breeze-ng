@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: GPL-2.0-or-later
-%global commit      636105f06be0f061a53eda51fb97fc56cfb45b98
+%global commit      1cbf7dd21d1eff3b742d10e9b9503ce86010ee48
 %global shortcommit %(c=%{commit}; echo ${c:0:7})
-%global snapdate    202611181829
+%global snapdate    202611190929
 # snapdate: date and time of the commit (YYYYMMDDHHMM), so that two snapshots of one day sort in order
 # installed apart from the system, next to Fedora's own Breeze
 %global ngprefix    /opt/ng/breeze-ng
@@ -127,6 +127,9 @@ done
 %{_qt6_plugindir}/org.kde.kdecoration3.kcm/kcm_breezengdecoration.so
 
 %changelog
+* Thu Nov 19 2026 Morzilla <3956663+Morzilla@users.noreply.github.com> - 6.7.5^202611190929git1cbf7dd-1
+- Glass again from the first window; a solid sheet only when KWin has no blur
+
 * Wed Nov 18 2026 Morzilla <3956663+Morzilla@users.noreply.github.com> - 6.7.5^202611181829git636105f-1
 - Glass only where the compositor blurs: without KWin's blur effect a window stays solid
 
