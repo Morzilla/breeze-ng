@@ -5728,6 +5728,15 @@ bool Style::drawPanelScrollAreaCornerPrimitive(const QStyleOption *option, QPain
 {
     // make sure background role matches viewport
     const QAbstractScrollArea *scrollArea;
+    // Breeze NG Glass: on a glass window the viewport's colour is see-through, so the corner between the two scroll
+    // bars was left unpainted, a black square: the window's glass is laid again there, with the view's veil if it has one
+    if (widget && widget->window() && widget->window()->property("_breeze_ng_glass").toBool()) {
+        _helper->clearUnder(painter, option->rect);
+        if (widget->property("_breeze_ng_veil").toBool()) {
+            painter->fillRect(option->rect, _helper->auroraVeilColor(widget->palette(), false));
+        }
+        return true;
+    }
     if ((scrollArea = qobject_cast<const QAbstractScrollArea *>(widget)) && scrollArea->viewport()) {
         // need to adjust clipRect in order not to render outside of frame
         const int frameWidth(pixelMetric(PM_DefaultFrameWidth, nullptr, scrollArea));
