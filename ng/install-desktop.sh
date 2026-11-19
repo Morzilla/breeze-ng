@@ -502,12 +502,19 @@ command -v git >/dev/null || die "git is needed to download the sources."
 
 # ---- 2. sources
 fetch() { # name branch
+    # the sources here are the installer's own copy: brought to the branch's last commit whatever happened to them (a
+    # "git pull --ff-only" that failed left the old copy in place, and the old version was built again without a word)
     local dir="$SRC/$1"
     if [ -d "$dir/.git" ]; then
-        git -C "$dir" pull --ff-only --quiet && ok "$1 updated"
+        if git -C "$dir" fetch --quiet --depth 1 origin "$2" && git -C "$dir" reset --quiet --hard FETCH_HEAD; then
+            ok "$1 updated to $(git -C "$dir" log -1 --format='%h (%cd)' --date=format:'%Y-%m-%d %H:%M')"
+        else
+            warn "$1 could NOT be updated: building the copy already there, $(git -C "$dir" log -1 --format='%h (%cd)' --date=format:'%Y-%m-%d %H:%M' 2>/dev/null)"
+        fi
     else
         mkdir -p "$SRC"
-        git clone --quiet --depth 1 --branch "$2" "https://github.com/Morzilla/$1.git" "$dir" && ok "$1 downloaded into $dir"
+        git clone --quiet --depth 1 --branch "$2" "https://github.com/Morzilla/$1.git" "$dir" \
+            && ok "$1 downloaded into $dir: $(git -C "$dir" log -1 --format='%h (%cd)' --date=format:'%Y-%m-%d %H:%M')"
     fi
 }
 # this script may be running from a clone of breeze-ng: use it instead of downloading another
@@ -617,7 +624,7 @@ ready() { # title, log name, CMake package names: true when they are all there; 
 if want dolphin; then
     say "Dolphin NG (the longest part: several minutes)"
     if ready "Dolphin NG" dolphin-ng KF6KIO KF6Parts KF6NewStuff KF6TextWidgets KF6KCMUtils KF6Bookmarks KF6Notifications \
-        && part "Dolphin NG" dolphin-ng bash -c "$(declare -f fetch ok); SRC='$SRC'; GR='' R=''; fetch dolphin-ng ng && bash '$SRC/dolphin-ng/ng/install.sh' --no-deps --no-theme"; then
+        && part "Dolphin NG" dolphin-ng bash -c "$(declare -f fetch ok warn); SRC='$SRC'; GR='' R=''; fetch dolphin-ng ng && bash '$SRC/dolphin-ng/ng/install.sh' --no-deps --no-theme"; then
         ok "Dolphin NG installed"
         DONE+=("Dolphin NG   start it from the menu or with: dolphin-ng   (cards view: Ctrl+4)")
     fi
@@ -634,7 +641,7 @@ if want breeze; then
 fi
 if want icons; then
     say "NeoLine icons"
-    if part "NeoLine icons" neoline bash -c "$(declare -f fetch ok); SRC='$SRC'; GR='' R=''; fetch neoline-icons master && python3 '$SRC/neoline-icons/make-icons.py'"; then
+    if part "NeoLine icons" neoline bash -c "$(declare -f fetch ok warn); SRC='$SRC'; GR='' R=''; fetch neoline-icons master && python3 '$SRC/neoline-icons/make-icons.py'"; then
         ok "NeoLine installed"
         DONE+=("NeoLine      System Settings > Icons > NeoLine, NeoLine White or NeoLine Yellow")
     fi
@@ -643,7 +650,7 @@ fi
 if want dialog; then
     say "Dialog NG (builds one KIO library: a few minutes)"
     if ready "Dialog NG" dialog-ng KF6KIO KF6Service KF6ItemViews KF6JobWidgets \
-        && part "Dialog NG" dialog-ng bash -c "$(declare -f fetch ok); SRC='$SRC'; GR='' R=''; fetch dialog-ng main && JOBS='$JOBS' SRC='$SRC/dialog-ng-src' '$SRC/dialog-ng/dialog-ng' build && '$SRC/dialog-ng/dialog-ng' on"; then
+        && part "Dialog NG" dialog-ng bash -c "$(declare -f fetch ok warn); SRC='$SRC'; GR='' R=''; fetch dialog-ng main && JOBS='$JOBS' SRC='$SRC/dialog-ng-src' '$SRC/dialog-ng/dialog-ng' build && '$SRC/dialog-ng/dialog-ng' on"; then
         ok "Dialog NG installed"
         DONE+=("Dialog NG    active from the next login in every KDE app's file dialog; off with: $SRC/dialog-ng/dialog-ng off")
         DONE+=("             after an update of KDE Frameworks the stock dialog is back until: $SRC/dialog-ng/dialog-ng build")
@@ -654,7 +661,7 @@ if want transcribe; then
     say "Transcription (builds whisper.cpp and downloads a 550 MB speech model: a while)"
     [ -n "$TTY" ] || transcribe_notice
     # the script lives in Dolphin NG's sources; whisper.cpp goes where ng-transcribe looks for it (~/.local/src)
-    if part "Transcription" whisper bash -c "$(declare -f fetch ok); SRC='$SRC'; GR='' R=''; [ -x '$SRC/dolphin-ng/ng/ng-transcribe' ] || fetch dolphin-ng ng
+    if part "Transcription" whisper bash -c "$(declare -f fetch ok warn); SRC='$SRC'; GR='' R=''; [ -x '$SRC/dolphin-ng/ng/ng-transcribe' ] || fetch dolphin-ng ng
             mkdir -p '$HOME/.local/bin'
             ln -sf '$SRC/dolphin-ng/ng/ng-transcribe' '$HOME/.local/bin/ng-transcribe'
             ln -sf '$SRC/dolphin-ng/ng/ng-job' '$HOME/.local/bin/ng-job'
