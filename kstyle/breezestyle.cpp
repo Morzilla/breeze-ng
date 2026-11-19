@@ -5608,7 +5608,13 @@ bool Style::drawPanelButtonCommandPrimitive(const QStyleOption *option, QPainter
     stateProperties["isActiveWindow"] = widget ? widget->isActiveWindow() : true;
     stateProperties["roundButton"] = roundButton;
 
-    _helper->renderButtonFrame(painter, option->rect, option->palette, stateProperties, bgAnimation, penAnimation);
+    // Breeze NG: the buttons of a location bar are as tall as the bar, so their hover covered the field's rim: inside the
+    // field, as a selection inside a pill
+    QRect rect = option->rect;
+    if (flat && widget && widget->parentWidget() && widget->parentWidget()->inherits("KUrlNavigator") && rect.height() > 16) {
+        rect.adjust(1, 3, -1, -3);
+    }
+    _helper->renderButtonFrame(painter, rect, option->palette, stateProperties, bgAnimation, penAnimation);
 
     return true;
 }

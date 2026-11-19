@@ -488,6 +488,12 @@ bool Helper::glassLayers(const QPainter *painter, QColor *base, QList<QColor> *p
             panels->prepend(messageTint(parent));
             continue;
         }
+        if (parent->inherits("KUrlNavigator")) {
+            // the location bar paints a field under its buttons (PE_FrameLineEdit): a button of the path stands on it.
+            // Cleared to the bare window, the corners around its hover showed the glass through the field: dark corners
+            panels->prepend(inputBackground(parent->palette()));
+            continue;
+        }
         if (parent->inherits("QTabWidget") && child->inherits("QTabBar")) {
             continue; // the tab bar is beside the panel of its tab widget, not on it
         }
