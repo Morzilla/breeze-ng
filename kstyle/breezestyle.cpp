@@ -2181,13 +2181,13 @@ void Style::drawItemText(QPainter *painter,
     }
 
     // Breeze NG: on glass, a soft shadow of the opposite tone around the text (TextShadow, as macOS does), so that it
-    // reads over a light or dark window behind; not under text that stands on a selection (its own solid fill)
-    if (textRole != QPalette::NoRole && textRole != QPalette::HighlightedText && !text.isEmpty()) {
+    // reads over a light or dark window behind; not under text that stands on a selection (its own solid fill), nor
+    // under dimmed text (the notes of a settings page, a disabled control): faint and thin, the shadow smudged it
+    if (enabled && textRole != QPalette::NoRole && textRole != QPalette::HighlightedText && !text.isEmpty()) {
         QColor shadow;
         const QColor ink = palette.color(enabled ? QPalette::Active : QPalette::Disabled, textRole);
         if (_helper->textShadow(painter->device(), ink, &shadow)) {
-            // faint for dimmed text
-            const qreal strength = enabled ? 1.0 : 0.5;
+            const qreal strength = 1.0;
             // (mostly below the strokes, a little at their sides: a ring all round blurred small grey text instead)
             static const struct {
                 qreal dx, dy, alpha;
