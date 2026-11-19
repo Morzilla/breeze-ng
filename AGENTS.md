@@ -46,6 +46,17 @@ KWin loads the decoration once per session: a rebuilt decoration shows only afte
 `plasmashell` keeps the Kirigami plugin it loaded. Applications started after a build get the new style.
 `BREEZE_NG_DEBUG_QUICK=1` (or `2`) makes the Kirigami plugin log what it does to a Qt Quick window.
 
+### Glass and the compositor's blur
+
+Glass and Aurora windows are translucent sheets that rely on KWin's blur behind them (the stock Blur effect or a
+replacement such as Better Blur, which announce the same protocol). KWin announces it only once an application's event
+loop has turned: asked while the first window is polished, `KWindowEffects::isEffectAvailable` says no. So windows are
+made glass as soon as they are polished, and 1.5 s after the first window the style checks once per application;
+without blur it sets `Helper::setBareGlass()` and the application property `_breeze_ng_bare_glass`, and the sheet
+(`Helper::windowSheetAlpha()`) is painted solid. The property is read too, since an application may hold more than one
+instance of the style (Dolphin NG puts a proxy style on its window) and may lay glass of its own.
+`BREEZE_NG_DEBUG_BLUR=1` prints what the check found; `BREEZE_NG_ASSUME_BLUR=1` skips it.
+
 ## Conventions
 
 - **Rules, not exceptions.** The style serves every application: fix a look with a rule that holds for all of them
@@ -55,7 +66,9 @@ KWin loads the decoration once per session: a rebuilt decoration shows only afte
 - **Colours come from the palette.** The accent is the palette's Highlight; never hard-code a blue. A nearly
   colourless accent (saturation under 0.15) must stay neutral: do not lift its saturation.
 - **Check every combination you touch**: Soft, Glass, Aurora; dark and light; widget applications and Qt Quick ones
-  (System Settings, Discover); the decoration against the window body (they must match at the edge).
+  (System Settings, Discover); the decoration against the window body (they must match at the edge); a theme switched
+  while windows are open; and, for glass, KWin's blur effect on and off (`qdbus6 org.kde.KWin /Effects
+  org.kde.kwin.Effects.unloadEffect blur`, wait a couple of seconds: KWin withdraws it after a delay).
 - **Narrow changes.** Fix what was asked, where the cause is.
 
 ## Checking a change
@@ -72,4 +85,6 @@ controls), `BREEZE_NG_SETTINGS_PAGE=N` (the settings window opens on page N), `Q
   (`YYYYMMDDHHMM` of that commit) and add a changelog line. Publishing packages and releases is the maintainer's
   decision: ask first.
 - The installers download and build from this repository's `ng` branch: a change to them reaches users at once.
+  They reset their copy of each part's sources to the last commit of its branch and print the commit they build (with
+  a `git pull` that failed, the old copy was built again without a word); keep it that way.
 - Keep secrets and personal details out of code, commits and logs.
