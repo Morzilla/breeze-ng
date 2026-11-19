@@ -851,10 +851,12 @@ void Decoration::paintTitleBar(QPainter *painter, const QRectF &repaintRegion)
         painter->restore();
     }
 
-    if (glass) {
+    // the lit top edge of Glass; not in Aurora, glass without rims (the line, stopping short of the round corners, read
+    // as a stray light line across the top of every window)
+    if (glass && !m_ngAurora) {
         painter->save();
         painter->setRenderHint(QPainter::Antialiasing);
-        painter->setPen(QPen(QColor(255, 255, 255, m_ngAurora ? (window()->isActive() ? 84 : 44) : (window()->isActive() ? 46 : 26)), 1));
+        painter->setPen(QPen(QColor(255, 255, 255, window()->isActive() ? 46 : 26), 1));
         painter->drawLine(QPointF(rect.left() + m_scaledCornerRadius, rect.top() + 1.0), QPointF(rect.right() - m_scaledCornerRadius, rect.top() + 1.0));
         painter->restore();
     }
