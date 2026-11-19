@@ -92,6 +92,7 @@ private:
     QFormLayout *m_transparencyForm = nullptr; // its opacity rows follow the look chosen
     QSlider *m_auroraSidebar = nullptr;
     QLabel *m_auroraSidebarValue = nullptr;
+    QComboBox *m_textShadow = nullptr; // Breeze NG: a soft shadow around text on glass (never, low contrast, always)
     QSlider *m_windowOpacity = nullptr;
     QSlider *m_menuOpacity = nullptr;
     QLabel *m_windowOpacityValue = nullptr;

@@ -2675,6 +2675,46 @@ bool Helper::blurAvailable() const
 }
 
 //____________________________________________________________________
+bool Helper::textShadow(const QPaintDevice *device, const QColor &text, QColor *shadow) const
+{
+    // On glass, text stands on whatever lies behind the window, which an application cannot see: light text over a
+    // white page behind could not be read. As macOS does, a soft shadow of the opposite tone around it
+    const int mode = StyleConfigData::textShadow();
+    if (mode == StyleConfigData::EnumTextShadow::Never || !device || device->devType() != QInternal::Widget || _bareGlass
+        || qApp->property("_breeze_ng_bare_glass").toBool()) {
+        return false;
+    }
+    const QWidget *widget = static_cast<const QWidget *>(device);
+    const QWidget *window = widget->window();
+    if (!window || !window->property("_breeze_ng_glass").toBool()) {
+        return false;
+    }
+    const bool light = text.lightnessF() > 0.5;
+    if (mode == StyleConfigData::EnumTextShadow::LowContrast) {
+        // what is behind the window cannot be seen: the worst case, a white window behind light text (a black one behind
+        // dark text), seen through the glass's colour at its opacity; a shadow only where that falls below 4.5:1
+        auto luminance = [](const QColor &c) {
+            auto linear = [](qreal v) {
+                return v <= 0.04045 ? v / 12.92 : std::pow((v + 0.055) / 1.055, 2.4);
+            };
+            return 0.2126 * linear(c.redF()) + 0.7152 * linear(c.greenF()) + 0.0722 * linear(c.blueF());
+        };
+        const QColor sheet = window->palette().color(QPalette::Window);
+        const qreal alpha = windowSheetAlpha();
+        const qreal behind = light ? 1.0 : 0.0;
+        const QColor ground = QColor::fromRgbF(alpha * sheet.redF() + (1 - alpha) * behind, alpha * sheet.greenF() + (1 - alpha) * behind,
+                                               alpha * sheet.blueF() + (1 - alpha) * behind);
+        const qreal a = luminance(text), b = luminance(ground);
+        const qreal contrast = (qMax(a, b) + 0.05) / (qMin(a, b) + 0.05);
+        if (contrast >= 4.5) {
+            return false;
+        }
+    }
+    *shadow = light ? QColor(0, 0, 0) : QColor(255, 255, 255);
+    return true;
+}
+
+//____________________________________________________________________
 bool Helper::hasAlphaChannel(const QWidget *widget) const
 {
     return compositingActive() && widget && widget->testAttribute(Qt::WA_TranslucentBackground);

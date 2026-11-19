@@ -105,7 +105,12 @@ settings of the style, in pages:
 
 - **Look** – Soft, Glass or Aurora, and the accent colour; choosing a look also applies the Breeze NG window decoration and the BreezeNG colour
   scheme (each can be left out).
-- **Transparency** – how see-through windows (Glass) and menus are, with a live preview.
+- **Transparency** – how see-through windows (Glass) and menus are, with a live preview; and the **text shadow**: on
+  glass, text (and the icons beside it) can get a soft shadow of the opposite tone, as on macOS, so that it stays
+  readable over a white or black window behind. *When the contrast may be low* (the default) puts it where the glass
+  is see-through enough for that to happen (an application cannot see what is behind its window: the worst case is
+  reckoned from the glass's colour and opacity); *Always* and *Never* do what they say. Without the compositor's blur,
+  glass windows are painted solid instead.
 - **Aurora** – the glass, the surfaces on it, the lights, the grain, the blur, and the colour of selections.
 - **Controls and animations** – animation speed, keyboard shortcut underlines, scroll bar arrows, centred tabs, the
   glow inside the focused field or button (off: a thin outline), menus joining the button they open from.

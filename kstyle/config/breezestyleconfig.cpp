@@ -728,6 +728,17 @@ QWidget *StyleConfig::pageTransparency()
     form->addRow(ngText("Sidebar opacity", "Opacità della barra laterale"), sliderRow(m_auroraSidebar, m_auroraSidebarValue, w));
     form->addRow(ngText("Menu opacity", "Opacità dei menu"), sliderRow(m_menuOpacity, m_menuOpacityValue, w));
     form->addRow(ngText("Blur", "Sfocatura"), sliderRow(m_blurStrength, m_blurStrengthValue, w));
+    // a soft shadow around text on glass, so that it reads over a light or dark window behind
+    m_textShadow = new QComboBox(w);
+    m_textShadow->addItem(ngText("Never", "Mai"));
+    m_textShadow->addItem(ngText("When the contrast may be low", "Quando il contrasto può essere basso"));
+    m_textShadow->addItem(ngText("Always", "Sempre"));
+    m_textShadow->setToolTip(ngText("A soft shadow of the opposite tone around text on glass, as macOS does, so that it stays readable over a light or dark window behind. "
+                                    "What is behind cannot be seen: \"when the contrast may be low\" puts it where a white (or black) window behind would leave the text hard to read, given the glass's opacity.",
+                                    "Un'ombra morbida di tono opposto intorno al testo sul vetro, come fa macOS, perché resti leggibile sopra una finestra chiara o scura. "
+                                    "Ciò che sta dietro non si può vedere: «quando il contrasto può essere basso» la mette dove una finestra bianca (o nera) dietro renderebbe il testo poco leggibile, data l'opacità del vetro."));
+    form->addRow(ngText("Text shadow", "Ombra del testo"), m_textShadow);
+    connect(m_textShadow, &QComboBox::currentIndexChanged, this, &StyleConfig::updateChanged);
     m_transparencyForm = form;
     body->addLayout(form);
     auto *note = new QLabel(ngText("Menus also cover drop-down lists and tooltips. 100 % is solid.", "I menu comprendono anche gli elenchi a tendina e i suggerimenti. 100 % è pieno."), w);
@@ -999,6 +1010,7 @@ void StyleConfig::save()
     const bool variantChanged = ngCurrentLook() != look;
     StyleConfigData::setVariant(look);
     StyleConfigData::setWindowOpacity(m_windowOpacity->value());
+    StyleConfigData::setTextShadow(m_textShadow->currentIndex());
     StyleConfigData::setMenuOpacity(m_menuOpacity->value());
     StyleConfigData::setAuroraBodyOpacity(m_auroraBody->value());
     StyleConfigData::setAuroraSidebarOpacity(m_auroraSidebar->value() == m_auroraBody->value() ? -1 : m_auroraSidebar->value()); // (the same: follows the window)
@@ -1156,6 +1168,7 @@ void StyleConfig::updateChanged()
     m_auroraSidebarValue->setText(QStringLiteral("%1 %").arg(m_auroraSidebar->value()));
     m_windowOpacity->setEnabled(glass);
     m_blurStrength->setEnabled(glass || aurora);
+    m_textShadow->setEnabled(glass || aurora);
     m_preview->setOpacities(aurora ? m_auroraBody->value() : m_windowOpacity->value(), m_menuOpacity->value(), glass || aurora);
     if (m_loading) {
         return;
@@ -1169,7 +1182,7 @@ void StyleConfig::updateChanged()
         || m_auroraSidebar->value() != (StyleConfigData::auroraSidebarOpacity() < 0 ? StyleConfigData::auroraBodyOpacity() : StyleConfigData::auroraSidebarOpacity()) || m_auroraPanel->value() != StyleConfigData::auroraPanelVeil()
         || m_auroraButton->value() != StyleConfigData::auroraButtonVeil() || m_auroraLights->value() != StyleConfigData::auroraLights()
         || m_auroraGrain->value() != StyleConfigData::auroraGrain() || m_auroraSecond != StyleConfigData::auroraSecondAccent() || m_auroraDim->isChecked() != StyleConfigData::auroraDimInactive() || m_auroraAccentRight->isChecked() != StyleConfigData::auroraAccentRight() || m_auroraFull->isChecked() != StyleConfigData::auroraFullSelection() || (m_aurora->isChecked() && m_auroraLight->isChecked() != ngCurrentAuroraLight())
-        || m_blurStrength->value() != blurStrength()
+        || m_blurStrength->value() != blurStrength() || m_textShadow->currentIndex() != StyleConfigData::textShadow()
         || m_animations->isChecked() != StyleConfigData::animationsEnabled() || m_animationSpeed->value() != animationIndex()
         || m_transitions->isChecked() != StyleConfigData::stackedWidgetTransitionsEnabled() || m_mnemonics->currentIndex() != StyleConfigData::mnemonicsMode()
         || m_scrollTop->currentIndex() != StyleConfigData::scrollBarSubLineButtons() || m_scrollBottom->currentIndex() != StyleConfigData::scrollBarAddLineButtons()
@@ -1196,6 +1209,7 @@ void StyleConfig::load()
     m_applyDecoration->setChecked(settings.readEntry("ApplyDecoration", true));
     m_applyColours->setChecked(settings.readEntry("ApplyColours", true));
     m_windowOpacity->setValue(StyleConfigData::windowOpacity());
+    m_textShadow->setCurrentIndex(StyleConfigData::textShadow());
     m_menuOpacity->setValue(StyleConfigData::menuOpacity());
     m_auroraBody->setValue(StyleConfigData::auroraBodyOpacity());
     m_auroraSidebar->setValue(StyleConfigData::auroraSidebarOpacity() < 0 ? StyleConfigData::auroraBodyOpacity() : StyleConfigData::auroraSidebarOpacity());

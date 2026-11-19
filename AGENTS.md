@@ -57,6 +57,13 @@ without blur it sets `Helper::setBareGlass()` and the application property `_bre
 instance of the style (Dolphin NG puts a proxy style on its window) and may lay glass of its own.
 `BREEZE_NG_DEBUG_BLUR=1` prints what the check found; `BREEZE_NG_ASSUME_BLUR=1` skips it.
 
+Text on glass can get a shadow (`TextShadow`: Never, LowContrast, Always; `Helper::textShadow()`), drawn in
+`drawItemText` and, for icons, `drawItemPixmap`: copies of the text in the opposite tone, mostly below it. LowContrast
+reckons the worst case (a white window behind light text, a black one behind dark text, through the sheet's colour
+and opacity) against 4.5:1: what is behind a window cannot be seen. KWin 6.8 offers no background contrast (the
+protocol is not announced), so the shadow is the way to keep text readable. Dolphin NG reads the same setting for the
+text it draws itself: keep the two in step.
+
 ## Conventions
 
 - **Rules, not exceptions.** The style serves every application: fix a look with a rule that holds for all of them

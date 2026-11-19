@@ -424,6 +424,10 @@ public:
     //* announces its blur when the event loop has turned, so asked while the first window is polished it said no)
     bool blurAvailable() const;
 
+    //* Breeze NG: the soft shadow around text on glass (TextShadow), for text drawn on the given device; its colour,
+    //* the opposite tone of the text's. False: none (a solid window, the setting off)
+    bool textShadow(const QPaintDevice *device, const QColor &text, QColor *shadow) const;
+
     //* no blur behind the windows (checked a moment after the first glass window): their sheet is painted solid
     void setBareGlass(bool bare)
     {

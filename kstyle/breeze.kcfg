@@ -45,6 +45,18 @@
       </choices>
       <default>Soft</default>
     </entry>
+    <!-- Breeze NG: a soft shadow of the opposite tone around text on glass (as macOS does), so that it reads over a light
+         or a dark window behind: never; where the glass is see-through enough that a white (or black) window behind
+         would leave the text below 4.5:1 of contrast (what is behind cannot be seen: the worst case is reckoned from the
+         glass's colour and opacity); always. Also read by Dolphin NG for the text it draws itself -->
+    <entry name="TextShadow" type="Enum">
+      <choices>
+        <choice name="Never" />
+        <choice name="LowContrast" />
+        <choice name="Always" />
+      </choices>
+      <default>LowContrast</default>
+    </entry>
     <!-- Breeze NG: opacity (0-100) of the windows in the Glass variant -->
     <entry name="WindowOpacity" type="Int">
       <default>70</default>

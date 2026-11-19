@@ -30,6 +30,7 @@
 #include <QElapsedTimer>
 #include <QMetaMethod>
 #include <functional>
+#include <QCache>
 #include <QTimer>
 #include <QSurfaceFormat>
 #include <QBitmap>
@@ -2112,6 +2113,40 @@ void Style::drawComplexControl(ComplexControl element, const QStyleOptionComplex
 }
 
 //___________________________________________________________________________________
+void Style::drawItemPixmap(QPainter *painter, const QRect &rect, int alignment, const QPixmap &pixmap) const
+{
+    // Breeze NG: on glass an icon gets the shadow of the text beside it (TextShadow): its own shape in the opposite tone
+    // of the window's text, mostly below it. The shapes are kept, an icon is drawn again at every repaint
+    QColor shadow;
+    const QWidget *widget = painter->device() && painter->device()->devType() == QInternal::Widget ? static_cast<const QWidget *>(painter->device()) : nullptr;
+    if (!pixmap.isNull() && widget && _helper->textShadow(painter->device(), widget->palette().color(QPalette::WindowText), &shadow)) {
+        static QCache<QString, QPixmap> shapes(200);
+        const QString key = QStringLiteral("%1-%2").arg(pixmap.cacheKey()).arg(shadow.rgba());
+        QPixmap *shape = shapes.object(key);
+        if (!shape) {
+            QImage image = pixmap.toImage().convertToFormat(QImage::Format_ARGB32_Premultiplied);
+            QPainter tint(&image);
+            tint.setCompositionMode(QPainter::CompositionMode_SourceIn);
+            tint.fillRect(image.rect(), shadow);
+            tint.end();
+            shape = new QPixmap(QPixmap::fromImage(image));
+            shape->setDevicePixelRatio(pixmap.devicePixelRatio());
+            shapes.insert(key, shape);
+        }
+        static const struct {
+            int dx, dy;
+            qreal alpha;
+        } spots[] = {{0, 1, 0.50}, {-1, 1, 0.20}, {1, 1, 0.20}, {0, 2, 0.20}};
+        const qreal opacity = painter->opacity();
+        for (const auto &spot : spots) {
+            painter->setOpacity(opacity * spot.alpha);
+            ParentStyleClass::drawItemPixmap(painter, rect.translated(spot.dx, spot.dy), alignment, *shape);
+        }
+        painter->setOpacity(opacity);
+    }
+    ParentStyleClass::drawItemPixmap(painter, rect, alignment, pixmap);
+}
+
 void Style::drawItemText(QPainter *painter,
                          const QRect &rect,
                          int flags,
@@ -2142,6 +2177,30 @@ void Style::drawItemText(QPainter *painter,
         if (_animations->widgetEnabilityEngine().isAnimated(key, AnimationEnable)) {
             const QPalette copy(_helper->disabledPalette(palette, _animations->widgetEnabilityEngine().opacity(key, AnimationEnable)));
             return ParentStyleClass::drawItemText(painter, rect, flags, copy, enabled, text, textRole);
+        }
+    }
+
+    // Breeze NG: on glass, a soft shadow of the opposite tone around the text (TextShadow, as macOS does), so that it
+    // reads over a light or dark window behind; not under text that stands on a selection (its own solid fill)
+    if (textRole != QPalette::NoRole && textRole != QPalette::HighlightedText && !text.isEmpty()) {
+        QColor shadow;
+        const QColor ink = palette.color(enabled ? QPalette::Active : QPalette::Disabled, textRole);
+        if (_helper->textShadow(painter->device(), ink, &shadow)) {
+            // faint for dimmed text
+            const qreal strength = enabled ? 1.0 : 0.5;
+            // (mostly below the strokes, a little at their sides: a ring all round blurred small grey text instead)
+            static const struct {
+                qreal dx, dy, alpha;
+            } spots[] = {{0, 1, 0.55}, {-1, 1, 0.22}, {1, 1, 0.22}, {0, 2, 0.22}, {-1, 0, 0.12}, {1, 0, 0.12}};
+            for (const auto &spot : spots) {
+                QPalette ghost(palette);
+                QColor c = shadow;
+                c.setAlphaF(spot.alpha * strength);
+                ghost.setColor(QPalette::Active, textRole, c);
+                ghost.setColor(QPalette::Inactive, textRole, c);
+                ghost.setColor(QPalette::Disabled, textRole, c);
+                ParentStyleClass::drawItemText(painter, rect.translated(qRound(spot.dx), qRound(spot.dy)), flags, ghost, enabled, text, textRole);
+            }
         }
     }
 

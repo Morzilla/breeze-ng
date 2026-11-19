@@ -127,6 +127,9 @@ public:
     //* complex controls
     void drawComplexControl(ComplexControl, const QStyleOptionComplex *, QPainter *, const QWidget *) const override;
 
+    //* Breeze NG: icons on glass get the shadow of the text beside them
+    void drawItemPixmap(QPainter *painter, const QRect &rect, int alignment, const QPixmap &pixmap) const override;
+
     //* generic text rendering
     void drawItemText(QPainter *, const QRect &, int alignment, const QPalette &, bool enabled, const QString &, QPalette::ColorRole = QPalette::NoRole)
         const override;
