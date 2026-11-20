@@ -415,11 +415,22 @@ safe_pkgs() { # manager (dnf or apt-get), command and packages (without -y)
     # (default yes), otherwise (--yes, the graphical installer) it is done. Then the step is simulated again.
     if [ -n "$changes" ] && ! grep -qvE '  upgrading$' <<<"$changes"; then
         local update=1
-        if [ -n "$TTY" ] && [ "$YES" = 0 ]; then
+        # (an X11 session and an update of Plasma or KWin: newer Plasma has no X11 session any more, the next login
+        # would be Wayland. Never done without asking; from a terminal it is explained, default no)
+        if [ "$SESSION" = x11 ] && grep -qE '^(plasma|kwin|libkwin|libplasma)' <<<"$changes"; then
+            warn "you are in an X11 session, and updating would bring a newer Plasma: it may have no X11 session any more,"
+            warn "and the next login would be Wayland."
+            if [ -n "$TTY" ] && [ "$YES" = 0 ]; then
+                ask "  Update the whole system anyway?" n || update=0
+            else
+                update=0
+            fi
+        elif [ -n "$TTY" ] && [ "$YES" = 0 ]; then
             warn "\"$manager $*\" needs a newer version of packages of your system:"
             printf '%s\n' "$changes" | head -n 12 | sed 's/^/      /'
             ask "  Update the whole system now (recommended)?" y || update=0
         fi
+        [ "$update" = 0 ] && { warn "the system was not updated: run the installer again from a terminal to decide, or update by hand"; }
         if [ "$update" = 1 ] && update_system "$manager"; then
             changes=$(simulate "$manager" "$@")
         fi
