@@ -422,10 +422,18 @@ void Style::polish(QWidget *widget)
         // (whatever format Qt says it asked for: with a Qt Quick view inside, the window asked for alpha and was
         // still declared opaque)
         if (QWindow *handle = widget->windowHandle(); handle && handle->handle() && !handle->isVisible()) {
-            QSurfaceFormat format = handle->format();
-            format.setAlphaBufferSize(8);
-            handle->destroy();
-            handle->setFormat(format);
+            if (handle->surfaceType() == QSurface::RasterSurface) {
+                QSurfaceFormat format = handle->format();
+                format.setAlphaBufferSize(8);
+                handle->destroy();
+                handle->setFormat(format);
+            } else {
+                // a window drawn through OpenGL (one with a Qt Quick view inside: System Settings, Info Centre): its
+                // backing store kept the swap chain of the destroyed surface, and the window came up empty
+                // ("eglSwapBuffers failed, surface 0x0", on AMD with Qt 6.10). Setting its flags again makes Qt build
+                // the whole window anew, backing store included, with the alpha channel of the translucent widget
+                widget->setWindowFlags(widget->windowFlags());
+            }
         }
         widget->setProperty("_breeze_ng_glass", true);
         addEventFilter(widget); // paints the sheet, see eventFilter()
