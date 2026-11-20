@@ -62,7 +62,9 @@ Text on glass can get a shadow (`TextShadow`: Never, LowContrast, Always; `Helpe
 reckons the worst case (a white window behind light text, a black one behind dark text, through the sheet's colour
 and opacity) against 4.5:1: what is behind a window cannot be seen. KWin 6.8 offers no background contrast (the
 protocol is not announced), so the shadow is the way to keep text readable. Dolphin NG reads the same setting for the
-text it draws itself: keep the two in step.
+text it draws itself: keep the two in step. In Qt Quick windows (Aurora) the Kirigami plugin sets QtQuick's own
+`Text.Raised` with a `styleColor` on every `QQuickText` (`textShadows()` in ng/kirigami-platform/plugin.cpp), with
+the same choice and reckoning; `BREEZE_NG_QUICK_NO_SHADOW=1` switches it off for one application.
 
 ## Conventions
 

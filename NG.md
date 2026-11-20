@@ -109,7 +109,8 @@ settings of the style, in pages:
   glass, text (and the icons beside it) can get a soft shadow of the opposite tone, as on macOS, so that it stays
   readable over a white or black window behind. *When the contrast may be low* (the default) puts it where the glass
   is see-through enough for that to happen (an application cannot see what is behind its window: the worst case is
-  reckoned from the glass's colour and opacity); *Always* and *Never* do what they say. Without the compositor's blur,
+  reckoned from the glass's colour and opacity); *Always* and *Never* do what they say. Qt Quick applications in
+  Aurora (System Settings, Discover…) get it too, from the Kirigami plugin. Without the compositor's blur,
   glass windows are painted solid instead.
 - **Aurora** – the glass, the surfaces on it, the lights, the grain, the blur, and the colour of selections.
 - **Controls and animations** – animation speed, keyboard shortcut underlines, scroll bar arrows, centred tabs, the

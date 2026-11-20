@@ -458,6 +458,118 @@ void unfillCovers(QQuickWindow *window)
 }
 
 
+// Text on the glass gets a shadow of the opposite tone, as in the widget applications (Breeze NG's "Text shadow":
+// Never, When the contrast may be low, Always): QtQuick's own Text.Raised, a copy of the text one pixel below in a
+// colour of its own, cheap to draw. "When the contrast may be low" reckons the worst case, as Helper::textShadow
+// does: a white window behind light text (a black one behind dark text) seen through the glass, against 4.5:1.
+// Not under text on a selection (its own solid fill), nor under dimmed or disabled text (the shadow smudged it), and
+// never over a style the application chose. Texts come and go as pages change and lists scroll: looked at after the
+// window's animations, now and then.
+bool shadowNeeded(const Look &look)
+{
+    const QString mode = KSharedConfig::openConfig(QStringLiteral("breezengrc"))->group(QStringLiteral("Common")).readEntry("TextShadow", QStringLiteral("LowContrast"));
+    if (mode == QLatin1String("Never")) {
+        return false;
+    }
+    if (mode == QLatin1String("Always")) {
+        return true;
+    }
+    const QPalette palette = QGuiApplication::palette();
+    const QColor text = palette.color(QPalette::WindowText), sheet = palette.color(QPalette::Window);
+    auto luminance = [](const QColor &c) {
+        auto linear = [](qreal v) {
+            return v <= 0.04045 ? v / 12.92 : std::pow((v + 0.055) / 1.055, 2.4);
+        };
+        return 0.2126 * linear(c.redF()) + 0.7152 * linear(c.greenF()) + 0.0722 * linear(c.blueF());
+    };
+    const qreal alpha = look.sheet.alphaF();
+    const qreal behind = text.lightnessF() > 0.5 ? 1.0 : 0.0;
+    const QColor ground = QColor::fromRgbF(alpha * sheet.redF() + (1 - alpha) * behind, alpha * sheet.greenF() + (1 - alpha) * behind,
+                                           alpha * sheet.blueF() + (1 - alpha) * behind);
+    const qreal a = luminance(text), b = luminance(ground);
+    return (qMax(a, b) + 0.05) / (qMin(a, b) + 0.05) < 4.5;
+}
+
+void textShadows(QQuickWindow *window, const Look &look)
+{
+    if (qEnvironmentVariableIsSet("BREEZE_NG_DEBUG_QUICK")) {
+        qWarning("breeze-ng kirigami shadow: window %p needed %d", static_cast<void *>(window), int(shadowNeeded(look)));
+    }
+    if (!window || window->property("_breeze_ng_shadow_hook").toBool() || qEnvironmentVariableIsSet("BREEZE_NG_QUICK_NO_SHADOW") || !shadowNeeded(look)) {
+        return;
+    }
+    window->setProperty("_breeze_ng_shadow_hook", true);
+    QPointer<QQuickWindow> guard(window);
+    const QColor onSelection = look.onSelection;
+    auto walk = [guard, onSelection] {
+        if (!guard) {
+            return;
+        }
+        const QPalette palette = QGuiApplication::palette();
+        const QColor windowText = palette.color(QPalette::Active, QPalette::WindowText);
+        const QColor highlighted = palette.color(QPalette::Active, QPalette::HighlightedText);
+        const QColor disabled = palette.color(QPalette::Disabled, QPalette::WindowText);
+        // (no blur behind the window, as the widget style found: the window is solid, no shadow wanted)
+        const bool bare = qApp->property("_breeze_ng_bare_glass").toBool();
+        auto close = [](const QColor &a, const QColor &b) {
+            return qAbs(a.red() - b.red()) + qAbs(a.green() - b.green()) + qAbs(a.blue() - b.blue()) <= 12;
+        };
+        std::function<void(QQuickItem *, int)> visit = [&](QQuickItem *node, int depth) {
+            if (node->inherits("QQuickText")) {
+                const QColor colour = node->property("color").value<QColor>();
+                const bool ours = node->property("_breeze_ng_shadow").toBool();
+                const bool skip = bare || !node->isEnabled() || node->opacity() < 0.75 || colour.alphaF() < 0.75
+                    || (close(colour, highlighted) && !close(colour, windowText)) || (onSelection.isValid() && close(colour, onSelection))
+                    || (close(colour, disabled) && !close(colour, windowText));
+                if (skip) {
+                    if (ours) {
+                        node->setProperty("style", 0); // Text.Normal
+                        node->setProperty("_breeze_ng_shadow", false);
+                    }
+                } else if (ours || node->property("style").toInt() == 0) {
+                    const QColor shadow = colour.lightnessF() > 0.5 ? QColor(0, 0, 0, 150) : QColor(255, 255, 255, 170);
+                    if (!ours || node->property("styleColor").value<QColor>() != shadow) {
+                        node->setProperty("styleColor", shadow);
+                        node->setProperty("style", 2); // Text.Raised: the copy one pixel below
+                        node->setProperty("_breeze_ng_shadow", true);
+                    }
+                }
+            }
+            if (depth < 60) {
+                const auto children = node->childItems();
+                for (QQuickItem *child : children) {
+                    visit(child, depth + 1);
+                }
+            }
+        };
+        visit(guard->contentItem(), 0);
+        if (qEnvironmentVariableIsSet("BREEZE_NG_DEBUG_QUICK")) {
+            int texts = 0, shaded = 0;
+            std::function<void(QQuickItem *)> count = [&](QQuickItem *node) {
+                if (node->inherits("QQuickText")) {
+                    ++texts;
+                    shaded += node->property("_breeze_ng_shadow").toBool();
+                }
+                for (QQuickItem *child : node->childItems()) {
+                    count(child);
+                }
+            };
+            count(guard->contentItem());
+            qWarning("breeze-ng kirigami shadow: %d texts, %d shaded", texts, shaded);
+        }
+    };
+    auto last = std::make_shared<QElapsedTimer>();
+    QObject::connect(window, &QQuickWindow::afterAnimating, window, [walk, last] {
+        if (!last->isValid() || last->elapsed() > 400) {
+            last->start();
+            walk();
+        }
+    });
+    for (int delay : {0, 500, 1500, 4000}) {
+        QTimer::singleShot(delay, window, walk);
+    }
+}
+
 // An icon inside a button that is on (an orientation in the display settings, a view switch): it takes the colour of
 // text on a selection, as the button's sheet is one (the deep accent on its light sheet, white on the full accent).
 // The icon asks for a theme of its own; the button above it is watched for being switched on and off.
@@ -623,6 +735,11 @@ private:
                         itemWindow->setProperty("_breeze_ng_clear", true);
                         itemWindow->setColor(Qt::transparent);
                     }
+                    // the text shadow, in any window the item is shown in: a Qt Quick window, or the one a view inside
+                    // a window of widgets (System Settings) is drawn in offscreen
+                    if (itemWindow) {
+                        textShadows(itemWindow, look);
+                    }
                     break;
                 }
             }
@@ -727,6 +844,7 @@ private:
                     if (!qEnvironmentVariableIsSet("BREEZE_NG_QUICK_NO_COVERS")) {
                         unfillCovers(quickWindow);
                     }
+                    textShadows(quickWindow, look);
                     if (qEnvironmentVariableIsSet("BREEZE_NG_DEBUG_QUICK")) {
                         QTimer::singleShot(4000, quickWindow, [quickWindow] {
                             dumpItems(quickWindow->contentItem(), 0);
