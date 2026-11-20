@@ -1,0 +1,63 @@
+#!/usr/bin/make -f
+# Breeze NG installs apart from the system, next to Ubuntu's own Breeze: its library (libbreezecommon6) has the name of
+# Breeze's, so it lives in its prefix and its plugins find it through an RPATH. Links to the four plugins in Qt's plugin
+# folder make them visible without QT_PLUGIN_PATH or a new login.
+export DEB_BUILD_MAINT_OPTIONS = hardening=+all
+include /usr/share/dpkg/architecture.mk
+NGPREFIX = /opt/ng/breeze-ng
+NGLIB = $(NGPREFIX)/lib/$(DEB_HOST_MULTIARCH)
+QTPLUGINS = /usr/lib/$(DEB_HOST_MULTIARCH)/qt6/plugins
+PKG = debian/breeze-ng
+JOBS = $(or $(patsubst parallel=%,%,$(filter parallel=%,$(DEB_BUILD_OPTIONS))),1)
+
+%:
+	dh $@ --buildsystem=cmake
+
+override_dh_auto_configure:
+	dh_auto_configure -- -DCMAKE_INSTALL_PREFIX=$(NGPREFIX) -DKDE_INSTALL_USE_QT_SYS_PATHS=OFF \
+		-DBUILD_QT5=OFF -DBUILD_QT6=ON -DWITH_WALLPAPERS=OFF -DBUILD_CURSOR=OFF -DBUILD_TESTING=OFF \
+		-DCMAKE_INSTALL_RPATH=$(NGLIB) -DCMAKE_BUILD_WITH_INSTALL_RPATH=OFF
+	# Aurora for Kirigami applications: a platform plugin in a directory of its own (ng/kirigami-platform/README.md)
+	cmake -S ng/kirigami-platform -B obj-kirigami -DCMAKE_BUILD_TYPE=RelWithDebInfo -DCMAKE_INSTALL_PREFIX=$(NGPREFIX) \
+		-DCMAKE_INSTALL_LIBDIR=lib/$(DEB_HOST_MULTIARCH)
+
+override_dh_auto_build:
+	dh_auto_build
+	cmake --build obj-kirigami -j$(JOBS)
+
+override_dh_auto_install:
+	dh_auto_install
+	DESTDIR=$(CURDIR)/$(PKG) cmake --install obj-kirigami
+	# the Kirigami plugin has to come before the desktop style's own in the plugin path: for the whole session, from
+	# the next login (the widget style and the decoration need neither this nor a login)
+	mkdir -p $(PKG)/etc/xdg/plasma-workspace/env
+	printf '# Breeze NG: Aurora for Kirigami applications\nexport QT_PLUGIN_PATH="%s/breeze-ng-kirigami$${QT_PLUGIN_PATH:+:$$QT_PLUGIN_PATH}"\n' $(NGLIB) \
+		> $(PKG)/etc/xdg/plasma-workspace/env/breeze-ng-kirigami.sh
+	# the Plasma styles (panel popups, launcher, their buttons and lists), from Plasma's default style
+	for v in soft glass aurora; do \
+		python3 ng/plasma-style/make-plasma-style.py $$v $(PKG)/usr/share/plasma/desktoptheme/breeze-ng-$$v || exit 1; \
+	done
+	install -Dm644 -t $(PKG)/usr/share/color-schemes ng/color-schemes/BreezeNG.colors ng/color-schemes/BreezeNGLight.colors \
+		ng/color-schemes/BreezeNGCode.colors ng/color-schemes/BreezeNGGrey.colors
+	install -Dm644 kstyle/breezeng.themerc $(PKG)/usr/share/kstyle/themes/breezeng.themerc
+	mkdir -p $(PKG)/usr/share/plasma/look-and-feel
+	cp -a ng/look-and-feel/org.morzilla.breezeng.* $(PKG)/usr/share/plasma/look-and-feel/
+	# links to the plugins in Qt's plugin folder
+	for f in styles/breezeng6.so kstyle_config/breezengstyleconfig.so org.kde.kdecoration3/org.kde.breezeng.so \
+	         org.kde.kdecoration3.kcm/kcm_breezengdecoration.so; do \
+		test -e $(PKG)$(NGLIB)/plugins/$$f || { echo "missing plugin $$f"; exit 1; }; \
+		mkdir -p "$$(dirname $(PKG)$(QTPLUGINS)/$$f)"; \
+		ln -s $(NGLIB)/plugins/$$f $(PKG)$(QTPLUGINS)/$$f; \
+	done
+
+# its private library is not for other packages: no shlibs, no symbols checks, no ldconfig triggers
+override_dh_makeshlibs:
+
+override_dh_shlibdeps:
+	dh_shlibdeps -l$(CURDIR)/$(PKG)$(NGLIB)
+
+override_dh_auto_test:
+
+override_dh_auto_clean:
+	dh_auto_clean
+	cmake -E remove_directory obj-kirigami

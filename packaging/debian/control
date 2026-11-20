@@ -1,0 +1,48 @@
+Source: breeze-ng
+Section: kde
+Priority: optional
+Maintainer: Morzilla <3956663+Morzilla@users.noreply.github.com>
+Build-Depends: cmake (>= 3.16~),
+               debhelper-compat (= 13),
+               extra-cmake-modules,
+               gettext,
+               libkdecorations3-dev,
+               libkf6colorscheme-dev,
+               libkf6config-dev,
+               libkf6coreaddons-dev,
+               libkf6guiaddons-dev,
+               libkf6i18n-dev,
+               libkf6iconthemes-dev,
+               libkf6kcmutils-dev,
+               libkf6style-dev,
+               libkf6windowsystem-dev,
+               libkirigami-dev,
+               libx11-dev,
+               libxkbcommon-dev,
+               pkgconf,
+               plasma-desktoptheme,
+               python3,
+               qt6-base-dev,
+               qt6-declarative-dev,
+               qt6-svg-dev
+Standards-Version: 4.7.0
+Homepage: https://github.com/Morzilla/breeze-ng
+Rules-Requires-Root: no
+
+Package: breeze-ng
+Architecture: any
+Depends: ${misc:Depends}, ${shlibs:Depends}, plasma-desktoptheme
+Description: Breeze widget style and window decoration with Soft, Glass and Aurora looks
+ Breeze NG is a fork of KDE's Breeze widget style and window decoration with
+ three looks: Soft (surfaces told apart by tone, no separator lines), Glass
+ (translucent windows and menus blurred by the compositor) and Aurora (the
+ whole window as frosted glass). It installs under /opt/ng/breeze-ng, next to
+ the stock Breeze, which stays untouched, with links to its plugins in Qt's
+ plugin folder.
+ .
+ It also brings Plasma styles in the same looks, colour schemes, global themes
+ and Aurora for Kirigami (Qt Quick) applications.
+ .
+ After installing, pick a "Breeze NG" global theme in System Settings >
+ Colours & Themes > Global Theme. Applications already open keep their old
+ style until restarted; Kirigami applications need a new login.
