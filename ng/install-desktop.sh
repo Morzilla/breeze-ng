@@ -383,25 +383,56 @@ risky_changes() { # manager, simulated output -> one "name  what" line per chang
                 /^Inst [^ ]+ \[/ && $2 ~ core { print $2 "  upgrading" }' <<<"$2" ;;
     esac
 }
-safe_pkgs() { # manager (dnf or apt-get), command and packages (without -y)
-    local manager="$1" sim changes
+SYSTEM_UPDATED=0
+update_system() { # manager: bring the whole system up to date (once per run)
+    [ "$SYSTEM_UPDATED" = 1 ] && return 1
+    SYSTEM_UPDATED=1
+    say "Updating the system first"
+    if [ "$1" = dnf ]; then
+        $SUDO dnf upgrade --refresh -y || return 1
+    else
+        $SUDO apt-get update && $SUDO env DEBIAN_FRONTEND=noninteractive apt-get -y full-upgrade || return 1
+    fi
+    ok "system updated (if Plasma or KDE Frameworks were among the updates, log out and in once at the end)"
+}
+simulate() { # manager, command and packages -> the changes that need a decision
+    local manager="$1" sim
     shift
     if [ "$manager" = dnf ]; then
         sim=$(LC_ALL=C $SUDO dnf "$@" --assumeno 2>&1 || true)
-        changes=$(risky_changes dnf "$sim")
+        risky_changes dnf "$sim"
     else
         sim=$(LC_ALL=C $SUDO apt-get -s "$@" 2>&1 || true)
-        changes=$(risky_changes apt "$sim")
+        risky_changes apt "$sim"
+    fi
+}
+safe_pkgs() { # manager (dnf or apt-get), command and packages (without -y)
+    local manager="$1" changes
+    shift
+    changes=$(simulate "$manager" "$@")
+    # Only upgrades of the system's own packages: the system is behind the repositories (a live image, a machine
+    # not updated in a while). The way out is to update it as a whole, not to stop: from a terminal it is asked
+    # (default yes), otherwise (--yes, the graphical installer) it is done. Then the step is simulated again.
+    if [ -n "$changes" ] && ! grep -qvE '  upgrading$' <<<"$changes"; then
+        local update=1
+        if [ -n "$TTY" ] && [ "$YES" = 0 ]; then
+            warn "\"$manager $*\" needs a newer version of packages of your system:"
+            printf '%s\n' "$changes" | head -n 12 | sed 's/^/      /'
+            ask "  Update the whole system now (recommended)?" y || update=0
+        fi
+        if [ "$update" = 1 ] && update_system "$manager"; then
+            changes=$(simulate "$manager" "$@")
+        fi
     fi
     if [ -n "$changes" ]; then
         warn "\"$manager $*\" would change packages of the desktop itself:"
         printf '%s\n' "$changes" | head -n 25 | sed 's/^/      /'
         [ "$(printf '%s\n' "$changes" | wc -l)" -gt 25 ] && echo "      ..."
         if [ -n "$TTY" ] && [ "$YES" = 0 ]; then
-            printf '  It is safer to update the whole system first (then run this again), or to install by hand.\n'
+            printf '  It would remove or downgrade packages of your desktop: safer to install by hand.\n'
             ask "  Go on with this anyway?" n || { warn "skipped: $manager $*"; return 1; }
         else
-            warn "skipped (nothing was changed). Update the system first, or run the installer from a terminal to decide."
+            warn "skipped (nothing was changed): it would remove or downgrade packages. Run the installer from a terminal to decide."
             return 1
         fi
     fi
