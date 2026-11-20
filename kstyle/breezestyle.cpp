@@ -7620,6 +7620,19 @@ bool Style::drawScrollBarSliderControl(const QStyleOption *option, QPainter *pai
         color.setAlphaF(color.alphaF() * (0.7 + Metrics::Blend_Value * grooveAnimationOpacity));
     }
 
+    // Breeze NG, glass with the text shadow on: the handle gets a thin ring of the opposite tone, as text gets its shadow
+    // (a light handle at 45% vanished over a white window behind the glass)
+    if (QColor shadow; _helper->textShadow(painter->device(), color, &shadow)) {
+        painter->save();
+        painter->setRenderHint(QPainter::Antialiasing, true);
+        shadow.setAlphaF(0.5);
+        painter->setPen(QPen(shadow, 1.0));
+        painter->setBrush(Qt::NoBrush);
+        const QRectF ring = QRectF(handleRect).adjusted(-0.5, -0.5, 0.5, 0.5);
+        const qreal radius = 0.5 * std::min({ring.width(), ring.height(), qreal(Metrics::ScrollBar_SliderWidth) + 1});
+        painter->drawRoundedRect(ring, radius, radius);
+        painter->restore();
+    }
     _helper->renderScrollBarHandle(painter, handleRect, color, palette.color(QPalette::Window));
     return true;
 }
