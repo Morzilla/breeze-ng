@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: GPL-2.0-or-later
-%global commit      0460bff689dff6d5d068f007295f341aca3f2565
+%global commit      71437e800103acd57b3bb5d1bbf2965ead94ef45
 %global shortcommit %(c=%{commit}; echo ${c:0:7})
-%global snapdate    202611191344
+%global snapdate    202611201715
 # snapdate: date and time of the commit (YYYYMMDDHHMM), so that two snapshots of one day sort in order
 # installed apart from the system, next to Fedora's own Breeze
 %global ngprefix    /opt/ng/breeze-ng
@@ -127,6 +127,11 @@ done
 %{_qt6_plugindir}/org.kde.kdecoration3.kcm/kcm_breezengdecoration.so
 
 %changelog
+* Fri Nov 20 2026 Morzilla <3956663+Morzilla@users.noreply.github.com> - 6.7.5^202611201715git71437e8-1
+- Text shadow in Qt Quick applications too
+- System Settings and Info Centre no longer come up empty with Aurora (OpenGL windows)
+- Installer: system update instead of stopping
+
 * Fri Nov 20 2026 Morzilla <3956663+Morzilla@users.noreply.github.com> - 6.7.5^202611191344git0460bff-1
 - Aurora: no lit line across the top of the title bar
 - Glass: no black square between two scroll bars
