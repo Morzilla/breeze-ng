@@ -1,0 +1,49 @@
+# CodeRabbit: automatic review of pull requests (https://docs.coderabbit.ai/reference/configuration)
+language: en-US
+tone_instructions: "Plain, direct English. Point at real defects first; skip praise and style nits that do not matter."
+reviews:
+  profile: chill
+  high_level_summary: true
+  poem: false
+  auto_review:
+    enabled: true
+    drafts: false
+    base_branches:
+      - "ng"
+  path_filters:
+    - "!po/**"
+    - "!cursors/**"
+    - "!wallpapers/**"
+    - "!LICENSES/**"
+    - "!**/*.png"
+    - "!**/*.svg"
+    - "!**/*.svgz"
+    - "!build*/**"
+  path_instructions:
+    - path: "kstyle/**"
+      instructions: |
+        Breeze NG is a fork of KDE's Breeze widget style with Soft, Glass and Aurora looks (translucent, blurred
+        windows on KWin, Wayland first). drawControl/drawPrimitive/drawItemText run constantly: no allocations of
+        large pixmaps, no config reads or D-Bus calls there. Watch translucency: WA_TranslucentBackground and the
+        surface format must be set before the native window exists; destroying or recreating native windows of
+        OpenGL/RHI windows (Qt Quick inside) left them empty before. Settings come from breeze.kcfg
+        (StyleConfigData); new keys need a default there and a control in config/.
+    - path: "kdecoration/**"
+      instructions: |
+        The window decoration (KDecoration3). Check repaint regions, scaling at fractional scales (125%, 150%) and
+        that nothing breaks the stock Breeze decoration running in the same KWin.
+    - path: "ng/kirigami-platform/**"
+      instructions: |
+        A Kirigami platform plugin loaded into Qt Quick applications through QT_PLUGIN_PATH. It walks and changes
+        QQuickItem properties of applications it does not own: guard against items being destroyed (QPointer),
+        avoid work on every frame, and never break an application when an item is not what is expected.
+    - path: "ng/**/*.sh"
+      instructions: |
+        The NG desktop installer and helpers, run by users on Fedora, Arch/CachyOS, openSUSE and Debian/Ubuntu.
+        Check quoting, `set -e` pitfalls, behaviour on each package manager, X11 versus Wayland sessions, and that
+        system updates or removals only happen with the user's consent.
+    - path: "packaging/**"
+      instructions: |
+        Fedora spec (COPR), Debian packaging (PPA) and AUR PKGBUILD. Breeze NG installs under /opt/ng/breeze-ng next
+        to the stock Breeze, linking its plugins into Qt's plugin folder: check for file conflicts with the
+        distribution's Breeze packages and consistency between the three packagings.
