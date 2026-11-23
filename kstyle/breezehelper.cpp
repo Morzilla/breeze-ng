@@ -295,7 +295,12 @@ QColor Helper::auroraVeilColor(const QPalette &palette, bool button, qreal facto
         return alphaColor(ink(palette), qMin(auroraVeil(palette, button) * factor + more, 1.0));
     }
     // (auroraVeil() is 3/4 of the setting on light schemes: 7 % gives 0.46 for panels, 0.55 for buttons and fields)
-    return QColor::fromRgbF(1.0, 1.0, 1.0, qMin((auroraVeil(palette, button) * (button ? 15.0 : 8.8) * factor) + more * 3.0, 0.94));
+    // (frost: white with a tinge of the accent, 12 %, so that fields, buttons and panels take its colour; a grey
+    // accent leaves it white. As ngAuroraFrost in Dolphin NG)
+    const QColor accent = palette.color(QPalette::Active, QPalette::Highlight);
+    const qreal t = accent.hslSaturationF() < 0.15 ? 0.0 : 0.12;
+    return QColor::fromRgbF(1.0 - t + t * accent.redF(), 1.0 - t + t * accent.greenF(), 1.0 - t + t * accent.blueF(),
+                            qMin((auroraVeil(palette, button) * (button ? 15.0 : 8.8) * factor) + more * 3.0, 0.94));
 }
 
 bool Helper::auroraFullSelection() const
