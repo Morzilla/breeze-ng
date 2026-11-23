@@ -642,6 +642,30 @@ void Style::polish(QWidget *widget)
 void Style::polish(QPalette &palette)
 {
     ParentStyleClass::polish(palette);
+    // Breeze NG: the text takes a tinge of the accent: near black (near white on a dark scheme) leaning to the accent's
+    // hue, as the slate of Breeze NG's light scheme leans to its blue. A colour scheme carries one text colour, made
+    // for its own accent: with another accent (orange) the slate stayed blue. Only text near grey is tinged (a scheme
+    // with coloured text keeps it), and not with a grey accent. BREEZE_NG_TINTED_TEXT=0 leaves the text as it is
+    if (qEnvironmentVariable("BREEZE_NG_TINTED_TEXT") != QLatin1String("0")) {
+        const QColor accent = palette.color(QPalette::Active, QPalette::Highlight);
+        if (accent.hslSaturationF() >= 0.15) {
+            const qreal hue = accent.hslHueF();
+            for (QPalette::ColorGroup group : {QPalette::Active, QPalette::Inactive, QPalette::Disabled}) {
+                for (QPalette::ColorRole role : {QPalette::WindowText, QPalette::Text, QPalette::ButtonText, QPalette::PlaceholderText}) {
+                    const QColor text = palette.color(group, role);
+                    if (text.hslSaturationF() > 0.35) {
+                        continue;
+                    }
+                    const qreal lightness = text.lightnessF();
+                    // (a dark text a clear tinge, as the slate; a light one only a hint, white with colour reads as tinted)
+                    const qreal saturation = lightness < 0.5 ? 0.24 : 0.10;
+                    QColor tinted = QColor::fromHslF(hue, saturation, lightness);
+                    tinted.setAlphaF(text.alphaF());
+                    palette.setColor(group, role, tinted);
+                }
+            }
+        }
+    }
     if (_helper->isGlass()) {
         // the selection is translucent: selected text keeps the normal text colour
         // (Aurora with the full accent for selections: white on it)
