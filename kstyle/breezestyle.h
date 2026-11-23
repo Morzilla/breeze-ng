@@ -129,6 +129,9 @@ public:
 
     //* Breeze NG: icons on glass get the shadow of the text beside them
     void drawItemPixmap(QPainter *painter, const QRect &rect, int alignment, const QPixmap &pixmap) const override;
+    // Breeze NG: set while the label of a button that is on is drawn: its text and icon stand on the button's own fill,
+    // without the glass shadow
+    mutable bool _ngNoGlassShadow = false;
 
     //* generic text rendering
     void drawItemText(QPainter *, const QRect &, int alignment, const QPalette &, bool enabled, const QString &, QPalette::ColorRole = QPalette::NoRole)

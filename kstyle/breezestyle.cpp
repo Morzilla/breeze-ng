@@ -2127,7 +2127,7 @@ void Style::drawItemPixmap(QPainter *painter, const QRect &rect, int alignment, 
     // of the window's text, mostly below it. The shapes are kept, an icon is drawn again at every repaint
     QColor shadow;
     const QWidget *widget = painter->device() && painter->device()->devType() == QInternal::Widget ? static_cast<const QWidget *>(painter->device()) : nullptr;
-    if (!pixmap.isNull() && widget && _helper->textShadow(painter->device(), widget->palette().color(QPalette::WindowText), &shadow)) {
+    if (!pixmap.isNull() && widget && !_ngNoGlassShadow && _helper->textShadow(painter->device(), widget->palette().color(QPalette::WindowText), &shadow)) {
         static QCache<QString, QPixmap> shapes(200);
         const QString key = QStringLiteral("%1-%2").arg(pixmap.cacheKey()).arg(shadow.rgba());
         QPixmap *shape = shapes.object(key);
@@ -2191,7 +2191,7 @@ void Style::drawItemText(QPainter *painter,
     // Breeze NG: on glass, a soft shadow of the opposite tone around the text (TextShadow, as macOS does), so that it
     // reads over a light or dark window behind; not under text that stands on a selection (its own solid fill), nor
     // under dimmed text (the notes of a settings page, a disabled control): faint and thin, the shadow smudged it
-    if (enabled && textRole != QPalette::NoRole && textRole != QPalette::HighlightedText && !text.isEmpty()) {
+    if (enabled && !_ngNoGlassShadow && textRole != QPalette::NoRole && textRole != QPalette::HighlightedText && !text.isEmpty()) {
         QColor shadow;
         const QColor ink = palette.color(enabled ? QPalette::Active : QPalette::Disabled, textRole);
         if (_helper->textShadow(painter->device(), ink, &shadow)) {
@@ -6698,6 +6698,21 @@ bool Style::drawIconButtonControl(const QStyleOption *option, QPainter *painter,
 //___________________________________________________________________________________
 bool Style::drawToolButtonLabelControl(const QStyleOption *option, QPainter *painter, const QWidget *widget) const
 {
+    // Breeze NG: a button that is on stands on its own fill (the accent, or a sheet of it): its text and icon need no
+    // glass shadow, and the shadow (of the opposite tone of the window's text) put a light blur round white text and
+    // icons on the accent of a light scheme
+    struct NoShadow {
+        bool &flag;
+        bool before;
+        ~NoShadow()
+        {
+            flag = before;
+        }
+    } restore{_ngNoGlassShadow, _ngNoGlassShadow};
+    if (option->state & State_On) {
+        _ngNoGlassShadow = true;
+    }
+
     // Breeze NG Aurora: the label of what is on takes the colour of text on a selection (white on the full accent,
     // the deep accent on its light sheet in a light scheme)
     if (_helper->isAurora() && (_helper->auroraFullSelection() || !_helper->isDark(option->palette)) && (option->state & State_On) && option->palette.color(QPalette::ButtonText) != _helper->auroraSelectionText(option->palette)) {
