@@ -2421,10 +2421,7 @@ bool Style::eventFilter(QObject *object, QEvent *event)
                     // from the bare glass every time: laid over what was there, the veil piled up at every repaint
                     // and the card grew lighter and lighter
                     _helper->clearUnder(&painter, child->geometry());
-                    painter.setRenderHint(QPainter::Antialiasing, true);
-                    painter.setPen(Qt::NoPen);
-                    painter.setBrush(_helper->auroraVeilColor(widget->palette(), false));
-                    painter.drawRoundedRect(QRectF(child->geometry()).adjusted(5, 5, -5, -5), 12, 12);
+                    _helper->renderAuroraSideCard(&painter, QRectF(child->geometry()), widget->palette());
                 }
             }
         }
@@ -5020,10 +5017,7 @@ bool Style::drawFramePrimitive(const QStyleOption *option, QPainter *painter, co
     if (_helper->isAurora() && widget && widget->property(PropertyNames::sidePanelView).toBool() && widget->property("_breeze_ng_veil").toBool()
         && widget->window()->property("_breeze_ng_glass").toBool()) {
         // Aurora: a side panel is a card on the glass, as the sidebar of Dolphin NG
-        painter->setRenderHint(QPainter::Antialiasing, true);
-        painter->setPen(Qt::NoPen);
-        painter->setBrush(_helper->auroraVeilColor(palette, false));
-        painter->drawRoundedRect(QRectF(rect).adjusted(5, 5, -5, -5), 12, 12);
+        _helper->renderAuroraSideCard(painter, QRectF(rect), palette);
     } else if (!StyleConfigData::sidePanelDrawFrame() && widget && widget->property(PropertyNames::sidePanelView).toBool()) {
         const auto outline(_helper->sidePanelOutlineColor(palette, hasFocus, opacity, mode));
         const bool reverseLayout(option->direction == Qt::RightToLeft);
