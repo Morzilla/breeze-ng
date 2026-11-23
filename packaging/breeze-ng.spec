@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: GPL-2.0-or-later
-%global commit      97cfb5f65997a9c91dbf39059da17434b4682a6f
+%global commit      e3946589073fdf1b6e92f98d0112ff7bb1af7b54
 %global shortcommit %(c=%{commit}; echo ${c:0:7})
-%global snapdate    202611231837
+%global snapdate    202611232009
 # snapdate: date and time of the commit (YYYYMMDDHHMM), so that two snapshots of one day sort in order
 # installed apart from the system, next to Fedora's own Breeze
 %global ngprefix    /opt/ng/breeze-ng
@@ -127,6 +127,9 @@ done
 %{_qt6_plugindir}/org.kde.kdecoration3.kcm/kcm_breezengdecoration.so
 
 %changelog
+* Mon Nov 23 2026 Morzilla <3956663+Morzilla@users.noreply.github.com> - 6.7.5^202611232009gite394658-1
+- Kirigami plugin: plasmashell no longer crashes at start with it (Kubuntu 26.04)
+
 * Mon Nov 23 2026 Morzilla <3956663+Morzilla@users.noreply.github.com> - 6.7.5^202611231837git97cfb5f-1
 - Text and light surfaces tinged by the accent (option)
 - Aurora: coloured corner lights on light schemes too (option)
