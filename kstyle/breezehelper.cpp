@@ -2695,6 +2695,13 @@ bool Helper::textShadow(const QPaintDevice *device, const QColor &text, QColor *
     if (!window || !window->property("_breeze_ng_glass").toBool()) {
         return false;
     }
+    // an application can leave a part out (_breeze_ng_no_text_shadow on it or a parent): text there stands on fills of
+    // its own (a bar of buttons with their own sheets, as Dolphin NG's), where the shadow only blurred it
+    for (const QWidget *it = widget; it && it != window; it = it->parentWidget()) {
+        if (it->property("_breeze_ng_no_text_shadow").toBool()) {
+            return false;
+        }
+    }
     const bool light = text.lightnessF() > 0.5;
     if (mode == StyleConfigData::EnumTextShadow::LowContrast) {
         // what is behind the window cannot be seen: the worst case, a white window behind light text (a black one behind
