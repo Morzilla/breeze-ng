@@ -354,26 +354,28 @@ static Qt::Edges ngSeamlessEdges(QWidget *widget)
 }
 
 // Breeze NG: a side of the shadow that fades in from the joined edge (the corner tile KWin lays along the first pixels
-// of that side): the side's own tile, repeated, from nothing at the button to full strength `length` pixels away
-static KWindowShadowTile::Ptr ngFadedSideTile(const KWindowShadowTile::Ptr &side, int length, bool fromTop)
+// of that side). It ends on what KWin draws right after it: `next` is that tile and `row` the row of it that comes
+// first (the side's own tile on a tall menu; on a short one the far corner's tile, which starts lighter): so the fade
+// meets it without a step. From nothing at the button to that row's strength `length` pixels away
+static KWindowShadowTile::Ptr ngFadedSideTile(const KWindowShadowTile::Ptr &next, int row, int length, bool fromTop)
 {
-    const QImage edge = side ? side->image() : QImage();
-    if (edge.isNull() || length <= 0) {
-        return side;
+    const QImage source = next ? next->image() : QImage();
+    if (source.isNull() || length <= 0) {
+        return next;
     }
-    QImage out(edge.width(), length, QImage::Format_ARGB32_Premultiplied);
+    const QImage line = source.copy(0, qBound(0, row, source.height() - 1), source.width(), 1);
+    QImage out(source.width(), length, QImage::Format_ARGB32_Premultiplied);
     out.fill(Qt::transparent);
     QPainter painter(&out);
-    for (int y = 0; y < length; y += qMax(1, edge.height())) {
-        painter.drawImage(0, y, edge);
+    for (int y = 0; y < length; ++y) {
+        painter.drawImage(0, y, line);
     }
     painter.setCompositionMode(QPainter::CompositionMode_DestinationIn);
     QLinearGradient ramp(0, 0, 0, length);
     // (eased: barely there by the button, most of the way at half the length)
-    const QColor none(0, 0, 0, 0), full(0, 0, 0, 255);
-    ramp.setColorAt(fromTop ? 0.0 : 1.0, none);
+    ramp.setColorAt(fromTop ? 0.0 : 1.0, QColor(0, 0, 0, 0));
     ramp.setColorAt(0.5, QColor(0, 0, 0, 150));
-    ramp.setColorAt(fromTop ? 1.0 : 0.0, full);
+    ramp.setColorAt(fromTop ? 1.0 : 0.0, QColor(0, 0, 0, 255));
     painter.fillRect(out.rect(), ramp);
     painter.end();
     KWindowShadowTile::Ptr tile = KWindowShadowTile::Ptr::create();
@@ -433,14 +435,38 @@ void ShadowHelper::installShadows(QWidget *widget)
     // corners become the sides fading in from the button
     QVector<KWindowShadowTile::Ptr> own = tiles;
     const Qt::Edges seamless = ngSeamlessEdges(widget);
-    const int fade = qRound(36 * devicePixelRatio(widget));
+    const qreal dpr = devicePixelRatio(widget);
+    // (as long as the corner tile it replaces: KWin packs the tiles into one texture and expects the corners to agree;
+    // a shorter one made it sample the wrong part of the shadow, a light stretch after the fade)
+    const int fade = tiles[1] ? tiles[1]->image().height() : qRound(56 * dpr);
+    const QMargins padding = shadowMargins(widget);
+    const int height = qRound(widget->height() * dpr);
+    // what KWin lays right after the fade along a side: the side's tile, or (a short menu) the far corner's, from the row
+    // that falls there
+    auto nextAfter = [&](const KWindowShadowTile::Ptr &side, const KWindowShadowTile::Ptr &farCorner, int farPadding, bool fromTop, int *row) {
+        const int cornerHeight = farCorner ? farCorner->image().height() : 0;
+        const int sideRoom = height + farPadding - cornerHeight - fade; // the side tile's length below the fade
+        if (sideRoom > 0 || !farCorner) {
+            *row = 0;
+            return side;
+        }
+        // (the far corner begins at height + farPadding - cornerHeight from the joined edge: the fade ends `fade` in)
+        const int intoCorner = fade - (height + farPadding - cornerHeight);
+        *row = fromTop ? intoCorner : cornerHeight - 1 - intoCorner;
+        return farCorner;
+    };
+    int row = 0;
     if (seamless & Qt::TopEdge) {
-        own[1] = ngFadedSideTile(tiles[2], fade, true); // top right: the right side, fading in downwards
-        own[7] = ngFadedSideTile(tiles[6], fade, true); // top left: the left side
+        KWindowShadowTile::Ptr next = nextAfter(tiles[2], tiles[3], padding.bottom(), true, &row);
+        own[1] = ngFadedSideTile(next, row, fade, true); // top right: the right side, fading in downwards
+        next = nextAfter(tiles[6], tiles[5], padding.bottom(), true, &row);
+        own[7] = ngFadedSideTile(next, row, fade, true); // top left: the left side
     }
     if (seamless & Qt::BottomEdge) {
-        own[3] = ngFadedSideTile(tiles[2], fade, false); // bottom right: the right side, fading in upwards
-        own[5] = ngFadedSideTile(tiles[6], fade, false); // bottom left
+        KWindowShadowTile::Ptr next = nextAfter(tiles[2], tiles[1], padding.top(), false, &row);
+        own[3] = ngFadedSideTile(next, row, fade, false); // bottom right: the right side, fading in upwards
+        next = nextAfter(tiles[6], tiles[7], padding.top(), false, &row);
+        own[5] = ngFadedSideTile(next, row, fade, false); // bottom left
     }
 
     shadow->setTopTile(own[0]);
