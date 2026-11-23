@@ -26,6 +26,7 @@
 #include <QDir>
 #include <QEvent>
 #include <QFileInfo>
+#include <QHash>
 #include <QGuiApplication>
 #include <QPalette>
 #include <QPluginLoader>
@@ -285,6 +286,31 @@ void dumpItems(QQuickItem *item, int depth)
     }
 }
 
+// the hooks already set on a window (bits: 1 air, 2 cover, 4 shadow): kept here, not as dynamic properties of the
+// window. Setting one sends the window a DynamicPropertyChange event, and Plasma's PlasmaQuick::Dialog, met before it
+// had its main item, crashed on it: plasmashell would not start on Kubuntu 26.04 with this plugin in QT_PLUGIN_PATH.
+QHash<const QObject *, int> &windowHooks()
+{
+    static QHash<const QObject *, int> hooks;
+    return hooks;
+}
+
+bool hasHook(const QQuickWindow *window, int bit)
+{
+    return windowHooks().value(window) & bit;
+}
+
+void setHook(QQuickWindow *window, int bit)
+{
+    auto &hooks = windowHooks();
+    if (!hooks.contains(window)) {
+        QObject::connect(window, &QObject::destroyed, qApp, [window] {
+            windowHooks().remove(window);
+        });
+    }
+    hooks[window] |= bit;
+}
+
 // is this object in a Qt Quick view that the widget style treats as a sidebar (it marks the view's offscreen window)?
 bool sideView(const QObject *owner)
 {
@@ -346,10 +372,10 @@ void sideRowAir(QObject *owner)
     }
     const auto item = qobject_cast<QQuickItem *>(owner);
     QQuickWindow *window = item ? item->window() : nullptr;
-    if (!window || window->property("_breeze_ng_air_hook").toBool()) {
+    if (!window || hasHook(window, 1)) {
         return;
     }
-    window->setProperty("_breeze_ng_air_hook", true);
+    setHook(window, 1);
     auto walk = [window] {
         std::function<void(QQuickItem *, int)> visit = [&](QQuickItem *node, int depth) {
             if (node->inherits("QQuickItemDelegate") && !node->property("_breeze_ng_air").toBool()) {
@@ -420,10 +446,10 @@ void unfillCovers(QQuickWindow *window)
     // (only a background as large as the window, near the top of the tree, and only while the window fills: walking
     // the items at every frame made System Settings stutter, and an object of ours among a rectangle's children
     // crashed Kirigami's theme updates)
-    if (!window || window->property("_breeze_ng_cover_hook").toBool()) {
+    if (!window || hasHook(window, 2)) {
         return;
     }
-    window->setProperty("_breeze_ng_cover_hook", true);
+    setHook(window, 2);
     QPointer<QQuickWindow> guard(window);
     auto walk = [guard] {
         if (!guard) {
@@ -495,10 +521,10 @@ void textShadows(QQuickWindow *window, const Look &look)
     if (qEnvironmentVariableIsSet("BREEZE_NG_DEBUG_QUICK")) {
         qWarning("breeze-ng kirigami shadow: window %p needed %d", static_cast<void *>(window), int(shadowNeeded(look)));
     }
-    if (!window || window->property("_breeze_ng_shadow_hook").toBool() || qEnvironmentVariableIsSet("BREEZE_NG_QUICK_NO_SHADOW") || !shadowNeeded(look)) {
+    if (!window || hasHook(window, 4) || qEnvironmentVariableIsSet("BREEZE_NG_QUICK_NO_SHADOW") || !shadowNeeded(look)) {
         return;
     }
-    window->setProperty("_breeze_ng_shadow_hook", true);
+    setHook(window, 4);
     QPointer<QQuickWindow> guard(window);
     const QColor onSelection = look.onSelection;
     auto walk = [guard, onSelection] {
