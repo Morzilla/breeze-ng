@@ -342,6 +342,46 @@ KWindowShadowTile::Ptr ShadowHelper::createTile(const QPixmap &source)
 }
 
 //_______________________________________________________
+// Breeze NG: the edges of a menu joined to the button it opens from (no shadow over that button)
+static Qt::Edges ngSeamlessEdges(QWidget *widget)
+{
+    Qt::Edges seamless = widget->property("_breeze_menu_seamless_edges").value<Qt::Edges>();
+    const QRect joinSpan = widget->property("_breeze_ng_join_span").toRect();
+    if (joinSpan.isValid()) {
+        seamless |= joinSpan.y() <= 0 ? Qt::TopEdge : Qt::BottomEdge;
+    }
+    return seamless;
+}
+
+// Breeze NG: a side of the shadow that fades in from the joined edge (the corner tile KWin lays along the first pixels
+// of that side): the side's own tile, repeated, from nothing at the button to full strength `length` pixels away
+static KWindowShadowTile::Ptr ngFadedSideTile(const KWindowShadowTile::Ptr &side, int length, bool fromTop)
+{
+    const QImage edge = side ? side->image() : QImage();
+    if (edge.isNull() || length <= 0) {
+        return side;
+    }
+    QImage out(edge.width(), length, QImage::Format_ARGB32_Premultiplied);
+    out.fill(Qt::transparent);
+    QPainter painter(&out);
+    for (int y = 0; y < length; y += qMax(1, edge.height())) {
+        painter.drawImage(0, y, edge);
+    }
+    painter.setCompositionMode(QPainter::CompositionMode_DestinationIn);
+    QLinearGradient ramp(0, 0, 0, length);
+    // (eased: barely there by the button, most of the way at half the length)
+    const QColor none(0, 0, 0, 0), full(0, 0, 0, 255);
+    ramp.setColorAt(fromTop ? 0.0 : 1.0, none);
+    ramp.setColorAt(0.5, QColor(0, 0, 0, 150));
+    ramp.setColorAt(fromTop ? 1.0 : 0.0, full);
+    painter.fillRect(out.rect(), ramp);
+    painter.end();
+    KWindowShadowTile::Ptr tile = KWindowShadowTile::Ptr::create();
+    tile->setImage(out);
+    return tile;
+}
+
+//_______________________________________________________
 void ShadowHelper::installShadows(QWidget *widget)
 {
     if (!widget) {
@@ -388,14 +428,29 @@ void ShadowHelper::installShadows(QWidget *widget)
         shadow->destroy();
     }
 
-    shadow->setTopTile(tiles[0]);
-    shadow->setTopRightTile(tiles[1]);
-    shadow->setRightTile(tiles[2]);
-    shadow->setBottomRightTile(tiles[3]);
-    shadow->setBottomTile(tiles[4]);
-    shadow->setBottomLeftTile(tiles[5]);
-    shadow->setLeftTile(tiles[6]);
-    shadow->setTopLeftTile(tiles[7]);
+    // Breeze NG: on the side joined to its button a menu has no shadow margin, and KWin laid the corner tiles along
+    // the first pixels of the left and right sides: the side shadow started there at full strength, cut flat. Its
+    // corners become the sides fading in from the button
+    QVector<KWindowShadowTile::Ptr> own = tiles;
+    const Qt::Edges seamless = ngSeamlessEdges(widget);
+    const int fade = qRound(36 * devicePixelRatio(widget));
+    if (seamless & Qt::TopEdge) {
+        own[1] = ngFadedSideTile(tiles[2], fade, true); // top right: the right side, fading in downwards
+        own[7] = ngFadedSideTile(tiles[6], fade, true); // top left: the left side
+    }
+    if (seamless & Qt::BottomEdge) {
+        own[3] = ngFadedSideTile(tiles[2], fade, false); // bottom right: the right side, fading in upwards
+        own[5] = ngFadedSideTile(tiles[6], fade, false); // bottom left
+    }
+
+    shadow->setTopTile(own[0]);
+    shadow->setTopRightTile(own[1]);
+    shadow->setRightTile(own[2]);
+    shadow->setBottomRightTile(own[3]);
+    shadow->setBottomTile(own[4]);
+    shadow->setBottomLeftTile(own[5]);
+    shadow->setLeftTile(own[6]);
+    shadow->setTopLeftTile(own[7]);
     shadow->setPadding(shadowMargins(widget));
     shadow->setWindow(window);
     shadow->create();
@@ -429,11 +484,7 @@ QMargins ShadowHelper::shadowMargins(QWidget *widget) const
 
     // Breeze NG: a menu joined to the button it opens from casts no shadow over that button
     {
-        Qt::Edges seamless = widget->property("_breeze_menu_seamless_edges").value<Qt::Edges>();
-        const QRect joinSpan = widget->property("_breeze_ng_join_span").toRect();
-        if (joinSpan.isValid()) {
-            seamless |= joinSpan.y() <= 0 ? Qt::TopEdge : Qt::BottomEdge;
-        }
+        const Qt::Edges seamless = ngSeamlessEdges(widget);
         if (seamless & Qt::TopEdge) {
             margins.setTop(0);
         }
