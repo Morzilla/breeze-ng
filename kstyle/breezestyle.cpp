@@ -646,7 +646,7 @@ void Style::polish(QPalette &palette)
     // hue, as the slate of Breeze NG's light scheme leans to its blue. A colour scheme carries one text colour, made
     // for its own accent: with another accent (orange) the slate stayed blue. Only text near grey is tinged (a scheme
     // with coloured text keeps it), and not with a grey accent. BREEZE_NG_TINTED_TEXT=0 leaves the text as it is
-    if (qEnvironmentVariable("BREEZE_NG_TINTED_TEXT") != QLatin1String("0")) {
+    if (StyleConfigData::accentTint() && qEnvironmentVariable("BREEZE_NG_TINTED_TEXT") != QLatin1String("0")) {
         const QColor accent = palette.color(QPalette::Active, QPalette::Highlight);
         if (accent.hslSaturationF() >= 0.15) {
             const qreal hue = accent.hslHueF();

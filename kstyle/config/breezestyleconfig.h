@@ -116,6 +116,8 @@ private:
     QCheckBox *m_auroraLight = nullptr;
     QCheckBox *m_auroraDim = nullptr;
     QCheckBox *m_auroraFull = nullptr;
+    QCheckBox *m_accentTint = nullptr; // Breeze NG: text and Aurora's light surfaces tinged by the accent
+    QCheckBox *m_auroraCorners = nullptr; // Breeze NG Aurora: the coloured lights in the window's corners
     QCheckBox *m_auroraAccentRight = nullptr; // the accent's light on the right, the second on the left
     QString m_auroraSecond; // the second light's colour (#rrggbb), empty: next to the accent
     QList<QAbstractButton *> m_auroraSecondButtons;

@@ -298,7 +298,7 @@ QColor Helper::auroraVeilColor(const QPalette &palette, bool button, qreal facto
     // (frost: white with a tinge of the accent, 12 % for panels and 15 % for fields and buttons, so that fields, buttons and panels take its colour; a grey
     // accent leaves it white. As ngAuroraFrost in Dolphin NG)
     const QColor accent = palette.color(QPalette::Active, QPalette::Highlight);
-    const qreal t = accent.hslSaturationF() < 0.15 ? 0.0 : (button ? 0.15 : 0.12); // (fields and buttons: more of it, the panels have the glass darkening them)
+    const qreal t = (accent.hslSaturationF() < 0.15 || !StyleConfigData::accentTint()) ? 0.0 : (button ? 0.15 : 0.12); // (fields and buttons: more of it, the panels have the glass darkening them)
     return QColor::fromRgbF(1.0 - t + t * accent.redF(), 1.0 - t + t * accent.greenF(), 1.0 - t + t * accent.blueF(),
                             qMin((auroraVeil(palette, button) * (button ? 15.0 : 8.8) * factor) + more * 3.0, 0.94));
 }
@@ -391,11 +391,13 @@ void Helper::renderAuroraLights(QPainter *painter, const QRectF &windowRect, con
     const QColor highlight = palette.color(QPalette::Active, QPalette::Highlight);
     const qreal hue = highlight.hslHueF() < 0 ? 0.58 : highlight.hslHueF();
     const qreal saturation = (highlight.hslSaturationF() < 0.15 ? highlight.hslSaturationF() : qBound(0.60, highlight.hslSaturationF() * 1.4, 0.95));
-    const QColor accent = QColor::fromHslF(hue, saturation, (isDark(palette)) ? 0.62 : 0.90);
+    // (light schemes: 0.76, coloured enough to tint the corners of a light sheet; at 0.90 they were nearly white and the
+    // corners of the light look stayed plain, where the dark one glowed)
+    const QColor accent = QColor::fromHslF(hue, saturation, (isDark(palette)) ? 0.62 : 0.76);
     // the second light: the user's own colour (its hue, made luminous like the accent's), or a hue next to the accent's
-    QColor second = QColor::fromHslF(std::fmod(hue + 0.17, 1.0), saturation, (isDark(palette)) ? 0.64 : 0.91);
+    QColor second = QColor::fromHslF(std::fmod(hue + 0.17, 1.0), saturation, (isDark(palette)) ? 0.64 : 0.78);
     if (const QColor chosen(StyleConfigData::auroraSecondAccent()); chosen.isValid() && !StyleConfigData::auroraSecondAccent().isEmpty()) {
-        second = QColor::fromHslF(chosen.hslHueF() < 0 ? hue : chosen.hslHueF(), (chosen.hslSaturationF() < 0.15 ? chosen.hslSaturationF() : qBound(0.60, chosen.hslSaturationF() * 1.4, 0.95)), (isDark(palette)) ? 0.64 : 0.91);
+        second = QColor::fromHslF(chosen.hslHueF() < 0 ? hue : chosen.hslHueF(), (chosen.hslSaturationF() < 0.15 ? chosen.hslSaturationF() : qBound(0.60, chosen.hslSaturationF() * 1.4, 0.95)), (isDark(palette)) ? 0.64 : 0.78);
     }
     const qreal strength = (isDark(palette) ? 1.0 : 0.95) * ((active || !StyleConfigData::auroraDimInactive()) ? 1.0 : 0.6) * qBound(0, StyleConfigData::auroraLights(), 180) / 100.0;
     if (strength <= 0.0) {
@@ -417,12 +419,18 @@ void Helper::renderAuroraLights(QPainter *painter, const QRectF &windowRect, con
     if (!isDark(palette)) {
         painter->fillRect(windowRect, QColor(255, 255, 255, 120)); // a breath of white first: light whatever is behind the glass
         QColor wash = accent;
-        wash.setAlphaF(qMin(1.0, 0.20 * strength));
+        wash.setAlphaF(qMin(1.0, 0.10 * strength)); // (lighter than it was: the lights in the corners carry the colour now)
         painter->fillRect(windowRect, wash);
     }
     // (AuroraAccentRight: the whole picture mirrored, the accent from the top right, the second light from the top
     // left, the bloom at the bottom on the left)
     const bool accentRight = StyleConfigData::auroraAccentRight();
+    if (!StyleConfigData::auroraCornerLights()) { // (the corners' lights off: the sheet and its grain only)
+        if (const int grain = qBound(0, StyleConfigData::auroraGrain(), 100); grain > 0) {
+            painter->drawTiledPixmap(windowRect, ngGrainTile(grain), windowRect.topLeft());
+        }
+        return;
+    }
     light(accentRight ? windowRect.topRight() : windowRect.topLeft(), radius, accent, 0.52);
     light(accentRight ? windowRect.topLeft() : windowRect.topRight(), radius * 0.8, second, 0.36);
     light(accentRight ? windowRect.bottomLeft() : windowRect.bottomRight(), radius * 0.9, accent, 0.32);

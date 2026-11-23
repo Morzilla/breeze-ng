@@ -101,6 +101,15 @@
     <entry name="AuroraFullSelection" type="Bool">
       <default>false</default>
     </entry>
+    <!-- Breeze NG: the text leans to the accent's hue, and the light surfaces of Aurora (fields, buttons, panels) take
+         a tinge of it -->
+    <entry name="AccentTint" type="Bool">
+      <default>true</default>
+    </entry>
+    <!-- Breeze NG Aurora: the coloured lights in the corners of the window -->
+    <entry name="AuroraCornerLights" type="Bool">
+      <default>true</default>
+    </entry>
     <entry name="AuroraGrain" type="Int">
       <default>30</default>
     </entry>
