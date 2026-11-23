@@ -1821,6 +1821,16 @@ void Style::drawPrimitive(PrimitiveElement element, const QStyleOption *option, 
     // Breeze NG: the panel of a field is its frame, which lays the field's background; the stock panel filled the
     // inside with the Base colour first (a solid box inside the glass field). A panel that is a field by itself (the
     // location bar, painted as a panel since KIO 6.32) is a rounded field in every look: Soft drew a square block
+    if (element == PE_PanelLineEdit || element == PE_FrameLineEdit) {
+        static const bool debugFields = qEnvironmentVariableIsSet("BREEZE_NG_DEBUG_FIELDS");
+        if (debugFields) {
+            const auto frame = qstyleoption_cast<const QStyleOptionFrame *>(option);
+            qWarning("breeze-ng field: %s %s %s rect %dx%d lineWidth %d state %x bg %s", element == PE_PanelLineEdit ? "panel" : "frame",
+                     widget ? widget->metaObject()->className() : "-", widget && widget->parentWidget() ? widget->parentWidget()->metaObject()->className() : "-",
+                     option->rect.width(), option->rect.height(), frame ? frame->lineWidth : -1, int(option->state),
+                     qPrintable(_helper->inputBackground(option->palette).name(QColor::HexArgb)));
+        }
+    }
     if (element == PE_PanelLineEdit) {
         if (const auto panel = qstyleoption_cast<const QStyleOptionFrame *>(option)) {
             const QWidget *holder = widget ? widget->parentWidget() : nullptr;
