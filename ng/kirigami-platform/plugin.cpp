@@ -590,10 +590,12 @@ void textShadows(QQuickWindow *window, const Look &look)
                         node->setProperty("_breeze_ng_shadow", false);
                     }
                 } else if (ours || node->property("style").toInt() == 0) {
-                    const QColor shadow = colour.lightnessF() > 0.5 ? QColor(0, 0, 0, 150) : QColor(255, 255, 255, 170);
-                    if (!ours || node->property("styleColor").value<QColor>() != shadow) {
+                    // a halo all round, as the text of Dolphin NG's sidebar (a blurred drop shadow there, which Qt Quick
+                    // has not for text): a faint outline. (Text.Raised, one copy a pixel below, hardly showed)
+                    const QColor shadow = colour.lightnessF() > 0.5 ? QColor(0, 0, 0, 110) : QColor(255, 255, 255, 120);
+                    if (!ours || node->property("styleColor").value<QColor>() != shadow || node->property("style").toInt() != 1) {
                         node->setProperty("styleColor", shadow);
-                        node->setProperty("style", 2); // Text.Raised: the copy one pixel below
+                        node->setProperty("style", 1); // Text.Outline
                         node->setProperty("_breeze_ng_shadow", true);
                     }
                 }
