@@ -309,12 +309,14 @@ void Helper::renderAuroraSideCard(QPainter *painter, const QRectF &rect, const Q
     const QRectF card = rect.adjusted(6, 6, -6, -6);
     painter->save();
     painter->setRenderHint(QPainter::Antialiasing, true);
-    painter->setBrush(auroraVeilColor(palette, false));
+    // (a denser veil than other panels: beside a page that is the same glass, as System Settings', the card with the
+    // panels' veil hardly stood apart)
+    painter->setBrush(auroraVeilColor(palette, false, 1.4));
     if (isDark(palette)) {
-        painter->setPen(Qt::NoPen);
-        painter->drawRoundedRect(card, 12, 12);
+        painter->setPen(QPen(QColor(255, 255, 255, 22), 1));
+        painter->drawRoundedRect(card.adjusted(0.5, 0.5, -0.5, -0.5), 12, 12);
     } else {
-        painter->setPen(QPen(QColor(255, 255, 255, 140), 1)); // (frost has a bright hairline edge)
+        painter->setPen(QPen(QColor(255, 255, 255, 200), 1)); // (frost has a bright hairline edge)
         painter->drawRoundedRect(card.adjusted(0.5, 0.5, -0.5, -0.5), 12, 12);
     }
     painter->restore();
