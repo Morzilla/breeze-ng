@@ -27,6 +27,7 @@
 #include <QEvent>
 #include <QFileInfo>
 #include <QHash>
+#include <QSet>
 #include <QLibraryInfo>
 #include <QFile>
 #include <QGuiApplication>
@@ -806,6 +807,20 @@ private:
                     // a window of widgets (System Settings) is drawn in offscreen
                     if (itemWindow) {
                         textShadows(itemWindow, look);
+                    }
+                    // (debugging: the coloured items of a view inside a window of widgets too, once per view)
+                    if (itemWindow && itemWindow->inherits("QQuickWidgetOffscreenWindow") && qEnvironmentVariableIsSet("BREEZE_NG_DEBUG_QUICK")) {
+                        static QSet<const QObject *> dumped;
+                        if (!dumped.contains(itemWindow)) {
+                            dumped.insert(itemWindow);
+                            QPointer<QQuickWindow> seen(itemWindow);
+                            QTimer::singleShot(4000, itemWindow, [seen] {
+                                if (seen) {
+                                    qWarning("breeze-ng kirigami: offscreen view %dx%d", seen->width(), seen->height());
+                                    dumpItems(seen->contentItem(), 0);
+                                }
+                            });
+                        }
                     }
                     break;
                 }

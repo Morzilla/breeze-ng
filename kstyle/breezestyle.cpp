@@ -432,7 +432,18 @@ void Style::polish(QWidget *widget)
                 // backing store kept the swap chain of the destroyed surface, and the window came up empty
                 // ("eglSwapBuffers failed, surface 0x0", on AMD with Qt 6.10). Setting its flags again makes Qt build
                 // the whole window anew, backing store included, with the alpha channel of the translucent widget
+                // (Qt adds the alpha channel of a translucent widget only to windows that are not OpenGL surfaces: the
+                // window made again still asked for none, and on Wayland it declared itself opaque from edge to edge.
+                // System Settings looked whiter than the other windows, and KWin's blur behind it flashed with the
+                // text cursor. Asked for first: the window made again starts from the format it requested)
+                QSurfaceFormat format = handle->requestedFormat();
+                format.setAlphaBufferSize(8);
+                handle->setFormat(format);
                 widget->setWindowFlags(widget->windowFlags());
+                if (qEnvironmentVariableIsSet("BREEZE_NG_DEBUG_QUICK")) {
+                    QWindow *again = widget->windowHandle();
+                    qWarning("breeze-ng glass: made again: handle %d native %d alpha %d", again != nullptr, again && again->handle(), again ? again->requestedFormat().alphaBufferSize() : -9);
+                }
             }
         }
         widget->setProperty("_breeze_ng_glass", true);
