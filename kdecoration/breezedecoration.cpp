@@ -486,6 +486,7 @@ void Decoration::reconfigure()
         const QString secondAccent = common.readEntry("AuroraSecondAccent", QString());
         m_ngAuroraSecond = secondAccent.isEmpty() ? QColor() : QColor(secondAccent);
         m_ngAuroraAccentRight = common.readEntry("AuroraAccentRight", false);
+        m_ngAuroraCornerLights = common.readEntry("AuroraCornerLights", true);
         const QString blurMode = common.readEntry("DecorationBlur", QStringLiteral("frame")).toLower();
         if (blurMode != m_ngBlurMode) {
             m_ngBlurMode = blurMode;
@@ -819,10 +820,12 @@ void Decoration::paintTitleBar(QPainter *painter, const QRectF &repaintRegion)
         const QColor highlight = window()->palette().color(QPalette::Active, QPalette::Highlight);
         const qreal hue = highlight.hslHueF() < 0 ? 0.58 : highlight.hslHueF();
         const qreal saturation = (highlight.hslSaturationF() < 0.15 ? highlight.hslSaturationF() : qBound(0.60, highlight.hslSaturationF() * 1.4, 0.95));
-        const QColor accent = QColor::fromHslF(hue, saturation, (titleBarColor().lightnessF() < 0.5) ? 0.62 : 0.90); // luminous, as in the widget style
-        QColor second = QColor::fromHslF(std::fmod(hue + 0.17, 1.0), saturation, (titleBarColor().lightnessF() < 0.5) ? 0.64 : 0.91);
+        const QColor accent = QColor::fromHslF(hue, saturation, (titleBarColor().lightnessF() < 0.5) ? 0.62 : 0.76); // luminous, as in the widget style
+        // (light schemes: 0.76 and 0.78, as Helper::renderAuroraLights since 2026-11-23: at 0.90 the title bar's lights were
+        // nearly white, the wallpaper showed through in its own colours and the bar read apart from the tinted body)
+        QColor second = QColor::fromHslF(std::fmod(hue + 0.17, 1.0), saturation, (titleBarColor().lightnessF() < 0.5) ? 0.64 : 0.78);
         if (m_ngAuroraSecond.isValid()) { // the user's own second light, as in the widget style
-            second = QColor::fromHslF(m_ngAuroraSecond.hslHueF() < 0 ? hue : m_ngAuroraSecond.hslHueF(), (m_ngAuroraSecond.hslSaturationF() < 0.15 ? m_ngAuroraSecond.hslSaturationF() : qBound(0.60, m_ngAuroraSecond.hslSaturationF() * 1.4, 0.95)), (titleBarColor().lightnessF() < 0.5) ? 0.64 : 0.91);
+            second = QColor::fromHslF(m_ngAuroraSecond.hslHueF() < 0 ? hue : m_ngAuroraSecond.hslHueF(), (m_ngAuroraSecond.hslSaturationF() < 0.15 ? m_ngAuroraSecond.hslSaturationF() : qBound(0.60, m_ngAuroraSecond.hslSaturationF() * 1.4, 0.95)), (titleBarColor().lightnessF() < 0.5) ? 0.64 : 0.78);
         }
         const qreal strength = (titleBarColor().lightnessF() < 0.5 ? 1.0 : 0.95) * ((window()->isActive() || ngSteady()) ? 1.0 : 0.6) * m_ngAuroraLights;
         const qreal radius = qBound(260.0, rect.width() * 0.55, 620.0);
@@ -839,12 +842,14 @@ void Decoration::paintTitleBar(QPainter *painter, const QRectF &repaintRegion)
         if (titleBarColor().lightnessF() >= 0.5) { // (as Helper::renderAuroraLights: the wash of the accent on light schemes)
             painter->fillRect(rect, QColor(255, 255, 255, 120));
             QColor wash = accent;
-            wash.setAlphaF(qMin(1.0, 0.20 * strength));
+            wash.setAlphaF(qMin(1.0, 0.10 * strength)); // (as the widget style)
             painter->fillRect(rect, wash);
         }
         const QPointF leftCentre(rect.left(), rect.bottom() + 1), rightCentre(rect.right() + 1, rect.bottom() + 1);
-        light(m_ngAuroraAccentRight ? rightCentre : leftCentre, radius, accent, 0.52); // (the corners the widget style uses)
-        light(m_ngAuroraAccentRight ? leftCentre : rightCentre, radius * 0.8, second, 0.36);
+        if (m_ngAuroraCornerLights) { // (off in Breeze NG's settings: no lights in the window either)
+            light(m_ngAuroraAccentRight ? rightCentre : leftCentre, radius, accent, 0.52); // (the corners the widget style uses)
+            light(m_ngAuroraAccentRight ? leftCentre : rightCentre, radius * 0.8, second, 0.36);
+        }
         if (m_ngAuroraGrain > 0) {
             painter->drawTiledPixmap(rect, ngGrainTile(m_ngAuroraGrain), rect.topLeft());
         }

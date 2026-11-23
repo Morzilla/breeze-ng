@@ -111,6 +111,7 @@ private:
         return m_ngAurora && !m_ngAuroraDim;
     }
     QColor m_ngAuroraSecond;
+    bool m_ngAuroraCornerLights = true; // the coloured lights in the corners (off: the sheet, the wash and the grain only)
     bool m_ngAuroraAccentRight = false; // the accent's light from the top right, the second light from the top left
     QString m_ngBlurMode = QStringLiteral("frame");
     bool ngAurora() const;
