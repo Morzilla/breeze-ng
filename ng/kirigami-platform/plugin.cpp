@@ -27,6 +27,8 @@
 #include <QEvent>
 #include <QFileInfo>
 #include <QHash>
+#include <QLibraryInfo>
+#include <QFile>
 #include <QGuiApplication>
 #include <QPalette>
 #include <QPluginLoader>
@@ -68,7 +70,27 @@ struct Look {
     bool accentRight = false; // the accent's light from the top right, the second light from the top left
     bool fullSelection = false; // selections in the full accent with white text
     QColor onSelection; // text on a selection, where it is not the scheme's own
+    QColor listSheet; // a selected row of a list: the light sheet of the accent (dark schemes: the accent, see-through)
 };
+
+// Does qqc2-desktop-style draw a selected row of a list through the widget style (then Breeze NG's light sheet of the
+// accent, KDE Frameworks 6.31 here), or as a rectangle of the full highlight colour (6.24, Kubuntu 26.04)? Read once
+// from its QML. With the rectangle, the deep accent as the text of a selection was unreadable on the full accent
+// (System Settings' sidebar): the rectangle takes the light sheet instead, as in Dolphin NG's sidebar.
+bool listRowsStyled()
+{
+    static const bool styled = [] {
+        const QStringList bases = QStringList{QLibraryInfo::path(QLibraryInfo::QmlImportsPath)} + qEnvironmentVariable("QML2_IMPORT_PATH").split(QLatin1Char(':'), Qt::SkipEmptyParts);
+        for (const QString &base : bases) {
+            QFile file(base + QStringLiteral("/org/kde/desktop/private/DefaultListItemBackground.qml"));
+            if (file.open(QIODevice::ReadOnly)) {
+                return file.readAll().contains("elementType: \"item\"");
+            }
+        }
+        return true; // (not found: as on the newer Frameworks)
+    }();
+    return styled;
+}
 
 // The colours that depend on the palette, worked out when they are used: the plugin is made very early (at login,
 // the first application was seen to get a light grey sheet: the palette of the colour scheme was not there yet).
@@ -91,6 +113,20 @@ void colours(Look &look)
     if (!dark && !look.fullSelection) {
         const QColor highlight = QGuiApplication::palette().color(QPalette::Active, QPalette::Highlight);
         look.onSelection = QColor::fromHslF(highlight.hslHueF() < 0 ? 0.58 : highlight.hslHueF(), (highlight.hslSaturationF() < 0.15 ? highlight.hslSaturationF() : qBound(0.55, highlight.hslSaturationF() * 1.3, 0.90)), 0.38);
+    }
+    // (as Helper::auroraSelection in the widget style: white at 0.55 with the accent at 0.22 over it, as one colour)
+    {
+        const QColor highlight = QGuiApplication::palette().color(QPalette::Active, QPalette::Highlight);
+        const QColor accent = QColor::fromHslF(highlight.hslHueF() < 0 ? 0.58 : highlight.hslHueF(),
+                                               (highlight.hslSaturationF() < 0.15 ? highlight.hslSaturationF() : qBound(0.55, highlight.hslSaturationF() * 1.3, 0.90)),
+                                               dark ? 0.66 : 0.52);
+        if (dark) {
+            look.listSheet = accent;
+            look.listSheet.setAlphaF(0.34);
+        } else {
+            const qreal a = 0.22, w = 0.55 * (1.0 - a), alpha = w + a;
+            look.listSheet = QColor::fromRgbF((w + accent.redF() * a) / alpha, (w + accent.greenF() * a) / alpha, (w + accent.blueF() * a) / alpha, alpha);
+        }
     }
 }
 
@@ -750,6 +786,11 @@ private:
             }
             colours(m_look); // (with the palette of now)
             const Look look = m_look;
+            // the background of a list row of the older qqc2-desktop-style: its theme's highlight is the light sheet
+            if (!look.fullSelection && owner && !listRowsStyled() && QByteArray(owner->metaObject()->className()).startsWith("DefaultListItemBackground")) {
+                guard->setCustomHighlightColor(look.listSheet);
+                return;
+            }
             const bool window = owner && owner->inherits("QQuickWindow") && !owner->inherits("QQuickWidgetOffscreenWindow");
             // a Qt Quick view inside a window of widgets (System Settings' sidebar and pages) is drawn offscreen and
             // cleared with its own colour, white by default: it showed white for a moment before the widget style
