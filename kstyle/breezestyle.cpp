@@ -5488,7 +5488,7 @@ bool Style::drawFrameLineEditPrimitive(const QStyleOption *option, QPainter *pai
             // a field is a slot in the glass: a hairline round it so that it reads as one (a flat block of veil, the
             // same tone as a button, did not say "type here"); one that cannot be typed into is the same slot, its
             // ground much lighter, so that its text (a font's name, a path) still reads as the content
-            edge = _helper->alphaColor(_helper->ink(palette), _helper->isDark(palette) ? 0.16 : 0.12);
+            edge = _helper->alphaColor(_helper->ink(palette), _helper->isDark(palette) ? 0.22 : 0.12);
             if (!enabled || readOnly) {
                 background = _helper->alphaColor(background, 0.40);
                 edge = _helper->alphaColor(edge, enabled ? 0.9 : 0.6);
@@ -5514,7 +5514,7 @@ bool Style::drawFrameLineEditPrimitive(const QStyleOption *option, QPainter *pai
             return true;
         }
         _helper->renderFrame(painter, rect, background, edge);
-        if (_helper->isGlass() && enabled && !readOnly && !_helper->isDark(palette)) {
+        if (_helper->isGlass() && enabled && !readOnly) {
             // and a soft shade along the inside of its top edge, as a slot has: light from above
             painter->save();
             painter->setRenderHint(QPainter::Antialiasing, true);
@@ -5524,8 +5524,9 @@ bool Style::drawFrameLineEditPrimitive(const QStyleOption *option, QPainter *pai
             slot.addRoundedRect(inner, radius, radius);
             painter->setClipPath(slot);
             QLinearGradient shade(inner.topLeft(), inner.topLeft() + QPointF(0, 5));
-            shade.setColorAt(0.0, _helper->alphaColor(_helper->ink(palette), 0.07));
-            shade.setColorAt(1.0, _helper->alphaColor(_helper->ink(palette), 0.0));
+            const QColor shadeColor = _helper->isDark(palette) ? QColor(0, 0, 0, 92) : _helper->alphaColor(_helper->ink(palette), 0.07);
+            shade.setColorAt(0.0, shadeColor);
+            shade.setColorAt(1.0, _helper->alphaColor(shadeColor, 0.0));
             painter->fillRect(QRectF(inner.left(), inner.top(), inner.width(), 5), shade);
             painter->restore();
         }

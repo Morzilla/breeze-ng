@@ -663,7 +663,9 @@ QColor Helper::inputBackground(const QPalette &palette) const
     // nearly white, without the accent's tinge (tinged and at the buttons' density it read grey, as if disabled)
     if (_aurora) {
         if (isDark(palette)) {
-            return auroraVeilColor(palette, true);
+            // (variant B of the 2026-11-24 dark contrast mockup: a field is a dark slot in the glass, set apart from the
+            // light keys: where one types, not what one presses)
+            return QColor(8, 10, 20, 97);
         }
         // (variant A of 2026-11-24: white with 2 % of the accent)
         const QColor accent = auroraFill(palette);
@@ -1409,7 +1411,8 @@ void Helper::renderNgButtonFrame(QPainter *painter,
         const qreal lift = (penAnimation != AnimationData::OpacityInvalid ? penAnimation : hovered ? 1.0 : 0.0);
         const qreal press = (bgAnimation != AnimationData::OpacityInvalid ? bgAnimation : down ? 1.0 : 0.0);
         if (dark) {
-            bg = QColor::fromRgbF(1, 1, 1, 0.13 + 0.05 * lift + 0.08 * press);
+            // (variant B of the 2026-11-24 dark contrast mockup: a clearly lighter key on the dark glass)
+            bg = QColor::fromRgbF(1, 1, 1, 0.22 + 0.05 * lift + 0.08 * press);
         } else {
             // (light scheme, variant A of 2026-11-24: nearly white with 4 % of the accent)
             const QColor accent = auroraFill(palette);
@@ -1433,7 +1436,12 @@ void Helper::renderNgButtonFrame(QPainter *painter,
         edge = alphaColor(inkColor, checked ? 0.26 : (hovered ? 0.22 : 0.14));
     }
     if (key && !defaultButton) {
-        edge = dark ? QColor::fromRgbF(1, 1, 1, 0.17) : alphaColor(inkColor, 0.10); // (dark: a light edge that shows, as the mockup)
+        edge = dark ? QColor::fromRgbF(1, 1, 1, 0.32) : alphaColor(inkColor, 0.10); // (dark: a well defined light edge, variant B)
+    }
+    if (key && !enabled) {
+        // a key that cannot be pressed: faded as a whole, as in the mockup (only its label was)
+        bg = alphaColor(bg, 0.42);
+        edge = alphaColor(edge, 0.42);
     }
     if (visualFocus) {
         // the glow below says it
@@ -1488,7 +1496,7 @@ void Helper::renderNgButtonFrame(QPainter *painter,
     } else {
         path.addRoundedRect(frameRect, radius, radius);
     }
-    if ((key || (_aurora && defaultButton && !checked)) && joined.isEmpty() && !down) {
+    if ((key || (_aurora && defaultButton && !checked)) && joined.isEmpty() && !down && enabled) {
         // the soft shadow under a key: its own shape a pixel lower, faint, under the fill
         painter->save();
         painter->setPen(Qt::NoPen);
@@ -1515,11 +1523,11 @@ void Helper::renderNgButtonFrame(QPainter *painter,
     } else {
         painter->drawPath(path);
     }
-    if ((key || (_aurora && defaultButton && !checked)) && joined.isEmpty() && !down) {
+    if ((key || (_aurora && defaultButton && !checked)) && joined.isEmpty() && !down && enabled) {
         // the light along the top of a key, inside its edge
         painter->save();
         painter->setClipPath(path);
-        painter->setPen(QPen(defaultButton ? QColor(255, 255, 255, 56) : (dark ? QColor(255, 255, 255, 36) : QColor(255, 255, 255, 230)), 1));
+        painter->setPen(QPen(defaultButton ? QColor(255, 255, 255, 56) : (dark ? QColor(255, 255, 255, 50) : QColor(255, 255, 255, 230)), 1));
         painter->drawLine(QPointF(frameRect.left() + radius * 0.6, frameRect.top() + 1.0), QPointF(frameRect.right() - radius * 0.6, frameRect.top() + 1.0));
         painter->restore();
     }
