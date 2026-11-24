@@ -5262,7 +5262,9 @@ bool Style::drawFrameLineEditPrimitive(const QStyleOption *option, QPainter *pai
         // render: Breeze NG: the field keeps its resting edge; attention is a neon glow inside it, faded in and out
         auto background = _helper->inputBackground(palette);
         const bool neutral = hasHighlightNeutral(widget, option, mouseOver, hasFocus);
-        const bool readOnly = state & State_ReadOnly;
+        // (only a field of widgets: a Qt Quick one is drawn into an offscreen view cleared to nothing, where a lighter,
+        // more see-through ground came out a grey block once laid on the window)
+        const bool readOnly = (state & State_ReadOnly) && !isQtQuickControl(option, widget);
         QColor edge = neutral ? _helper->neutralText(palette) : _helper->frameOutlineColor(palette, false, false, 1.0, AnimationNone);
         if (_helper->isGlass() && !neutral) {
             // a field is a slot in the glass: a hairline round it so that it reads as one (a flat block of veil, the

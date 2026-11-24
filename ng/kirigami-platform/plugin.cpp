@@ -490,9 +490,12 @@ void sideRowAir(QObject *owner)
     setHook(window, 1);
     auto walk = [window] {
         std::function<void(QQuickItem *, int)> visit = [&](QQuickItem *node, int depth) {
-            if (node->inherits("QQuickItemDelegate") && !node->property("_breeze_ng_air").toBool()) {
+            // (given again when its insets are not ours any more: a list reuses its rows as it scrolls or reloads,
+            // and a reused row got its own insets back while keeping our mark: its icon stood further left)
+            if (node->inherits("QQuickItemDelegate") && (!node->property("_breeze_ng_air").toBool() || node->property("leftInset").toReal() != node->property("_breeze_ng_air_at").toReal())) {
                 node->setProperty("_breeze_ng_air", true);
                 giveAir(node);
+                node->setProperty("_breeze_ng_air_at", node->property("leftInset").toReal());
             }
             if (depth < 40) {
                 const auto children = node->childItems();
@@ -504,10 +507,21 @@ void sideRowAir(QObject *owner)
         visit(window->contentItem(), 0);
     };
     auto last = std::make_shared<QElapsedTimer>();
-    QObject::connect(window, &QQuickWindow::afterAnimating, window, [walk, last] {
+    auto pending = std::make_shared<bool>(false);
+    QPointer<QQuickWindow> guard(window);
+    QObject::connect(window, &QQuickWindow::afterAnimating, window, [walk, last, pending, guard] {
         if (!last->isValid() || last->elapsed() > 250) {
             last->start();
             walk();
+        } else if (!*pending && guard) {
+            // (a frame inside the pause: looked at once more when it ends. A row made by the last frames of a
+            // page's loading was otherwise never seen, and stood without its air, its icon further left)
+            *pending = true;
+            QTimer::singleShot(300, guard, [walk, last, pending] {
+                *pending = false;
+                last->start();
+                walk();
+            });
         }
     });
     walk();
