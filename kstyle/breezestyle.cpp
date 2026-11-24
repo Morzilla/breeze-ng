@@ -70,6 +70,8 @@
 #include <QTreeView>
 #include <QWidgetAction>
 #include <QListView>
+#include <QTextCharFormat>
+#include <QCalendarWidget>
 #include <QPlainTextEdit>
 #include <QStyledItemDelegate>
 #include <QVariantAnimation>
@@ -514,7 +516,28 @@ void Style::polish(QWidget *widget)
 #if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
     // (Qt 6 only: there the calendar's delegate asks the style for each cell's panel, where the disc is drawn. Qt 5's
     // paints the cell itself: with this palette its chosen day would be white on white, no mark)
+    } else if (widget->objectName() == QLatin1String("qt_calendar_navigationbar") && _helper->isAurora()) {
+        // the calendar's bar of month and year: on the glass, as the rest of the calendar (it filled itself solid),
+        // its text the window's
+        QPalette calendarPalette = widget->palette();
+        calendarPalette.setColor(QPalette::Highlight, QColor(0, 0, 0, 0));
+        calendarPalette.setColor(QPalette::HighlightedText, calendarPalette.color(QPalette::WindowText));
+        widget->setPalette(calendarPalette);
+        if (widget->autoFillBackground()) {
+            widget->setAutoFillBackground(false);
+            widget->setProperty("_breeze_ng_unfilled", true);
+        }
     } else if ((widget->objectName() == QLatin1String("qt_calendar_calendarview") || widget->inherits("QCalendarWidget")) && _helper->isAurora()) {
+        // the weekend's days: Qt's pure red read dark on the glass of a dark scheme, and loud on a light one
+        if (auto *calendar = qobject_cast<QCalendarWidget *>(widget)) {
+            for (Qt::DayOfWeek day : {Qt::Saturday, Qt::Sunday}) {
+                QTextCharFormat format = calendar->weekdayTextFormat(day);
+                if (format.foreground().color() == QColor(Qt::red)) {
+                    format.setForeground(_helper->isDark(widget->palette()) ? QColor(240, 138, 126) : QColor(192, 57, 43));
+                    calendar->setWeekdayTextFormat(day, format);
+                }
+            }
+        }
         if (!widget->property("_breeze_ng_calendar_palette").isValid()) {
             widget->setProperty("_breeze_ng_calendar_palette", QVariant::fromValue(widget->palette()));
             widget->setProperty("_breeze_ng_calendar_own", widget->testAttribute(Qt::WA_SetPalette));
@@ -523,11 +546,14 @@ void Style::polish(QWidget *widget)
         // the chosen day is a disc of the full accent (drawPanelItemViewItemPrimitive): its number white. The
         // calendar's own delegate fills the whole cell with the highlight first: the cell's own ground, the disc is ours
         QPalette palette = widget->palette();
-        for (QPalette::ColorGroup group : {QPalette::Active, QPalette::Inactive}) {
+        for (QPalette::ColorGroup group : {QPalette::Active, QPalette::Inactive, QPalette::Disabled}) {
             palette.setColor(group, QPalette::HighlightedText, QColor(255, 255, 255));
-            // (the cell's own ground, not a clear colour: clear, the chosen cell was a hole in the calendar's ground
-            // onto the glass, a square around the disc)
-            palette.setColor(group, QPalette::Highlight, palette.color(group, QPalette::Base));
+            // (and the cells clear, the chosen one included: the calendar stands on its card of the glass, as the
+            // mockup of 2026-11-24; with opaque cells it was a solid block, black on a dark scheme)
+            palette.setColor(group, QPalette::Highlight, QColor(0, 0, 0, 0));
+            palette.setColor(group, QPalette::Base, QColor(0, 0, 0, 0));
+            palette.setColor(group, QPalette::AlternateBase, QColor(0, 0, 0, 0));
+            palette.setColor(group, QPalette::Window, QColor(0, 0, 0, 0)); // (the row of the days' names)
         }
         widget->setPalette(palette);
 #endif
@@ -828,7 +854,10 @@ void Style::ngUnfill(QWidget *widget)
         const bool viewport = scrollArea && scrollArea->viewport() == widget;
         const QWidget *subject = viewport ? static_cast<const QWidget *>(holder) : widget;
         const auto textEdit = qobject_cast<const QTextEdit *>(subject);
-        bool keep = (textEdit && !textEdit->isReadOnly()) || subject->inherits("QPlainTextEdit") || subject->inherits("QGraphicsView") || subject->inherits("QMdiArea")
+        // (a text editor of widgets keeps its solid page on a light scheme, white paper; on a dark one it is a field of
+        // the glass, as the mockup of 2026-11-24 has it: a solid dark block in the middle of the glass looked like a hole)
+        const bool darkScheme = _helper->isDark(QApplication::palette());
+        bool keep = (!darkScheme && ((textEdit && !textEdit->isReadOnly()) || subject->inherits("QPlainTextEdit"))) || subject->inherits("QGraphicsView") || subject->inherits("QMdiArea")
             || subject->inherits("QQuickWidget") || subject->inherits("QOpenGLWidget") || subject->inherits("KItemListContainer") || subject->inherits("QLineEdit")
             || subject->inherits("QAbstractSpinBox") || subject->inherits("QComboBox");
         for (const QWidget *up = subject; up && !keep; up = up->parentWidget()) {
@@ -2726,6 +2755,10 @@ bool Style::eventFilterScrollArea(QWidget *widget, QEvent *event)
         if (auto scrollArea = qobject_cast<QScrollArea *>(widget)) {
             ngUnfill(scrollArea->viewport());
             ngUnfill(scrollArea->widget());
+        } else if (auto area = qobject_cast<QAbstractScrollArea *>(widget); area && event->type() == QEvent::Show) {
+            // (any scroll area's viewport, once its window is known to be glass: polished before its window, the
+            // viewport of a text editor was looked at too early and kept its solid page)
+            ngUnfill(area->viewport());
         }
     }
 
@@ -6191,14 +6224,7 @@ bool Style::drawPanelItemViewItemPrimitive(const QStyleOption *option, QPainter 
         const bool selected = state & State_Selected; // (its highlight is clear on purpose, see polish)
         // (the cell's own ground first, the calendar's opaque Base as its neighbours have: without, the chosen cell
         // stayed see-through, a square of glass around the disc)
-        if (actualWidget) {
-            painter->save();
-            painter->setCompositionMode(QPainter::CompositionMode_Source);
-            QColor ground = actualWidget->palette().color(QPalette::Base);
-            ground.setAlpha(255);
-            painter->fillRect(option->rect, ground);
-            painter->restore();
-        }
+        _helper->clearUnder(painter, option->rect); // (as every other cell: the calendar's cells are clear, see polish)
         const qreal side = qMin(rect.width(), rect.height()) - 4;
         const QRectF disc(QRectF(rect).center().x() - side / 2, QRectF(rect).center().y() - side / 2, side, side);
         painter->save();

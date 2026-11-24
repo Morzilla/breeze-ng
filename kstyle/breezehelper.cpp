@@ -659,9 +659,10 @@ void Helper::joinedFill(QPainter *painter, const QPainterPath &path, const QColo
 QColor Helper::inputBackground(const QPalette &palette) const
 {
     const QColor base = palette.color(QPalette::Base);
-    // Aurora: the same veil as the buttons, so that every surface has one intensity
+    // Aurora: the same veil as the buttons, so that every surface has one intensity; on a light scheme a field is
+    // nearly white, without the accent's tinge (tinged and at the buttons' density it read grey, as if disabled)
     if (_aurora) {
-        return auroraVeilColor(palette, true);
+        return isDark(palette) ? auroraVeilColor(palette, true) : QColor(255, 255, 255, 236);
     }
     if (isGlass()) {
         // Glass: on a dark scheme the field colour at the glass' strength; on a light one a grey veil of ink, as the
