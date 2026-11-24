@@ -510,6 +510,15 @@ void Style::polish(QWidget *widget)
     } else if (widget->parent() && widget->parent()->inherits("QComboBoxListView")) {
         widget->setAutoFillBackground(false);
 
+    } else if (widget->inherits("QComboBoxListView") && _helper->isGlass()) {
+        // Breeze NG: the list of a combo box draws its rows with Qt's plain item delegate, which fills the current row
+        // with the scheme's full accent whatever the view's palette says (dark text on blue, Glass giving a selection
+        // the normal text colour). Qt's own delegate only (a combo box with its own delegate keeps it): the styled one,
+        // so the row is drawn by the style, as every other list's, the light sheet of a selection
+        if (auto *view = qobject_cast<QAbstractItemView *>(widget); view && QByteArray(view->itemDelegate() ? view->itemDelegate()->metaObject()->className() : "") == "QItemDelegate") {
+            view->setItemDelegate(new QStyledItemDelegate(view));
+        }
+
     } else if (widget->inherits("KTextEditor::View")) {
         addEventFilter(widget);
 
@@ -1902,10 +1911,17 @@ void Style::drawPrimitive(PrimitiveElement element, const QStyleOption *option, 
     // glass (the stock row filled it with the scheme's solid AlternateBase: black or white bars across the glass)
     if (element == PE_PanelItemViewRow && _helper->isAurora() && widget && widget->window()->property("_breeze_ng_glass").toBool()) {
         const auto row = qstyleoption_cast<const QStyleOptionViewItem *>(option);
-        if (row && (row->features & QStyleOptionViewItem::Alternate) && !(row->state & State_Selected)) {
+        // (a selected row too: its selection is the item's own pill, drawn over this. Left to the stock row, an
+        // alternate row that was selected filled its branch area, left of the pill, with the solid AlternateBase:
+        // a white block in a tree)
+        if (row && (row->features & QStyleOptionViewItem::Alternate)) {
             painter->fillRect(row->rect, _helper->auroraVeilColor(row->palette, false, 0.5));
             painter->restore();
             return;
+        }
+        if (row && (row->state & State_Selected)) {
+            painter->restore();
+            return; // (nothing: the stock row filled the branch area with the highlight's solid colour)
         }
     }
 
@@ -5244,9 +5260,36 @@ bool Style::drawFrameLineEditPrimitive(const QStyleOption *option, QPainter *pai
         const qreal opacity(_animations->inputWidgetEngine().frameOpacity(widget));
 
         // render: Breeze NG: the field keeps its resting edge; attention is a neon glow inside it, faded in and out
-        const auto background = _helper->inputBackground(palette);
+        auto background = _helper->inputBackground(palette);
         const bool neutral = hasHighlightNeutral(widget, option, mouseOver, hasFocus);
-        _helper->renderFrame(painter, rect, background, neutral ? _helper->neutralText(palette) : _helper->frameOutlineColor(palette, false, false, 1.0, AnimationNone));
+        const bool readOnly = state & State_ReadOnly;
+        QColor edge = neutral ? _helper->neutralText(palette) : _helper->frameOutlineColor(palette, false, false, 1.0, AnimationNone);
+        if (_helper->isGlass() && !neutral) {
+            // a field is a slot in the glass: a hairline round it so that it reads as one (a flat block of veil, the
+            // same tone as a button, did not say "type here"); one that cannot be typed into is the same slot, its
+            // ground much lighter, so that its text (a font's name, a path) still reads as the content
+            edge = _helper->alphaColor(_helper->ink(palette), _helper->isDark(palette) ? 0.16 : 0.12);
+            if (!enabled || readOnly) {
+                background = _helper->alphaColor(background, background.alphaF() * 0.40);
+                edge = _helper->alphaColor(edge, edge.alphaF() * (enabled ? 0.9 : 0.6));
+            }
+        }
+        _helper->renderFrame(painter, rect, background, edge);
+        if (_helper->isGlass() && enabled && !readOnly && !_helper->isDark(palette)) {
+            // and a soft shade along the inside of its top edge, as a slot has: light from above
+            painter->save();
+            painter->setRenderHint(QPainter::Antialiasing, true);
+            const QRectF inner = QRectF(rect).adjusted(1.5, 1.5, -1.5, -1.5);
+            const qreal radius = qMax<qreal>(0.0, _helper->frameRadius(PenWidth::NoPen) - 1.5);
+            QPainterPath slot;
+            slot.addRoundedRect(inner, radius, radius);
+            painter->setClipPath(slot);
+            QLinearGradient shade(inner.topLeft(), inner.topLeft() + QPointF(0, 5));
+            shade.setColorAt(0.0, _helper->alphaColor(_helper->ink(palette), 0.07));
+            shade.setColorAt(1.0, _helper->alphaColor(_helper->ink(palette), 0.0));
+            painter->fillRect(QRectF(inner.left(), inner.top(), inner.width(), 5), shade);
+            painter->restore();
+        }
         qreal strength = 0.0;
         if (mode == AnimationFocus) {
             strength = opacity;
@@ -6221,9 +6264,16 @@ bool Style::drawIndicatorCheckBoxPrimitive(const QStyleOption *option, QPainter 
     const qreal opacity(_animations->widgetStateEngine().opacity(styleObject, AnimationHover));
 
     // render
+    // (a box that cannot be used is drawn faded, the mark included: switched on, it was the same block of the accent
+    // as one that can, and only its label told them apart)
+    painter->save();
+    if (!enabled) {
+        painter->setOpacity(painter->opacity() * 0.45);
+    }
     _helper->renderCheckBoxBackground(painter, rect, palette, checkBoxState, hasHighlightNeutral(widget, option, mouseOver), sunken, animation);
     _helper
         ->renderCheckBox(painter, rect, palette, mouseOver, checkBoxState, target, hasHighlightNeutral(widget, option, mouseOver), sunken, animation, opacity);
+    painter->restore();
     return true;
 }
 
@@ -6258,6 +6308,10 @@ bool Style::drawIndicatorRadioButtonPrimitive(const QStyleOption *option, QPaint
     const qreal opacity(_animations->widgetStateEngine().opacity(styleObject, AnimationHover));
 
     // render
+    painter->save();
+    if (!enabled) {
+        painter->setOpacity(painter->opacity() * 0.45); // (as a check box that cannot be used)
+    }
     _helper->renderRadioButtonBackground(painter, rect, palette, radioButtonState, hasHighlightNeutral(styleObject, option, mouseOver), sunken, animation);
     _helper->renderRadioButton(painter,
                                rect,
@@ -6269,6 +6323,7 @@ bool Style::drawIndicatorRadioButtonPrimitive(const QStyleOption *option, QPaint
                                animation,
                                opacity);
 
+    painter->restore();
     return true;
 }
 
@@ -9495,7 +9550,9 @@ bool Style::drawSliderComplexControl(const QStyleOptionComplex *option, QPainter
 
             // colors
             const auto reverse(option->direction == Qt::RightToLeft);
-            const auto base(_helper->separatorColor(palette));
+            // (not the separators' colour: Breeze NG has no separator lines, it is clear, and the ticks past the
+            // handle vanished. A faint shade of the text)
+            const auto base(_helper->alphaColor(palette.color(QPalette::WindowText), 0.30));
             const auto &highlight = hasHighlightNeutral(widget, option, mouseOver, hasFocus) ? _helper->neutralText(palette) : palette.color(HighlightColor);
 
             while (current <= sliderOption->maximum) {

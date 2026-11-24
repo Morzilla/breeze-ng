@@ -2262,6 +2262,16 @@ void Helper::renderTabBarTab(QPainter *painter,
         } else if (enabled && hovered) {
             veil += 0.06;
         }
+        // Aurora: a tab at rest is only its label, its veil fades in under the pointer. A frosted pill on every tab
+        // at rest (white on the light glass) stood out more than the current one in its pale accent: the bar read
+        // the wrong way round
+        if (_aurora && !selected && !pillsOnly) {
+            const qreal under = animated ? animation : (enabled && hovered) ? 1.0 : 0.0;
+            if (under <= 0.0) {
+                return;
+            }
+            veil = auroraVeil(palette, true) * under;
+        }
         QRectF pill = frameRect;
         if (north || south) {
             pill.adjust(2, 4, -2, -4);
