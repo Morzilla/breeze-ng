@@ -27,6 +27,7 @@
 #include <QEvent>
 #include <QFileInfo>
 #include <QHash>
+#include <QQmlProperty>
 #include <QSet>
 #include <QLibraryInfo>
 #include <QFile>
@@ -428,6 +429,13 @@ bool fillsWindow(const QObject *owner)
 // A row of a sidebar (an item delegate in a side view): air around its selection, as the rows of Dolphin NG's sidebar,
 // which stand 8 px in from the card's edges with their text further in. The delegates fill the list's width and paint
 // their background edge to edge: insets move the background in, padding moves the content with it.
+// Breeze NG's SidebarCompact: the rows of a sidebar compact, as Dolphin NG's (one line, a small icon)
+bool compactSide()
+{
+    static const bool on = KSharedConfig::openConfig(QStringLiteral("breezengrc"))->group(QStringLiteral("Common")).readEntry("SidebarCompact", true);
+    return on;
+}
+
 void giveAir(QObject *owner)
 {
     owner->setProperty("_breeze_ng_air", true);
@@ -440,6 +448,14 @@ void giveAir(QObject *owner)
     }
     for (const char *name : {"leftPadding", "rightPadding"}) {
         owner->setProperty(name, owner->property(name).toReal() + inset);
+    }
+    if (compactSide()) {
+        for (const char *name : {"topPadding", "bottomPadding"}) {
+            owner->setProperty(name, 7.0); // (rows of 32 px, as Dolphin NG's)
+        }
+        for (const char *name : {"icon.width", "icon.height"}) {
+            QQmlProperty(owner, QString::fromLatin1(name)).write(16);
+        }
     }
 }
 

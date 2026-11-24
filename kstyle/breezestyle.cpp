@@ -70,6 +70,7 @@
 #include <QTreeView>
 #include <QWidgetAction>
 #include <QListView>
+#include <QStyledItemDelegate>
 #include <QVariantAnimation>
 #include <QPersistentModelIndex>
 
@@ -980,6 +981,24 @@ private:
 };
 }
 
+// Breeze NG: the rows of a compact sidebar stand 12 px in from the list's sides, as those of Dolphin NG's sidebar from
+// its card (the style draws their selection as a pill, see drawPanelItemViewItemPrimitive)
+class NgSideRowDelegate : public QStyledItemDelegate
+{
+public:
+    using QStyledItemDelegate::QStyledItemDelegate;
+    void paint(QPainter *painter, const QStyleOptionViewItem &option, const QModelIndex &index) const override
+    {
+        QStyleOptionViewItem inset(option);
+        inset.rect.adjust(12, 0, -12, 0);
+        QStyledItemDelegate::paint(painter, inset, index);
+    }
+    QSize sizeHint(const QStyleOptionViewItem &option, const QModelIndex &index) const override
+    {
+        return QStyledItemDelegate::sizeHint(option, index) + QSize(24, 0);
+    }
+};
+
 //______________________________________________________________
 void Style::polishScrollArea(QAbstractScrollArea *scrollArea)
 {
@@ -1036,6 +1055,37 @@ void Style::polishScrollArea(QAbstractScrollArea *scrollArea)
         if (scrollArea->autoFillBackground()) {
             scrollArea->setAutoFillBackground(false); // (the list of pages of a settings dialog fills itself, not its viewport)
             scrollArea->setProperty("_breeze_ng_unfilled", true);
+        }
+    }
+
+    // Breeze NG: a sidebar with compact rows takes small icons (the lists of pages of settings dialogs had 32 px ones)
+    if (ngCompactSide(scrollArea)) {
+        if (auto *view = qobject_cast<QAbstractItemView *>(scrollArea); view && view->iconSize().height() > 16) {
+            view->setProperty("_breeze_ng_icon_size", view->iconSize());
+            view->setIconSize(QSize(16, 16));
+        }
+        // the list of pages of a settings window (KPageDialog, as Konsole's and Kate's) paints its rows itself, a large
+        // icon over the name: the ordinary delegate instead, a small icon beside the name, painted by the style as
+        // every other row
+        if (auto *list = qobject_cast<QListView *>(scrollArea); list && scrollArea->inherits("KDEPrivate::KPageListView")
+            && !list->property("_breeze_ng_rows").toBool()) {
+            list->setProperty("_breeze_ng_rows", true);
+            list->setItemDelegate(new NgSideRowDelegate(list));
+            // a card on the glass under it, as the other side panels (see drawFramePrimitive)
+            list->setFrameShape(QFrame::StyledPanel);
+            list->viewport()->setAutoFillBackground(false);
+            list->setProperty("_breeze_ng_veil", true);
+            // the name of the selected row in the deep accent on its light sheet, as in Dolphin NG's sidebar
+            if (_helper->isAurora()) {
+                QPalette palette = list->palette();
+                for (QPalette::ColorGroup group : {QPalette::Active, QPalette::Inactive}) {
+                    palette.setColor(group, QPalette::HighlightedText, _helper->auroraSelectionText(palette));
+                }
+                list->setPalette(palette);
+            }
+            list->setViewMode(QListView::ListMode);
+            list->setWordWrap(false);
+            list->setIconSize(QSize(16, 16));
         }
     }
 
@@ -4952,10 +5002,23 @@ QSize Style::headerSectionSizeFromContents(const QStyleOption *option, const QSi
 }
 
 //______________________________________________________________
+// Breeze NG: is this view a sidebar whose rows are made compact (SidebarCompact)? Not Dolphin NG's, which has its own,
+// nor the Places view, which sizes its rows itself
+bool Style::ngCompactSide(const QWidget *widget) const
+{
+    return StyleConfigData::sidebarCompact() && widget && widget->property(PropertyNames::sidePanelView).toBool() && !widget->inherits("KFilePlacesView")
+        && !(widget->window() && widget->window()->inherits("DolphinMainWindow"));
+}
+
 QSize Style::itemViewItemSizeFromContents(const QStyleOption *option, const QSize &contentsSize, const QWidget *widget) const
 {
     // call base class
     const QSize size(ParentStyleClass::sizeFromContents(CT_ItemViewItem, option, contentsSize, widget));
+    // Breeze NG: a sidebar's rows compact, as those of Dolphin NG's sidebar (about 30 px: one line, a small icon)
+    if (ngCompactSide(widget)) {
+        const QMargins margins = _helper->itemViewItemMargins(qstyleoption_cast<const QStyleOptionViewItem *>(option));
+        return QSize(size.width() + margins.left() + margins.right() + Metrics::ItemView_ItemPaddingWidth * 2, qMax(size.height(), 18) + 12);
+    }
     if (!qobject_cast<const QTableView *>(widget)) {
         const QMargins margins = _helper->itemViewItemMargins(qstyleoption_cast<const QStyleOptionViewItem *>(option));
 
@@ -6065,6 +6128,18 @@ bool Style::drawPanelItemViewItemPrimitive(const QStyleOption *option, QPainter 
             painter->restore();
             return true;
         }
+    }
+
+    // Breeze NG: a row of a compact sidebar, as Dolphin NG's: a pill, a pixel shorter than the row at either end
+    if (abstractItemView && ngCompactSide(actualWidget) && !hasCustomBackground && !qobject_cast<const QTableView *>(viewItemOption->widget)) {
+        const QRectF pill = QRectF(rect).adjusted(0, 1, 0, -1);
+        painter->save();
+        painter->setRenderHint(QPainter::Antialiasing, true);
+        painter->setPen(Qt::NoPen);
+        painter->setBrush(color);
+        painter->drawRoundedRect(pill, pill.height() / 2.0, pill.height() / 2.0);
+        painter->restore();
+        return true;
     }
 
     // render

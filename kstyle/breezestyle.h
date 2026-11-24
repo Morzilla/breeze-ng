@@ -244,6 +244,7 @@ private:
     QSize tabWidgetSizeFromContents(const QStyleOption *, const QSize &, const QWidget *) const;
     QSize tabBarTabSizeFromContents(const QStyleOption *, const QSize &, const QWidget *) const;
     QSize headerSectionSizeFromContents(const QStyleOption *, const QSize &, const QWidget *) const;
+    bool ngCompactSide(const QWidget *) const;
     QSize itemViewItemSizeFromContents(const QStyleOption *, const QSize &, const QWidget *) const;
 
     //@}
