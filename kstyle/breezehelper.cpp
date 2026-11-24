@@ -1395,8 +1395,11 @@ void Helper::renderNgButtonFrame(QPainter *painter,
             // (light scheme, variant A of 2026-11-24: nearly white with 4 % of the accent)
             const QColor accent = auroraFill(palette);
             const qreal t = 0.04 + 0.03 * press;
+            // (hover does not change the sheet: the light under the pointer says it. A sheet that whitened with the hover
+            // and faded back after the light had gone flashed white for an instant on the way in and out)
+            Q_UNUSED(lift)
             bg = QColor::fromRgbF(1.0 - t + t * accent.redF(), 1.0 - t + t * accent.greenF(), 1.0 - t + t * accent.blueF(),
-                                  qBound(0.0, 0.94 + 0.05 * lift - 0.06 * press, 1.0));
+                                  qBound(0.0, 0.94 - 0.06 * press, 1.0));
         }
     } else if (defaultButton && !checked) {
         // the primary action: tinted with the highlight, still readable with the normal button text
@@ -1501,16 +1504,19 @@ void Helper::renderNgButtonFrame(QPainter *painter,
         painter->setPen(QPen(alphaColor(inkColor, dark ? 0.16 : 0.5), 1));
         painter->drawLine(QPointF(frameRect.left() + radius, frameRect.top() + 1.0), QPointF(frameRect.right() - radius, frameRect.top() + 1.0));
     }
-    if (_aurora && hovered && painter->device() && painter->device()->devType() == QInternal::Widget) {
-        // Aurora: a light that follows the pointer inside the button (the style repaints the button as the pointer moves)
+    // Aurora: a light that follows the pointer inside the button (the style repaints the button as the pointer moves),
+    // its size in proportion to the button, faded in and out with the hover (it came and went at once, a jolt)
+    const qreal glow = penAnimation != AnimationData::OpacityInvalid ? penAnimation : (hovered ? 1.0 : 0.0);
+    if (_aurora && glow > 0.0 && !down && painter->device() && painter->device()->devType() == QInternal::Widget) {
         const QWidget *device = static_cast<const QWidget *>(painter->device());
         const QPointF pointer = device->mapFromGlobal(QCursor::pos());
         if (rect.adjusted(-30, -30, 30, 30).contains(pointer)) {
             painter->setClipPath(path);
             painter->setPen(Qt::NoPen);
-            QRadialGradient spot(pointer, qMax<qreal>(56.0, rect.height() * 2.0));
-            spot.setColorAt(0.0, alphaColor(inkColor, dark ? 0.24 : 0.16));
-            spot.setColorAt(0.5, alphaColor(inkColor, dark ? 0.08 : 0.05));
+            const qreal reach = qBound<qreal>(18.0, qMax(rect.height() * 1.1, rect.width() * 0.45), 160.0);
+            QRadialGradient spot(pointer, reach);
+            spot.setColorAt(0.0, alphaColor(inkColor, (dark ? 0.20 : 0.12) * glow));
+            spot.setColorAt(0.55, alphaColor(inkColor, (dark ? 0.06 : 0.035) * glow));
             spot.setColorAt(1.0, alphaColor(inkColor, 0.0));
             painter->fillRect(rect, spot);
         }
