@@ -662,7 +662,13 @@ QColor Helper::inputBackground(const QPalette &palette) const
     // Aurora: the same veil as the buttons, so that every surface has one intensity; on a light scheme a field is
     // nearly white, without the accent's tinge (tinged and at the buttons' density it read grey, as if disabled)
     if (_aurora) {
-        return isDark(palette) ? auroraVeilColor(palette, true) : QColor(255, 255, 255, 236);
+        if (isDark(palette)) {
+            return auroraVeilColor(palette, true);
+        }
+        // (variant A of 2026-11-24: white with 2 % of the accent)
+        const QColor accent = auroraFill(palette);
+        const qreal t = 0.02;
+        return QColor::fromRgbF(1.0 - t + t * accent.redF(), 1.0 - t + t * accent.greenF(), 1.0 - t + t * accent.blueF(), 0.97);
     }
     if (isGlass()) {
         // Glass: on a dark scheme the field colour at the glass' strength; on a light one a grey veil of ink, as the
@@ -1386,8 +1392,11 @@ void Helper::renderNgButtonFrame(QPainter *painter,
         if (dark) {
             bg = QColor::fromRgbF(1, 1, 1, 0.13 + 0.05 * lift + 0.08 * press);
         } else {
-            bg = auroraVeilColor(palette, true);
-            bg.setAlphaF(qBound(0.0, 0.84 + 0.10 * lift - 0.10 * press, 1.0));
+            // (light scheme, variant A of 2026-11-24: nearly white with 4 % of the accent)
+            const QColor accent = auroraFill(palette);
+            const qreal t = 0.04 + 0.03 * press;
+            bg = QColor::fromRgbF(1.0 - t + t * accent.redF(), 1.0 - t + t * accent.greenF(), 1.0 - t + t * accent.blueF(),
+                                  qBound(0.0, 0.94 + 0.05 * lift - 0.06 * press, 1.0));
         }
     } else if (defaultButton && !checked) {
         // the primary action: tinted with the highlight, still readable with the normal button text
