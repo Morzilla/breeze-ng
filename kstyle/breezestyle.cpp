@@ -510,6 +510,19 @@ void Style::polish(QWidget *widget)
     } else if (widget->parent() && widget->parent()->inherits("QComboBoxListView")) {
         widget->setAutoFillBackground(false);
 
+    } else if ((widget->objectName() == QLatin1String("qt_calendar_calendarview") || widget->inherits("QCalendarWidget")) && _helper->isAurora()) {
+        // (the calendar's model takes the chosen day's colours from the calendar widget's palette, not its view's)
+        // the chosen day is a disc of the full accent (drawPanelItemViewItemPrimitive): its number white. The
+        // calendar's own delegate fills the whole cell with the highlight first: the cell's own ground, the disc is ours
+        QPalette palette = widget->palette();
+        for (QPalette::ColorGroup group : {QPalette::Active, QPalette::Inactive}) {
+            palette.setColor(group, QPalette::HighlightedText, QColor(255, 255, 255));
+            // (the cell's own ground, not a clear colour: clear, the chosen cell was a hole in the calendar's ground
+            // onto the glass, a square around the disc)
+            palette.setColor(group, QPalette::Highlight, palette.color(group, QPalette::Base));
+        }
+        widget->setPalette(palette);
+
     } else if (widget->inherits("QComboBoxListView") && _helper->isGlass()) {
         // Breeze NG: the list of a combo box draws its rows with Qt's plain item delegate, which fills the current row
         // with the scheme's full accent whatever the view's palette says (dark text on blue, Glass giving a selection
@@ -2441,6 +2454,16 @@ bool Style::eventFilter(QObject *object, QEvent *event)
             QPainter painter(tabBar);
             painter.setClipRegion(static_cast<QPaintEvent *>(event)->region());
             _helper->clearUnder(&painter, tabBar->rect());
+            // Aurora, the controls of 2026-11-24: the track of a segmented control, once across all the tabs, before
+            // they paint (the tabs draw only the raised segment of the current one, see drawTabBarTabShapeControl)
+            if (_helper->isAurora() && !tabBar->documentMode() && tabBar->count() > 0 && !tabBar->property("_breeze_ng_pill_tabs").toBool()
+                && (tabBar->shape() == QTabBar::RoundedNorth || tabBar->shape() == QTabBar::RoundedSouth)) {
+                QRect bar = tabBar->tabRect(0);
+                for (int i = 1; i < tabBar->count(); ++i) {
+                    bar = bar.united(tabBar->tabRect(i));
+                }
+                _helper->renderSegmentTrack(&painter, QRectF(bar), tabBar->palette());
+            }
         }
         return false;
     }
@@ -5280,6 +5303,25 @@ bool Style::drawFrameLineEditPrimitive(const QStyleOption *option, QPainter *pai
                 edge = _helper->alphaColor(edge, enabled ? 0.9 : 0.6);
             }
         }
+        // Aurora, the controls of 2026-11-24: a focused field is edged with the accent (the glow inside stays, softer);
+        // a field that cannot be used is only a dashed outline, no ground
+        const bool dashed = _helper->isAurora() && !enabled && !isQtQuickControl(option, widget);
+        if (_helper->isAurora() && hasFocus && !neutral) {
+            edge = _helper->auroraAccent(palette, 1.0);
+        }
+        if (dashed) {
+            _helper->renderFrame(painter, rect, QColor(0, 0, 0, 0), QColor(0, 0, 0, 0));
+            painter->save();
+            painter->setRenderHint(QPainter::Antialiasing, true);
+            QPen pen(_helper->alphaColor(_helper->ink(palette), _helper->isDark(palette) ? 0.28 : 0.24), 1.0, Qt::DashLine);
+            pen.setDashPattern({3, 3});
+            painter->setPen(pen);
+            painter->setBrush(Qt::NoBrush);
+            const qreal radius = _helper->frameRadius(PenWidth::Frame);
+            painter->drawRoundedRect(QRectF(rect).adjusted(0.5, 0.5, -0.5, -0.5), radius, radius);
+            painter->restore();
+            return true;
+        }
         _helper->renderFrame(painter, rect, background, edge);
         if (_helper->isGlass() && enabled && !readOnly && !_helper->isDark(palette)) {
             // and a soft shade along the inside of its top edge, as a slot has: light from above
@@ -5306,6 +5348,9 @@ bool Style::drawFrameLineEditPrimitive(const QStyleOption *option, QPainter *pai
         } else if (mouseOver) {
             strength = 0.45;
         }
+        if (_helper->isAurora() && !neutral) {
+            strength *= 0.55; // (the accent edge says it now)
+        }
         _helper->renderNgGlow(painter, rect, neutral ? _helper->neutralText(palette) : _helper->focusColor(palette), strength);
     }
 
@@ -5322,6 +5367,11 @@ bool Style::drawFrameFocusRectPrimitive(const QStyleOption *option, QPainter *pa
 
     // no focus indicator on ComboBox list items
     if (widget && widget->inherits("QComboBoxListView")) {
+        return true;
+    }
+    // nor on the days of a calendar on Aurora: the chosen day is its disc (a square block around it was the focus)
+    if (_helper->isAurora() && widget && (widget->objectName() == QLatin1String("qt_calendar_calendarview")
+                                         || (widget->parentWidget() && widget->parentWidget()->objectName() == QLatin1String("qt_calendar_calendarview")))) {
         return true;
     }
 
@@ -6059,6 +6109,44 @@ bool Style::drawPanelItemViewItemPrimitive(const QStyleOption *option, QPainter 
     const bool enabled(state & State_Enabled);
     const bool active(state & State_Active);
 
+    // Aurora, the controls of 2026-11-24: the chosen day of a calendar is a round disc of the accent, the square of
+    // the cell's smaller side, centred (never stretched to an ellipse); hover a faint disc
+    const auto inCalendar = [](const QWidget *w) {
+        for (int depth = 0; w && depth < 4; w = w->parentWidget(), ++depth) {
+            if (w->objectName() == QLatin1String("qt_calendar_calendarview") || w->inherits("QCalendarWidget")) {
+                return true;
+            }
+        }
+        return false;
+    };
+    if (_helper->isAurora() && (inCalendar(actualWidget) || inCalendar(widget)) && ((state & State_Selected) || mouseOver)) {
+        const bool selected = state & State_Selected; // (its highlight is clear on purpose, see polish)
+        // (the cell's own ground first, the calendar's opaque Base as its neighbours have: without, the chosen cell
+        // stayed see-through, a square of glass around the disc)
+        if (actualWidget) {
+            painter->save();
+            painter->setCompositionMode(QPainter::CompositionMode_Source);
+            QColor ground = actualWidget->palette().color(QPalette::Base);
+            ground.setAlpha(255);
+            painter->fillRect(option->rect, ground);
+            painter->restore();
+        }
+        const qreal side = qMin(rect.width(), rect.height()) - 4;
+        const QRectF disc(QRectF(rect).center().x() - side / 2, QRectF(rect).center().y() - side / 2, side, side);
+        painter->save();
+        painter->setRenderHint(QPainter::Antialiasing, true);
+        painter->setPen(Qt::NoPen);
+        // (the application's accent: the calendar's own highlight is clear, see polish)
+        QColor disc = _helper->auroraAccent(QApplication::palette(), 1.0);
+        if (_helper->isDark(palette)) {
+            disc = QColor::fromHslF(disc.hslHueF(), disc.hslSaturationF(), 0.50); // (the deeper accent under a white number)
+        }
+        painter->setBrush(selected ? disc : _helper->auroraVeilColor(palette, false));
+        painter->drawEllipse(disc);
+        painter->restore();
+        return true;
+    }
+
     const bool hasCustomBackground = viewItemOption->backgroundBrush.style() != Qt::NoBrush && !selected;
     const bool hasSolidBackground = !hasCustomBackground || viewItemOption->backgroundBrush.style() == Qt::SolidPattern;
     const bool hasAlternateBackground(viewItemOption->features & QStyleOptionViewItem::Alternate);
@@ -6693,13 +6781,15 @@ bool Style::drawPushButtonLabelControl(const QStyleOption *option, QPainter *pai
     }
     // Breeze NG Soft: the primary action is a block of the full accent (Helper::renderButtonFrame): its label and icon
     // take the colour of text on a selection (on a light scheme they stayed dark on the blue)
-    if (!_helper->isGlass() && (option->state & State_Enabled) && (option->state & State_Active) && !(option->state & State_On)
-        && option->palette.color(QPalette::ButtonText) != option->palette.color(QPalette::HighlightedText)) {
+    // (Aurora too, since the controls of 2026-11-24: its primary action is the full accent, its label white)
+    const QColor onPrimary = _helper->isAurora() ? QColor(255, 255, 255) : option->palette.color(QPalette::HighlightedText);
+    if ((!_helper->isGlass() || _helper->isAurora()) && (option->state & State_Enabled) && (option->state & State_Active) && !(option->state & State_On)
+        && option->palette.color(QPalette::ButtonText) != onPrimary) {
         if (const auto original = qstyleoption_cast<const QStyleOptionButton *>(option);
             original && (original->features & QStyleOptionButton::DefaultButton) && !(original->features & QStyleOptionButton::Flat)) {
             QStyleOptionButton copy(*original);
             for (QPalette::ColorRole role : {QPalette::ButtonText, QPalette::WindowText, QPalette::Text}) {
-                copy.palette.setColor(role, option->palette.color(QPalette::HighlightedText));
+                copy.palette.setColor(role, onPrimary);
             }
             return drawPushButtonLabelControl(&copy, painter, widget);
         }
@@ -8481,7 +8571,25 @@ bool Style::drawTabBarTabLabelControl(const QStyleOption *option, QPainter *pain
 {
     // Breeze NG Aurora: the label of what is on takes the colour of text on a selection (white on the full accent,
     // the deep accent on its light sheet in a light scheme)
-    if (_helper->isAurora() && (_helper->auroraFullSelection() || !_helper->isDark(option->palette)) && (option->state & State_Selected) && option->palette.color(QPalette::ButtonText) != _helper->auroraSelectionText(option->palette)) {
+    // (not a tab of a page: a segment of a segmented control since 2026-11-24, white or a light veil, its label the
+    // normal text; white on a dark scheme)
+    const auto *segmentTab = qstyleoption_cast<const QStyleOptionTab *>(option);
+    const bool segment = _helper->isAurora() && segmentTab && !segmentTab->documentMode && !isQtQuickControl(option, widget)
+        && !(widget && widget->property("_breeze_ng_pill_tabs").toBool());
+    if (segment && (option->state & State_Selected)) {
+        // (the plain text on the raised segment: white on a dark scheme, the window's text on a light one. Not the
+        // accent some tab bars give their current tab: on white it read as a link)
+        const QColor onSegment = _helper->isDark(option->palette) ? QColor(255, 255, 255) : option->palette.color(QPalette::WindowText);
+        if (option->palette.color(QPalette::ButtonText) != onSegment || option->palette.color(QPalette::WindowText) != onSegment
+            || option->palette.color(QPalette::Highlight) != onSegment) {
+            QStyleOptionTab copy(*segmentTab);
+            for (QPalette::ColorRole role : {QPalette::ButtonText, QPalette::WindowText, QPalette::Text, QPalette::Highlight, QPalette::HighlightedText}) {
+                copy.palette.setColor(role, onSegment);
+            }
+            return drawTabBarTabLabelControl(&copy, painter, widget);
+        }
+    }
+    if (!segment && _helper->isAurora() && (_helper->auroraFullSelection() || !_helper->isDark(option->palette)) && (option->state & State_Selected) && option->palette.color(QPalette::ButtonText) != _helper->auroraSelectionText(option->palette)) {
         if (const auto original = qstyleoption_cast<const QStyleOptionTab *>(option)) {
             QStyleOptionTab copy(*original);
             const QColor onSelection = _helper->auroraSelectionText(option->palette);
@@ -8707,6 +8815,20 @@ bool Style::drawTabBarTabShapeControl(const QStyleOption *option, QPainter *pain
     if (reverseLayout && !verticalTabs) {
         qSwap(isFirst, isLast);
         qSwap(isLeftOfSelected, isRightOfSelected);
+    }
+
+    // Aurora, the controls of 2026-11-24: the tabs of a page (not a document bar) are a segmented control, drawn in
+    // each tab's own rectangle, before the classic tabs' overlaps change it
+    if (_helper->isAurora() && !tabOption->documentMode && !isQtQuickControl && !(widget && widget->property("_breeze_ng_pill_tabs").toBool())
+        && (tabOption->shape == QTabBar::RoundedNorth || tabOption->shape == QTabBar::RoundedSouth || tabOption->shape == QTabBar::TriangularNorth
+            || tabOption->shape == QTabBar::TriangularSouth)) {
+        // (the track is laid once for the whole bar by the tab bar's paint filter, see eventFilter; without a tab bar
+        // widget, each tab lays the part over its own rectangle)
+        if (!qobject_cast<const QTabBar *>(widget)) {
+            _helper->renderSegmentTrack(painter, QRectF(rect), option->palette);
+        }
+        _helper->renderSegmentTab(painter, QRectF(rect), option->palette, selected, isFirst, isLast);
+        return true;
     }
 
     // overlap
@@ -9569,10 +9691,17 @@ bool Style::drawSliderComplexControl(const QStyleOptionComplex *option, QPainter
                 // calculate positions and draw lines
                 const int position(sliderPositionFromValue(sliderOption->minimum, sliderOption->maximum, current, available, upsideDown) + fudge);
                 for (const QLine &tickLine : std::as_const(tickLines)) {
-                    if (horizontal) {
-                        painter->drawLine(tickLine.translated(reverse ? (rect.width() - position) : position, 0));
+                    const QLine line = horizontal ? tickLine.translated(reverse ? (rect.width() - position) : position, 0) : tickLine.translated(0, position);
+                    if (_helper->isAurora()) {
+                        // Aurora, the controls of 2026-11-24: a tick is a dot, not a line
+                        painter->save();
+                        painter->setRenderHint(QPainter::Antialiasing, true);
+                        painter->setPen(Qt::NoPen);
+                        painter->setBrush(color);
+                        painter->drawEllipse(QPointF(line.p1()) + QPointF(0.5, 0.5), 1.6, 1.6);
+                        painter->restore();
                     } else {
-                        painter->drawLine(tickLine.translated(0, position));
+                        painter->drawLine(line);
                     }
                 }
 

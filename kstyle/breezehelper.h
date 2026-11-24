@@ -168,6 +168,10 @@ public:
     //* Breeze NG Aurora: the card of a sidebar on the glass, as the sidebar of Dolphin NG (6 px in from \a rect, round
     //* corners of 12 px, the veil, and on light schemes the bright hairline edge of frost)
     void renderAuroraSideCard(QPainter *painter, const QRectF &rect, const QPalette &palette) const;
+
+    //* Breeze NG Aurora: a tab of a page as a segment of a segmented control (\a rect: the tab's own rectangle)
+    void renderSegmentTab(QPainter *painter, const QRectF &rect, const QPalette &palette, bool selected, bool first, bool last) const;
+    void renderSegmentTrack(QPainter *painter, const QRectF &rect, const QPalette &palette) const;
     //* Breeze NG Aurora: the accent as a light (its hue, always luminous), with the given alpha
     QColor auroraAccent(const QPalette &palette, qreal alpha) const;
     //* Breeze NG Aurora: is the sheet of a menu joined to its button see-through (then the button is laid as joinedFill

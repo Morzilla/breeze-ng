@@ -1354,9 +1354,29 @@ void Helper::renderNgButtonFrame(QPainter *painter,
         // Aurora: what is on wears the accent
         bg = auroraSelection(palette, fill - 0.18);
     }
+    // Aurora, the controls of 2026-11-24: a button is a raised key, a little more opaque than the glass, with a hairline,
+    // a light along its top and a soft shadow below (see the end of this function); the primary action is the full
+    // accent with a white label (Style::drawPushButtonLabelControl)
+    const bool key = _aurora && !flat && !checked && !hasNeutralHighlight;
     if (_aurora && defaultButton && !checked) {
-        // Aurora: the primary action is a sheet of the accent
-        bg = auroraAccent(palette, qMin(1.0, (dark ? 0.62 : 0.50) + (fill - auroraVeil(palette, true)) * 1.5));
+        QColor accent = auroraAccent(palette, 1.0);
+        if (dark) {
+            // (the dark scheme's accent is a light one, made for lights and text: under a white label, the deeper one)
+            accent = QColor::fromHslF(accent.hslHueF(), accent.hslSaturationF(), 0.50);
+        }
+        const qreal lift = (penAnimation != AnimationData::OpacityInvalid ? penAnimation : hovered ? 1.0 : 0.0);
+        const qreal press = (bgAnimation != AnimationData::OpacityInvalid ? bgAnimation : down ? 1.0 : 0.0);
+        accent = QColor::fromHslF(accent.hslHueF(), accent.hslSaturationF(), qBound(0.0, accent.lightnessF() + 0.04 * lift - 0.06 * press, 1.0));
+        bg = accent;
+    } else if (key) {
+        const qreal lift = (penAnimation != AnimationData::OpacityInvalid ? penAnimation : hovered ? 1.0 : 0.0);
+        const qreal press = (bgAnimation != AnimationData::OpacityInvalid ? bgAnimation : down ? 1.0 : 0.0);
+        if (dark) {
+            bg = QColor::fromRgbF(1, 1, 1, 0.10 + 0.05 * lift + 0.08 * press);
+        } else {
+            bg = auroraVeilColor(palette, true);
+            bg.setAlphaF(qBound(0.0, 0.84 + 0.10 * lift - 0.10 * press, 1.0));
+        }
     } else if (defaultButton && !checked) {
         // the primary action: tinted with the highlight, still readable with the normal button text
         bg = glass ? KColorUtils::mix(alphaColor(inkColor, 0.16), highlight, 0.25) : (hovered ? highlight.lighter(112) : highlight);
@@ -1368,6 +1388,9 @@ void Helper::renderNgButtonFrame(QPainter *painter,
     const bool rims = hasRims(); // Aurora: the fills of Glass, without its rims
     if (rims && (!flat || checked || hovered || down)) {
         edge = alphaColor(inkColor, checked ? 0.26 : (hovered ? 0.22 : 0.14));
+    }
+    if (key && !defaultButton) {
+        edge = dark ? QColor::fromRgbF(1, 1, 1, 0.10) : alphaColor(inkColor, 0.10);
     }
     if (visualFocus) {
         // the glow below says it
@@ -1420,6 +1443,14 @@ void Helper::renderNgButtonFrame(QPainter *painter,
     } else {
         path.addRoundedRect(frameRect, radius, radius);
     }
+    if ((key || (_aurora && defaultButton && !checked)) && joined.isEmpty() && !down) {
+        // the soft shadow under a key: its own shape a pixel lower, faint, under the fill
+        painter->save();
+        painter->setPen(Qt::NoPen);
+        painter->setBrush(dark ? QColor(0, 0, 0, 70) : alphaColor(inkColor, defaultButton ? 0.16 : 0.08));
+        painter->drawPath(path.translated(0, 1));
+        painter->restore();
+    }
     if (rims && !flat) {
         // a sheet of glass: lighter towards the top
         QLinearGradient sheet(frameRect.topLeft(), frameRect.bottomLeft());
@@ -1434,6 +1465,14 @@ void Helper::renderNgButtonFrame(QPainter *painter,
         joinedFill(painter, path, bg, painter->pen()); // the menu's see-through sheet, from nothing
     } else {
         painter->drawPath(path);
+    }
+    if ((key || (_aurora && defaultButton && !checked)) && joined.isEmpty() && !down) {
+        // the light along the top of a key, inside its edge
+        painter->save();
+        painter->setClipPath(path);
+        painter->setPen(QPen(defaultButton ? QColor(255, 255, 255, 56) : (dark ? QColor(255, 255, 255, 30) : QColor(255, 255, 255, 230)), 1));
+        painter->drawLine(QPointF(frameRect.left() + radius * 0.6, frameRect.top() + 1.0), QPointF(frameRect.right() - radius * 0.6, frameRect.top() + 1.0));
+        painter->restore();
     }
     if (rims && !flat && !down) {
         // the bright hairline on the top edge, as on the panels
@@ -1888,6 +1927,36 @@ void Helper::renderRadioButton(QPainter *painter,
 }
 
 //______________________________________________________________________________
+void Helper::renderSegmentTrack(QPainter *painter, const QRectF &rect, const QPalette &palette) const
+{
+    // Aurora, the controls of 2026-11-24: the track of a segmented control (the tabs of a page), across \a rect
+    painter->save();
+    painter->setRenderHint(QPainter::Antialiasing, true);
+    painter->setPen(Qt::NoPen);
+    painter->setBrush(isDark(palette) ? QColor(255, 255, 255, 22) : alphaColor(ink(palette), 0.08));
+    painter->drawRoundedRect(rect.adjusted(0, 3, 0, -3), 10, 10);
+    painter->restore();
+}
+
+void Helper::renderSegmentTab(QPainter *painter, const QRectF &rect, const QPalette &palette, bool selected, bool first, bool last) const
+{
+    // the current tab: a raised segment on the track, white on a light scheme, a light veil on a dark one
+    if (!selected) {
+        return;
+    }
+    const bool dark = isDark(palette);
+    painter->save();
+    painter->setRenderHint(QPainter::Antialiasing, true);
+    painter->setPen(Qt::NoPen);
+    const QRectF segment = rect.adjusted(first ? 2 : 1, 5, last ? -2 : -1, -5);
+    painter->setBrush(dark ? QColor(0, 0, 0, 60) : alphaColor(ink(palette), 0.10));
+    painter->drawRoundedRect(segment.translated(0, 1), 8, 8);
+    painter->setBrush(dark ? QColor(255, 255, 255, 52) : QColor(255, 255, 255));
+    painter->drawRoundedRect(segment, 8, 8);
+    painter->restore();
+}
+
+//______________________________________________________________________________
 void Helper::renderSliderGroove(QPainter *painter, const QRectF &rect, const QColor &fg, const QColor &bg) const
 {
     // setup painter
@@ -1990,13 +2059,19 @@ void Helper::renderSliderHandle(QPainter *painter, const QRectF &rect, const QCo
             disc = darkSurface ? disc.darker(115) : disc.lighter(115);
         }
         painter->setPen(Qt::NoPen);
-        if (_aurora && !darkSurface) {
-            // Aurora on a light scheme: a white knob with a fine edge (a dark disc was a hole in the frost)
-            disc = sunken ? QColor(236, 240, 246) : QColor(255, 255, 255);
-            painter->setPen(QPen(QColor(43, 54, 72, 90), 1));
+        QRectF knob = rect.adjusted(2.5, 2.5, -2.5, -2.5);
+        if (_aurora) {
+            // Aurora, the controls of 2026-11-24: a white knob in both schemes, round (the square of the smaller side,
+            // centred: never stretched to an ellipse), lifted by a soft shadow, with a fine edge
+            const qreal side = qMin(knob.width(), knob.height());
+            knob = QRectF(knob.center().x() - side / 2, knob.center().y() - side / 2, side, side);
+            painter->setBrush(QColor(0, 0, 0, darkSurface ? 70 : 34));
+            painter->drawEllipse(knob.translated(0, 1).adjusted(-0.5, -0.5, 0.5, 0.5));
+            disc = sunken ? QColor(232, 236, 243) : (darkSurface ? QColor(242, 244, 248) : QColor(255, 255, 255));
+            painter->setPen(QPen(QColor(0, 0, 0, darkSurface ? 40 : 26), 0.8));
         }
         painter->setBrush(disc);
-        painter->drawEllipse(rect.adjusted(2.5, 2.5, -2.5, -2.5));
+        painter->drawEllipse(knob);
         painter->restore();
         return;
     }
@@ -2252,6 +2327,7 @@ void Helper::renderTabBarTab(QPainter *painter,
     painter->setRenderHint(QPainter::Antialiasing, true);
     QRectF frameRect = rect;
     QColor bgBrush;
+
 
     if ((pillBar || pillsOnly) && (!selected || _aurora || pillsOnly)) {
         // Breeze NG: a tab at rest is a faint pill, a little brighter under the pointer
