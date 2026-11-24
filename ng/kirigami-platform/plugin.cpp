@@ -27,6 +27,7 @@
 #include <QEvent>
 #include <QFileInfo>
 #include <QHash>
+#include <QQmlProperty>
 #include <QSet>
 #include <QLibraryInfo>
 #include <QFile>
@@ -70,6 +71,7 @@ struct Look {
     QColor second; // the second light, if the user chose its colour
     bool accentRight = false; // the accent's light from the top right, the second light from the top left
     bool fullSelection = false; // selections in the full accent with white text
+    bool accentTint = true; // the text tinged by the accent, as the widget style's palette (Breeze NG's AccentTint)
     QColor onSelection; // text on a selection, where it is not the scheme's own
     QColor listSheet; // a selected row of a list: the light sheet of the accent (dark schemes: the accent, see-through)
 };
@@ -91,6 +93,63 @@ bool listRowsStyled()
         return true; // (not found: as on the newer Frameworks)
     }();
     return styled;
+}
+
+// The text of a theme tinged by the accent, as Style::polish(QPalette) tinges the widgets' text: near black leaning to
+// the accent's hue (a light one only a hint). Kirigami takes its text from the colour scheme, not from the style's
+// palette: in System Settings' sidebar the text was the scheme's grey beside the tinged text of Dolphin NG's.
+// BREEZE_NG_TINTED_TEXT=0 leaves it, as in the widget style.
+void tintText(PlatformTheme *theme)
+{
+    // (an icon of a button that is on has its text colour set by checkedIcon: left to it)
+    if (theme->property("_breeze_ng_checked_icon").toBool()) {
+        return;
+    }
+    // the tinge set here before is dropped whenever the theme no longer takes it (its colour set changed to one that
+    // is not tinged, as Complementary: the dark text of a light window stayed on its dark surface)
+    auto release = [theme] {
+        if (theme->property("_breeze_ng_tinted").toBool()) {
+            theme->setCustomTextColor();
+            theme->setProperty("_breeze_ng_tinted", QVariant());
+        }
+    };
+    const QPalette palette = QGuiApplication::palette();
+    const QColor accent = palette.color(QPalette::Active, QPalette::Highlight);
+    if (accent.hslSaturationF() < 0.15 || qEnvironmentVariable("BREEZE_NG_TINTED_TEXT") == QLatin1String("0")) {
+        release();
+        return;
+    }
+    // the surfaces of the window's own colours only: not the dark ones of a light scheme (Complementary), not the text
+    // of a selection or a tooltip
+    QPalette::ColorRole role;
+    switch (theme->colorSet()) {
+    case PlatformTheme::View:
+        role = QPalette::Text;
+        break;
+    case PlatformTheme::Button:
+        role = QPalette::ButtonText;
+        break;
+    case PlatformTheme::Window:
+    case PlatformTheme::Header:
+        role = QPalette::WindowText;
+        break;
+    default:
+        release();
+        return;
+    }
+    // (from the palette, not from the theme's own colour: read back right after a change it was not there yet, and the
+    // text came out empty. In an application of widgets the palette is the style's, already tinged: tinging is the same)
+    const QColor text = palette.color(QPalette::Active, role);
+    if (!text.isValid() || text.alpha() < 128 || text.hslSaturationF() > 0.35) {
+        release(); // (coloured text is left as it is)
+        return;
+    }
+    QColor tinted = QColor::fromHslF(accent.hslHueF(), text.lightnessF() < 0.5 ? 0.24 : 0.10, text.lightnessF());
+    tinted.setAlphaF(text.alphaF());
+    if (theme->textColor() != tinted) {
+        theme->setCustomTextColor(tinted);
+    }
+    theme->setProperty("_breeze_ng_tinted", true);
 }
 
 // The colours that depend on the palette, worked out when they are used: the plugin is made very early (at login,
@@ -153,6 +212,7 @@ Look readLook()
     look.grain = qBound(0, common.readEntry("AuroraGrain", 30), 100);
     look.dim = common.readEntry("AuroraDimInactive", true);
     look.fullSelection = common.readEntry("AuroraFullSelection", false);
+    look.accentTint = common.readEntry("AccentTint", true);
     const QString secondAccent = common.readEntry("AuroraSecondAccent", QString());
     look.second = secondAccent.isEmpty() ? QColor() : QColor(secondAccent);
     look.accentRight = common.readEntry("AuroraAccentRight", false);
@@ -385,6 +445,13 @@ bool fillsWindow(const QObject *owner)
 // A row of a sidebar (an item delegate in a side view): air around its selection, as the rows of Dolphin NG's sidebar,
 // which stand 8 px in from the card's edges with their text further in. The delegates fill the list's width and paint
 // their background edge to edge: insets move the background in, padding moves the content with it.
+// Breeze NG's SidebarCompact: the rows of a sidebar compact, as Dolphin NG's (one line, a small icon)
+bool compactSide()
+{
+    static const bool on = KSharedConfig::openConfig(QStringLiteral("breezengrc"))->group(QStringLiteral("Common")).readEntry("SidebarCompact", true);
+    return on;
+}
+
 void giveAir(QObject *owner)
 {
     owner->setProperty("_breeze_ng_air", true);
@@ -397,6 +464,14 @@ void giveAir(QObject *owner)
     }
     for (const char *name : {"leftPadding", "rightPadding"}) {
         owner->setProperty(name, owner->property(name).toReal() + inset);
+    }
+    if (compactSide()) {
+        for (const char *name : {"topPadding", "bottomPadding"}) {
+            owner->setProperty(name, 7.0); // (rows of 32 px, as Dolphin NG's)
+        }
+        for (const char *name : {"icon.width", "icon.height"}) {
+            QQmlProperty(owner, QString::fromLatin1(name)).write(16);
+        }
     }
 }
 
@@ -590,10 +665,13 @@ void textShadows(QQuickWindow *window, const Look &look)
                         node->setProperty("_breeze_ng_shadow", false);
                     }
                 } else if (ours || node->property("style").toInt() == 0) {
-                    const QColor shadow = colour.lightnessF() > 0.5 ? QColor(0, 0, 0, 150) : QColor(255, 255, 255, 170);
-                    if (!ours || node->property("styleColor").value<QColor>() != shadow) {
+                    // a halo all round, as the text of Dolphin NG's sidebar (a blurred drop shadow there, which Qt Quick
+                    // has not for text): a faint outline. (Text.Raised, one copy a pixel below, hardly showed)
+                    // (faint: at 120 the outline was a rim round every letter and the text looked bold)
+                    const QColor shadow = colour.lightnessF() > 0.5 ? QColor(0, 0, 0, 60) : QColor(255, 255, 255, 55);
+                    if (!ours || node->property("styleColor").value<QColor>() != shadow || node->property("style").toInt() != 1) {
                         node->setProperty("styleColor", shadow);
-                        node->setProperty("style", 2); // Text.Raised: the copy one pixel below
+                        node->setProperty("style", 1); // Text.Outline
                         node->setProperty("_breeze_ng_shadow", true);
                     }
                 }
@@ -826,6 +904,9 @@ private:
                 }
             }
             sideRowAir(owner);
+            if (look.accentTint) {
+                tintText(guard); // (before checkedIcon: a button that is on has its own text colour)
+            }
             {
                 Look forIcon = m_look;
                 colours(forIcon);

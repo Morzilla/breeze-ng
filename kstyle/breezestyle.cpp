@@ -70,6 +70,7 @@
 #include <QTreeView>
 #include <QWidgetAction>
 #include <QListView>
+#include <QStyledItemDelegate>
 #include <QVariantAnimation>
 #include <QPersistentModelIndex>
 
@@ -980,6 +981,24 @@ private:
 };
 }
 
+// Breeze NG: the rows of a compact sidebar stand 12 px in from the list's sides, as those of Dolphin NG's sidebar from
+// its card (the style draws their selection as a pill, see drawPanelItemViewItemPrimitive)
+class NgSideRowDelegate : public QStyledItemDelegate
+{
+public:
+    using QStyledItemDelegate::QStyledItemDelegate;
+    void paint(QPainter *painter, const QStyleOptionViewItem &option, const QModelIndex &index) const override
+    {
+        QStyleOptionViewItem inset(option);
+        inset.rect.adjust(12, 0, -12, 0);
+        QStyledItemDelegate::paint(painter, inset, index);
+    }
+    QSize sizeHint(const QStyleOptionViewItem &option, const QModelIndex &index) const override
+    {
+        return QStyledItemDelegate::sizeHint(option, index) + QSize(24, 0);
+    }
+};
+
 //______________________________________________________________
 void Style::polishScrollArea(QAbstractScrollArea *scrollArea)
 {
@@ -1036,6 +1055,44 @@ void Style::polishScrollArea(QAbstractScrollArea *scrollArea)
         if (scrollArea->autoFillBackground()) {
             scrollArea->setAutoFillBackground(false); // (the list of pages of a settings dialog fills itself, not its viewport)
             scrollArea->setProperty("_breeze_ng_unfilled", true);
+        }
+    }
+
+    // Breeze NG: a sidebar with compact rows takes small icons (the lists of pages of settings dialogs had 32 px ones)
+    if (ngCompactSide(scrollArea)) {
+        if (auto *view = qobject_cast<QAbstractItemView *>(scrollArea); view && view->iconSize().height() > 16) {
+            view->setProperty("_breeze_ng_icon_size", view->iconSize());
+            view->setIconSize(QSize(16, 16));
+        }
+        // the list of pages of a settings window (KPageDialog, as Konsole's and Kate's) paints its rows itself, a large
+        // icon over the name: the ordinary delegate instead, a small icon beside the name, painted by the style as
+        // every other row
+        if (auto *list = qobject_cast<QListView *>(scrollArea); list && scrollArea->inherits("KDEPrivate::KPageListView")
+            && !list->property("_breeze_ng_rows").toBool()) {
+            list->setProperty("_breeze_ng_rows", true);
+            // (what it had, put back in unpolish: another style, or the option turned off, finds the list as it was)
+            list->setProperty("_breeze_ng_rows_delegate", QVariant::fromValue(QPointer<QObject>(list->itemDelegate())));
+            list->setProperty("_breeze_ng_rows_mode", int(list->viewMode()));
+            list->setProperty("_breeze_ng_rows_wrap", list->wordWrap());
+            list->setProperty("_breeze_ng_rows_frame", int(list->frameShape()));
+            list->setProperty("_breeze_ng_rows_icon", list->iconSize());
+            list->setProperty("_breeze_ng_rows_palette", QVariant::fromValue(list->palette()));
+            list->setItemDelegate(new NgSideRowDelegate(list));
+            // a card on the glass under it, as the other side panels (see drawFramePrimitive)
+            list->setFrameShape(QFrame::StyledPanel);
+            list->viewport()->setAutoFillBackground(false);
+            list->setProperty("_breeze_ng_veil", true);
+            // the name of the selected row in the deep accent on its light sheet, as in Dolphin NG's sidebar
+            if (_helper->isAurora()) {
+                QPalette palette = list->palette();
+                for (QPalette::ColorGroup group : {QPalette::Active, QPalette::Inactive}) {
+                    palette.setColor(group, QPalette::HighlightedText, _helper->auroraSelectionText(palette));
+                }
+                list->setPalette(palette);
+            }
+            list->setViewMode(QListView::ListMode);
+            list->setWordWrap(false);
+            list->setIconSize(QSize(16, 16));
         }
     }
 
@@ -1097,6 +1154,29 @@ void Style::unpolish(QWidget *widget)
     _blurHelper->unregisterWidget(widget);
     _toolsAreaManager->unregisterWidget(widget);
 
+    if (auto *list = qobject_cast<QListView *>(widget); list && list->property("_breeze_ng_rows").toBool()) {
+        // the list of pages of a settings window as it was before the compact rows (see polishScrollArea)
+        QAbstractItemDelegate *ours = list->itemDelegate();
+        if (auto *before = qobject_cast<QAbstractItemDelegate *>(list->property("_breeze_ng_rows_delegate").value<QPointer<QObject>>().data())) {
+            list->setItemDelegate(before);
+        }
+        if (ours && ours != list->itemDelegate()) {
+            ours->deleteLater();
+        }
+        list->setViewMode(QListView::ViewMode(list->property("_breeze_ng_rows_mode").toInt()));
+        list->setWordWrap(list->property("_breeze_ng_rows_wrap").toBool());
+        list->setFrameShape(QFrame::Shape(list->property("_breeze_ng_rows_frame").toInt()));
+        list->setIconSize(list->property("_breeze_ng_rows_icon").toSize());
+        list->setPalette(list->property("_breeze_ng_rows_palette").value<QPalette>());
+        for (const char *name : {"_breeze_ng_rows", "_breeze_ng_rows_delegate", "_breeze_ng_rows_mode", "_breeze_ng_rows_wrap", "_breeze_ng_rows_frame",
+                                 "_breeze_ng_rows_icon", "_breeze_ng_rows_palette"}) {
+            list->setProperty(name, QVariant());
+        }
+    }
+    if (auto *view = qobject_cast<QAbstractItemView *>(widget); view && view->property("_breeze_ng_icon_size").isValid()) {
+        view->setIconSize(view->property("_breeze_ng_icon_size").toSize());
+        view->setProperty("_breeze_ng_icon_size", QVariant());
+    }
     if (widget->property("_breeze_ng_unfilled").toBool()) {
         widget->setAutoFillBackground(true);
         widget->setProperty("_breeze_ng_unfilled", QVariant());
@@ -2421,10 +2501,7 @@ bool Style::eventFilter(QObject *object, QEvent *event)
                     // from the bare glass every time: laid over what was there, the veil piled up at every repaint
                     // and the card grew lighter and lighter
                     _helper->clearUnder(&painter, child->geometry());
-                    painter.setRenderHint(QPainter::Antialiasing, true);
-                    painter.setPen(Qt::NoPen);
-                    painter.setBrush(_helper->auroraVeilColor(widget->palette(), false));
-                    painter.drawRoundedRect(QRectF(child->geometry()).adjusted(5, 5, -5, -5), 12, 12);
+                    _helper->renderAuroraSideCard(&painter, QRectF(child->geometry()), widget->palette());
                 }
             }
         }
@@ -4955,10 +5032,23 @@ QSize Style::headerSectionSizeFromContents(const QStyleOption *option, const QSi
 }
 
 //______________________________________________________________
+// Breeze NG: is this view a sidebar whose rows are made compact (SidebarCompact)? Not Dolphin NG's, which has its own,
+// nor the Places view, which sizes its rows itself
+bool Style::ngCompactSide(const QWidget *widget) const
+{
+    return StyleConfigData::sidebarCompact() && widget && widget->property(PropertyNames::sidePanelView).toBool() && !widget->inherits("KFilePlacesView")
+        && !(widget->window() && widget->window()->inherits("DolphinMainWindow"));
+}
+
 QSize Style::itemViewItemSizeFromContents(const QStyleOption *option, const QSize &contentsSize, const QWidget *widget) const
 {
     // call base class
     const QSize size(ParentStyleClass::sizeFromContents(CT_ItemViewItem, option, contentsSize, widget));
+    // Breeze NG: a sidebar's rows compact, as those of Dolphin NG's sidebar (about 30 px: one line, a small icon)
+    if (ngCompactSide(widget)) {
+        const QMargins margins = _helper->itemViewItemMargins(qstyleoption_cast<const QStyleOptionViewItem *>(option));
+        return QSize(size.width() + margins.left() + margins.right() + Metrics::ItemView_ItemPaddingWidth * 2, qMax(size.height(), 18) + 12);
+    }
     if (!qobject_cast<const QTableView *>(widget)) {
         const QMargins margins = _helper->itemViewItemMargins(qstyleoption_cast<const QStyleOptionViewItem *>(option));
 
@@ -5020,10 +5110,7 @@ bool Style::drawFramePrimitive(const QStyleOption *option, QPainter *painter, co
     if (_helper->isAurora() && widget && widget->property(PropertyNames::sidePanelView).toBool() && widget->property("_breeze_ng_veil").toBool()
         && widget->window()->property("_breeze_ng_glass").toBool()) {
         // Aurora: a side panel is a card on the glass, as the sidebar of Dolphin NG
-        painter->setRenderHint(QPainter::Antialiasing, true);
-        painter->setPen(Qt::NoPen);
-        painter->setBrush(_helper->auroraVeilColor(palette, false));
-        painter->drawRoundedRect(QRectF(rect).adjusted(5, 5, -5, -5), 12, 12);
+        _helper->renderAuroraSideCard(painter, QRectF(rect), palette);
     } else if (!StyleConfigData::sidePanelDrawFrame() && widget && widget->property(PropertyNames::sidePanelView).toBool()) {
         const auto outline(_helper->sidePanelOutlineColor(palette, hasFocus, opacity, mode));
         const bool reverseLayout(option->direction == Qt::RightToLeft);
@@ -6071,6 +6158,18 @@ bool Style::drawPanelItemViewItemPrimitive(const QStyleOption *option, QPainter 
             painter->restore();
             return true;
         }
+    }
+
+    // Breeze NG: a row of a compact sidebar, as Dolphin NG's: a pill, a pixel shorter than the row at either end
+    if (abstractItemView && ngCompactSide(actualWidget) && !hasCustomBackground && !qobject_cast<const QTableView *>(viewItemOption->widget)) {
+        const QRectF pill = QRectF(rect).adjusted(0, 1, 0, -1);
+        painter->save();
+        painter->setRenderHint(QPainter::Antialiasing, true);
+        painter->setPen(Qt::NoPen);
+        painter->setBrush(color);
+        painter->drawRoundedRect(pill, pill.height() / 2.0, pill.height() / 2.0);
+        painter->restore();
+        return true;
     }
 
     // render

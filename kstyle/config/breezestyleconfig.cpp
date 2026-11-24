@@ -901,7 +901,11 @@ QWidget *StyleConfig::pageWindows()
     m_branchLines = new QCheckBox(ngText("Branch lines in folder trees", "Rami negli alberi delle cartelle"), w);
     m_strongFocus = new QCheckBox(ngText("Strong highlight of the current menu item", "Evidenziazione netta della voce di menu corrente"), w);
     m_splitterProxy = new QCheckBox(ngText("Wider grab area for splitters", "Area di presa più larga per i divisori"), w);
-    for (QCheckBox *c : {m_dockFrame, m_sideFrame, m_branchLines, m_strongFocus, m_splitterProxy}) {
+    // (here, not on the Aurora page: the compact rows apply in every look)
+    m_sidebarCompact = new QCheckBox(ngText("Compact rows in the sidebars of every application", "Righe compatte nelle barre laterali di tutte le applicazioni"), w);
+    m_sidebarCompact->setToolTip(ngText("One line with a small icon, as the sidebar of Dolphin NG (which has its own): the lists of pages of settings windows, System Settings, side panels. Off: as each application has them.",
+                                            "Una riga con un'icona piccola, come la barra laterale di Dolphin NG (che ha la sua): elenchi di pagine delle finestre di impostazioni, Impostazioni di sistema, pannelli laterali. Spento: come li ha ogni applicazione."));
+    for (QCheckBox *c : {m_dockFrame, m_sideFrame, m_sidebarCompact, m_branchLines, m_strongFocus, m_splitterProxy}) {
         body->addWidget(c);
         connect(c, &QCheckBox::toggled, this, &StyleConfig::updateChanged);
     }
@@ -1034,6 +1038,7 @@ void StyleConfig::save()
     StyleConfigData::setAuroraFullSelection(m_auroraFull->isChecked());
     StyleConfigData::setAuroraCornerLights(m_auroraCorners->isChecked());
     StyleConfigData::setAccentTint(m_accentTint->isChecked());
+    StyleConfigData::setSidebarCompact(m_sidebarCompact->isChecked());
     StyleConfigData::setAuroraSecondAccent(m_auroraSecond);
     const bool blurChanged = m_blurStrength->value() != blurStrength();
     if (blurChanged) {
@@ -1192,7 +1197,7 @@ void StyleConfig::updateChanged()
         || m_auroraBody->value() != StyleConfigData::auroraBodyOpacity()
         || m_auroraSidebar->value() != (StyleConfigData::auroraSidebarOpacity() < 0 ? StyleConfigData::auroraBodyOpacity() : StyleConfigData::auroraSidebarOpacity()) || m_auroraPanel->value() != StyleConfigData::auroraPanelVeil()
         || m_auroraButton->value() != StyleConfigData::auroraButtonVeil() || m_auroraLights->value() != StyleConfigData::auroraLights()
-        || m_auroraGrain->value() != StyleConfigData::auroraGrain() || m_auroraSecond != StyleConfigData::auroraSecondAccent() || m_auroraDim->isChecked() != StyleConfigData::auroraDimInactive() || m_auroraAccentRight->isChecked() != StyleConfigData::auroraAccentRight() || m_auroraFull->isChecked() != StyleConfigData::auroraFullSelection() || m_auroraCorners->isChecked() != StyleConfigData::auroraCornerLights() || m_accentTint->isChecked() != StyleConfigData::accentTint() || (m_aurora->isChecked() && m_auroraLight->isChecked() != ngCurrentAuroraLight())
+        || m_auroraGrain->value() != StyleConfigData::auroraGrain() || m_auroraSecond != StyleConfigData::auroraSecondAccent() || m_auroraDim->isChecked() != StyleConfigData::auroraDimInactive() || m_auroraAccentRight->isChecked() != StyleConfigData::auroraAccentRight() || m_auroraFull->isChecked() != StyleConfigData::auroraFullSelection() || m_auroraCorners->isChecked() != StyleConfigData::auroraCornerLights() || m_accentTint->isChecked() != StyleConfigData::accentTint() || m_sidebarCompact->isChecked() != StyleConfigData::sidebarCompact() || (m_aurora->isChecked() && m_auroraLight->isChecked() != ngCurrentAuroraLight())
         || m_blurStrength->value() != blurStrength() || m_textShadow->currentIndex() != StyleConfigData::textShadow()
         || m_animations->isChecked() != StyleConfigData::animationsEnabled() || m_animationSpeed->value() != animationIndex()
         || m_transitions->isChecked() != StyleConfigData::stackedWidgetTransitionsEnabled() || m_mnemonics->currentIndex() != StyleConfigData::mnemonicsMode()
@@ -1234,6 +1239,7 @@ void StyleConfig::load()
     m_auroraFull->setChecked(StyleConfigData::auroraFullSelection());
     m_auroraCorners->setChecked(StyleConfigData::auroraCornerLights());
     m_accentTint->setChecked(StyleConfigData::accentTint());
+    m_sidebarCompact->setChecked(StyleConfigData::sidebarCompact());
     for (QAbstractButton *b : std::as_const(m_auroraSecondButtons)) {
         b->setChecked(b->property("colour").toString() == m_auroraSecond);
     }

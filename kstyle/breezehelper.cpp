@@ -303,6 +303,25 @@ QColor Helper::auroraVeilColor(const QPalette &palette, bool button, qreal facto
                             qMin((auroraVeil(palette, button) * (button ? 15.0 : 8.8) * factor) + more * 3.0, 0.94));
 }
 
+void Helper::renderAuroraSideCard(QPainter *painter, const QRectF &rect, const QPalette &palette) const
+{
+    // the same card as DolphinDockWidget::paintNgGlass in Dolphin NG: every application's sidebar looks like it
+    const QRectF card = rect.adjusted(6, 6, -6, -6);
+    painter->save();
+    painter->setRenderHint(QPainter::Antialiasing, true);
+    // (the panels' veil, as Dolphin NG's card: a denser one was tried beside System Settings' page, which looked as
+    // light as the card only because its window was opaque, see polish())
+    painter->setBrush(auroraVeilColor(palette, false));
+    if (isDark(palette)) {
+        painter->setPen(Qt::NoPen);
+        painter->drawRoundedRect(card, 12, 12);
+    } else {
+        painter->setPen(QPen(QColor(255, 255, 255, 140), 1)); // (frost has a bright hairline edge)
+        painter->drawRoundedRect(card.adjusted(0.5, 0.5, -0.5, -0.5), 12, 12);
+    }
+    painter->restore();
+}
+
 bool Helper::auroraFullSelection() const
 {
     return StyleConfigData::auroraFullSelection();
