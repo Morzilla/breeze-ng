@@ -70,6 +70,7 @@
 #include <QTreeView>
 #include <QWidgetAction>
 #include <QListView>
+#include <QEasingCurve>
 #include <QTextCharFormat>
 #include <QCalendarWidget>
 #include <QPlainTextEdit>
@@ -1053,6 +1054,47 @@ private:
     QVariantAnimation m_animation;
 };
 }
+
+// Breeze NG Aurora: the raised segment of a segmented tab bar glides from the old current tab to the new one
+class NgSegmentSlide : public QObject
+{
+public:
+    explicit NgSegmentSlide(QTabBar *bar)
+        : QObject(bar)
+        , m_bar(bar)
+    {
+        m_animation.setDuration(220);
+        m_animation.setEasingCurve(QEasingCurve::OutCubic);
+        QObject::connect(&m_animation, &QVariantAnimation::valueChanged, bar, [bar] {
+            bar->update();
+        });
+        m_last = bar->currentIndex() >= 0 ? QRectF(bar->tabRect(bar->currentIndex())) : QRectF();
+        QObject::connect(bar, &QTabBar::currentChanged, this, [this](int index) {
+            const QRectF to = index >= 0 ? QRectF(m_bar->tabRect(index)) : QRectF();
+            const QRectF from = running() ? m_animation.currentValue().toRectF() : m_last;
+            m_last = to;
+            if (from.isValid() && to.isValid() && StyleConfigData::animationsEnabled()) {
+                m_animation.stop();
+                m_animation.setStartValue(from);
+                m_animation.setEndValue(to);
+                m_animation.start();
+            }
+        });
+    }
+    bool running() const
+    {
+        return m_animation.state() == QAbstractAnimation::Running;
+    }
+    QRectF current() const
+    {
+        return running() ? m_animation.currentValue().toRectF() : QRectF();
+    }
+
+private:
+    QTabBar *m_bar;
+    QRectF m_last;
+    QVariantAnimation m_animation;
+};
 
 // Breeze NG: the rows of a compact sidebar stand 12 px in from the list's sides, as those of Dolphin NG's sidebar from
 // its card (the style draws their selection as a pill, see drawPanelItemViewItemPrimitive)
@@ -2547,6 +2589,18 @@ bool Style::eventFilter(QObject *object, QEvent *event)
                     bar = bar.united(tabBar->tabRect(i));
                 }
                 _helper->renderSegmentTrack(&painter, QRectF(bar), tabBar->palette());
+                // the raised segment of the current tab, here under the labels, gliding when the current tab changes
+                auto *slide = static_cast<NgSegmentSlide *>(tabBar->property("_breeze_ng_segment_slide").value<QObject *>());
+                if (!slide) {
+                    slide = new NgSegmentSlide(tabBar);
+                    tabBar->setProperty("_breeze_ng_segment_slide", QVariant::fromValue<QObject *>(slide));
+                }
+                const int current = tabBar->currentIndex();
+                if (current >= 0) {
+                    QRectF at = slide->running() ? slide->current() : QRectF(tabBar->tabRect(current));
+                    const bool first = at.left() <= bar.left() + 1, last = at.right() >= bar.right() - 1;
+                    _helper->renderSegmentTab(&painter, at, tabBar->palette(), true, first, last);
+                }
             }
         }
         return false;
@@ -6247,7 +6301,10 @@ bool Style::drawPanelItemViewItemPrimitive(const QStyleOption *option, QPainter 
 
     // Breeze NG: in a list with one selection, the selection slides from the old entry to the new one
     NgSelectionSlide *slide = nullptr;
+    // (not in the list of a combo box: a popup that follows the pointer, repainted at every step of the slide, laid
+    // its see-through rows over each other and the entries above came out lighter and lighter)
     if (auto listView = qobject_cast<const QListView *>(actualWidget); listView && listView->viewMode() == QListView::ListMode
+                                                                        && !listView->inherits("QComboBoxListView")
                                                                         && listView->selectionMode() == QAbstractItemView::SingleSelection
                                                                         && !hasCustomBackground && viewItemOption->index.isValid()) {
         slide = static_cast<NgSelectionSlide *>(listView->property("_breeze_ng_slide").value<QObject *>());
@@ -8923,10 +8980,11 @@ bool Style::drawTabBarTabShapeControl(const QStyleOption *option, QPainter *pain
             || tabOption->shape == QTabBar::TriangularSouth)) {
         // (the track is laid once for the whole bar by the tab bar's paint filter, see eventFilter; without a tab bar
         // widget, each tab lays the part over its own rectangle)
+        // (with a tab bar the track and the current segment are its paint filter's, see eventFilter)
         if (!qobject_cast<const QTabBar *>(widget)) {
             _helper->renderSegmentTrack(painter, QRectF(rect), option->palette);
+            _helper->renderSegmentTab(painter, QRectF(rect), option->palette, selected, isFirst, isLast);
         }
-        _helper->renderSegmentTab(painter, QRectF(rect), option->palette, selected, isFirst, isLast);
         return true;
     }
 
@@ -9495,10 +9553,22 @@ bool Style::drawToolButtonComplexControl(const QStyleOptionComplex *option, QPai
     const auto buttonRect(subControlRect(CC_ToolButton, option, SC_ToolButton, widget));
     const auto menuRect(subControlRect(CC_ToolButton, option, SC_ToolButtonMenu, widget));
 
+    // Breeze NG: a button with its menu beside it (a split button) is one key, its hover and press over the whole:
+    // drawn as two, button and menu part each had their frame, edge and shadow, as if they were two buttons
+    const bool oneKey = menuStyle == BreezePrivate::ToolButtonMenuArrowStyle::SubControl && !inTabBar;
+
     // frame
     if (toolButtonOption->subControls & SC_ToolButton) {
         if (!flat) {
-            copy.rect = buttonRect;
+            copy.rect = oneKey ? buttonRect.united(menuRect) : buttonRect;
+        }
+        if (oneKey && (toolButtonOption->activeSubControls & SC_ToolButtonMenu) && (toolButtonOption->state & State_Sunken)) {
+            copy.state |= State_Sunken; // (the menu part pressed: the whole key)
+        }
+        if (oneKey) {
+            // (the panel's own handling of a split button clips it short of the menu part, to join a second frame
+            // there: not wanted, the key is drawn whole)
+            copy.features &= ~QStyleOptionToolButton::MenuButtonPopup;
         }
         if (inTabBar) {
             drawTabBarPanelButtonToolPrimitive(&copy, painter, widget);
@@ -9508,9 +9578,12 @@ bool Style::drawToolButtonComplexControl(const QStyleOptionComplex *option, QPai
     }
 
     // arrow
+    copy.features = toolButtonOption->features;
     if (menuStyle == BreezePrivate::ToolButtonMenuArrowStyle::SubControl) {
         copy.rect = menuRect;
-        drawPrimitive(PE_IndicatorButtonDropDown, &copy, painter, widget);
+        if (!oneKey) {
+            drawPrimitive(PE_IndicatorButtonDropDown, &copy, painter, widget);
+        }
 
         copy.state &= ~State_MouseOver;
         copy.state &= ~State_Sunken;
