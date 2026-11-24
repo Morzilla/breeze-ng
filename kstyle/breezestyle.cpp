@@ -9288,7 +9288,7 @@ bool Style::drawGroupBoxComplexControl(const QStyleOptionComplex *option, QPaint
 
         // Aurora, the controls of 2026-11-24: the title of a section is small, uppercase, a little spaced and faint,
         // at the left of its card, so that the card holds the content and the title only names it
-        if (_helper->isAurora() && !(groupBoxOption->subControls & QStyle::SC_GroupBoxCheckBox) && !textColor.isValid()) {
+        if (_helper->isAurora() && !(groupBoxOption->subControls & QStyle::SC_GroupBoxCheckBox)) {
             QFont small = font;
             small.setPointSizeF(qMax(7.0, font.pointSizeF() - 1.5));
             small.setWeight(QFont::DemiBold);

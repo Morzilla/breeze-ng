@@ -1612,7 +1612,10 @@ void Helper::renderCheckBoxBackground(QPainter *painter,
         QColor off = alphaColor(inkColor, glass ? 0.10 : 0.18); // an empty box must still read as a box
         // (on: the accent in every look. The application's accent, not the option's palette: a Qt Quick control
         // brings a palette whose highlight can be the light sheet of a selection, and its box was barely tinted)
-        const QColor onColor = _aurora ? auroraAccent(QApplication::palette(), 1.0) : palette.color(QPalette::Highlight);
+        QColor onColor = _aurora ? auroraAccent(QApplication::palette(), 1.0) : palette.color(QPalette::Highlight);
+        if (_aurora && isDark(palette)) {
+            onColor = QColor::fromHslF(onColor.hslHueF(), onColor.hslSaturationF(), 0.50); // (the deeper accent under a white mark)
+        }
         QColor edge = glass ? alphaColor(inkColor, 0.22 * (1.0 - on)) : QColor(0, 0, 0, 0);
         if (_aurora && !isDark(palette)) {
             // Aurora on a light scheme: an empty box is frost with a fine edge, not a grey disc of ink
@@ -1807,7 +1810,10 @@ void Helper::renderRadioButtonBackground(QPainter *painter,
         QColor off = alphaColor(inkColor, glass ? 0.10 : 0.18); // an empty box must still read as a box
         // (on: the accent in every look. The application's accent, not the option's palette: a Qt Quick control
         // brings a palette whose highlight can be the light sheet of a selection, and its box was barely tinted)
-        const QColor onColor = _aurora ? auroraAccent(QApplication::palette(), 1.0) : palette.color(QPalette::Highlight);
+        QColor onColor = _aurora ? auroraAccent(QApplication::palette(), 1.0) : palette.color(QPalette::Highlight);
+        if (_aurora && isDark(palette)) {
+            onColor = QColor::fromHslF(onColor.hslHueF(), onColor.hslSaturationF(), 0.50); // (the deeper accent under a white mark)
+        }
         QColor edge = glass ? alphaColor(inkColor, 0.22 * (1.0 - on)) : QColor(0, 0, 0, 0);
         if (_aurora && !isDark(palette)) {
             // Aurora on a light scheme: an empty box is frost with a fine edge, not a grey disc of ink
