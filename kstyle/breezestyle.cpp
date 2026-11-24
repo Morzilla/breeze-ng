@@ -1070,6 +1070,13 @@ void Style::polishScrollArea(QAbstractScrollArea *scrollArea)
         if (auto *list = qobject_cast<QListView *>(scrollArea); list && scrollArea->inherits("KDEPrivate::KPageListView")
             && !list->property("_breeze_ng_rows").toBool()) {
             list->setProperty("_breeze_ng_rows", true);
+            // (what it had, put back in unpolish: another style, or the option turned off, finds the list as it was)
+            list->setProperty("_breeze_ng_rows_delegate", QVariant::fromValue(QPointer<QObject>(list->itemDelegate())));
+            list->setProperty("_breeze_ng_rows_mode", int(list->viewMode()));
+            list->setProperty("_breeze_ng_rows_wrap", list->wordWrap());
+            list->setProperty("_breeze_ng_rows_frame", int(list->frameShape()));
+            list->setProperty("_breeze_ng_rows_icon", list->iconSize());
+            list->setProperty("_breeze_ng_rows_palette", QVariant::fromValue(list->palette()));
             list->setItemDelegate(new NgSideRowDelegate(list));
             // a card on the glass under it, as the other side panels (see drawFramePrimitive)
             list->setFrameShape(QFrame::StyledPanel);
@@ -1147,6 +1154,29 @@ void Style::unpolish(QWidget *widget)
     _blurHelper->unregisterWidget(widget);
     _toolsAreaManager->unregisterWidget(widget);
 
+    if (auto *list = qobject_cast<QListView *>(widget); list && list->property("_breeze_ng_rows").toBool()) {
+        // the list of pages of a settings window as it was before the compact rows (see polishScrollArea)
+        QAbstractItemDelegate *ours = list->itemDelegate();
+        if (auto *before = qobject_cast<QAbstractItemDelegate *>(list->property("_breeze_ng_rows_delegate").value<QPointer<QObject>>().data())) {
+            list->setItemDelegate(before);
+        }
+        if (ours && ours != list->itemDelegate()) {
+            ours->deleteLater();
+        }
+        list->setViewMode(QListView::ViewMode(list->property("_breeze_ng_rows_mode").toInt()));
+        list->setWordWrap(list->property("_breeze_ng_rows_wrap").toBool());
+        list->setFrameShape(QFrame::Shape(list->property("_breeze_ng_rows_frame").toInt()));
+        list->setIconSize(list->property("_breeze_ng_rows_icon").toSize());
+        list->setPalette(list->property("_breeze_ng_rows_palette").value<QPalette>());
+        for (const char *name : {"_breeze_ng_rows", "_breeze_ng_rows_delegate", "_breeze_ng_rows_mode", "_breeze_ng_rows_wrap", "_breeze_ng_rows_frame",
+                                 "_breeze_ng_rows_icon", "_breeze_ng_rows_palette"}) {
+            list->setProperty(name, QVariant());
+        }
+    }
+    if (auto *view = qobject_cast<QAbstractItemView *>(widget); view && view->property("_breeze_ng_icon_size").isValid()) {
+        view->setIconSize(view->property("_breeze_ng_icon_size").toSize());
+        view->setProperty("_breeze_ng_icon_size", QVariant());
+    }
     if (widget->property("_breeze_ng_unfilled").toBool()) {
         widget->setAutoFillBackground(true);
         widget->setProperty("_breeze_ng_unfilled", QVariant());

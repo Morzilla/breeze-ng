@@ -101,9 +101,22 @@ bool listRowsStyled()
 // BREEZE_NG_TINTED_TEXT=0 leaves it, as in the widget style.
 void tintText(PlatformTheme *theme)
 {
+    // (an icon of a button that is on has its text colour set by checkedIcon: left to it)
+    if (theme->property("_breeze_ng_checked_icon").toBool()) {
+        return;
+    }
+    // the tinge set here before is dropped whenever the theme no longer takes it (its colour set changed to one that
+    // is not tinged, as Complementary: the dark text of a light window stayed on its dark surface)
+    auto release = [theme] {
+        if (theme->property("_breeze_ng_tinted").toBool()) {
+            theme->setCustomTextColor();
+            theme->setProperty("_breeze_ng_tinted", QVariant());
+        }
+    };
     const QPalette palette = QGuiApplication::palette();
     const QColor accent = palette.color(QPalette::Active, QPalette::Highlight);
     if (accent.hslSaturationF() < 0.15 || qEnvironmentVariable("BREEZE_NG_TINTED_TEXT") == QLatin1String("0")) {
+        release();
         return;
     }
     // the surfaces of the window's own colours only: not the dark ones of a light scheme (Complementary), not the text
@@ -121,19 +134,22 @@ void tintText(PlatformTheme *theme)
         role = QPalette::WindowText;
         break;
     default:
+        release();
         return;
     }
     // (from the palette, not from the theme's own colour: read back right after a change it was not there yet, and the
     // text came out empty. In an application of widgets the palette is the style's, already tinged: tinging is the same)
     const QColor text = palette.color(QPalette::Active, role);
     if (!text.isValid() || text.alpha() < 128 || text.hslSaturationF() > 0.35) {
-        return; // (coloured text is left as it is)
+        release(); // (coloured text is left as it is)
+        return;
     }
     QColor tinted = QColor::fromHslF(accent.hslHueF(), text.lightnessF() < 0.5 ? 0.24 : 0.10, text.lightnessF());
     tinted.setAlphaF(text.alphaF());
     if (theme->textColor() != tinted) {
         theme->setCustomTextColor(tinted);
     }
+    theme->setProperty("_breeze_ng_tinted", true);
 }
 
 // The colours that depend on the palette, worked out when they are used: the plugin is made very early (at login,

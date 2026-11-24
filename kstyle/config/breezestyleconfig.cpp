@@ -786,11 +786,6 @@ QWidget *StyleConfig::pageAurora()
                                         "Il testo tende al colore d'accento, e campi, pulsanti e pannelli delle varianti chiare ne prendono una tinta (in ogni variante di Breeze NG). Spento: come li dà lo schema di colori."));
         group->addWidget(m_accentTint);
         connect(m_accentTint, &QCheckBox::toggled, this, &StyleConfig::updateChanged);
-        m_sidebarCompact = new QCheckBox(ngText("Compact rows in the sidebars of every application", "Righe compatte nelle barre laterali di tutte le applicazioni"), m_auroraGroup);
-        m_sidebarCompact->setToolTip(ngText("One line with a small icon, as the sidebar of Dolphin NG (which has its own): the lists of pages of settings windows, System Settings, side panels. Off: as each application has them.",
-                                            "Una riga con un'icona piccola, come la barra laterale di Dolphin NG (che ha la sua): elenchi di pagine delle finestre di impostazioni, Impostazioni di sistema, pannelli laterali. Spento: come li ha ogni applicazione."));
-        group->addWidget(m_sidebarCompact);
-        connect(m_sidebarCompact, &QCheckBox::toggled, this, &StyleConfig::updateChanged);
         auto *aurora = new QFormLayout();
         m_auroraPanel = slider(0, 25, m_auroraGroup);
         m_auroraButton = slider(0, 25, m_auroraGroup);
@@ -906,7 +901,11 @@ QWidget *StyleConfig::pageWindows()
     m_branchLines = new QCheckBox(ngText("Branch lines in folder trees", "Rami negli alberi delle cartelle"), w);
     m_strongFocus = new QCheckBox(ngText("Strong highlight of the current menu item", "Evidenziazione netta della voce di menu corrente"), w);
     m_splitterProxy = new QCheckBox(ngText("Wider grab area for splitters", "Area di presa più larga per i divisori"), w);
-    for (QCheckBox *c : {m_dockFrame, m_sideFrame, m_branchLines, m_strongFocus, m_splitterProxy}) {
+    // (here, not on the Aurora page: the compact rows apply in every look)
+    m_sidebarCompact = new QCheckBox(ngText("Compact rows in the sidebars of every application", "Righe compatte nelle barre laterali di tutte le applicazioni"), w);
+    m_sidebarCompact->setToolTip(ngText("One line with a small icon, as the sidebar of Dolphin NG (which has its own): the lists of pages of settings windows, System Settings, side panels. Off: as each application has them.",
+                                            "Una riga con un'icona piccola, come la barra laterale di Dolphin NG (che ha la sua): elenchi di pagine delle finestre di impostazioni, Impostazioni di sistema, pannelli laterali. Spento: come li ha ogni applicazione."));
+    for (QCheckBox *c : {m_dockFrame, m_sideFrame, m_sidebarCompact, m_branchLines, m_strongFocus, m_splitterProxy}) {
         body->addWidget(c);
         connect(c, &QCheckBox::toggled, this, &StyleConfig::updateChanged);
     }
