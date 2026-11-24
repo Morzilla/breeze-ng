@@ -5681,9 +5681,10 @@ bool Style::drawFrameGroupBoxPrimitive(const QStyleOption *option, QPainter *pai
     auto outline(_helper->frameOutlineColor(palette));
     // Aurora, the controls of 2026-11-24: a group box is a card of the glass, a veil with a light hairline (the solid
     // mix of window and base it had made every card an opaque block on the glass)
+    painter->setClipRegion(option->rect);
     if (_helper->isAurora()) {
-        background = _helper->auroraCardColor(palette);
-        outline = _helper->auroraCardEdge(palette);
+        _helper->renderAuroraCard(painter, QRectF(option->rect), palette, _helper->frameRadius(PenWidth::Frame));
+        return true;
     }
 
     /*
@@ -5691,7 +5692,6 @@ bool Style::drawFrameGroupBoxPrimitive(const QStyleOption *option, QPainter *pai
      * (was taken out in QCommonStyle)
      */
 
-    painter->setClipRegion(option->rect);
     _helper->renderFrame(painter, option->rect, background, outline);
 
     return true;

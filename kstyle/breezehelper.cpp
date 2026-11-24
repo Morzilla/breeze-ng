@@ -304,17 +304,48 @@ QColor Helper::auroraVeilColor(const QPalette &palette, bool button, qreal facto
                             qMin((auroraVeil(palette, button) * (button ? 15.0 : 8.8) * factor) + more * 3.0, 0.94));
 }
 
-void Helper::renderAuroraSideCard(QPainter *painter, const QRectF &rect, const QPalette &palette) const
+QColor Helper::auroraCardColorAt(const QPalette &palette, qreal t) const
 {
-    // a sidebar's card, the same as every other card of the glass (group boxes): one veil and one hairline for all the
-    // panels, its density the setting "Sidebar, cards, lists"
-    const QRectF card = rect.adjusted(6, 6, -6, -6);
+    // (the card's own colour in the middle; lighter and a little denser at the top, more see-through at the bottom:
+    // a sheet lit from above, variant B of the 2026-11-24 panels mockup)
+    t = qBound(0.0, t, 1.0);
+    const QColor base = auroraCardColor(palette);
+    if (isDark(palette)) {
+        const QColor top = QColor::fromRgbF(30 / 255.0, 34 / 255.0, 52 / 255.0, qMin(1.0, base.alphaF() * 1.25));
+        const QColor bottom = QColor::fromRgbF(4 / 255.0, 5 / 255.0, 12 / 255.0, qMin(1.0, base.alphaF() * 1.4));
+        return KColorUtils::mix(top, bottom, t);
+    }
+    QColor top = base, bottom = base;
+    top.setAlphaF(qMin(1.0, base.alphaF() * 1.18));
+    bottom.setAlphaF(base.alphaF() * 0.70);
+    return KColorUtils::mix(top, bottom, t);
+}
+
+void Helper::renderAuroraCard(QPainter *painter, const QRectF &rect, const QPalette &palette, qreal radius) const
+{
     painter->save();
     painter->setRenderHint(QPainter::Antialiasing, true);
-    painter->setBrush(auroraCardColor(palette));
-    painter->setPen(QPen(auroraCardEdge(palette), 1));
-    painter->drawRoundedRect(card.adjusted(0.5, 0.5, -0.5, -0.5), frameRadius(PenWidth::Frame), frameRadius(PenWidth::Frame));
+    QLinearGradient fill(rect.topLeft(), rect.bottomLeft());
+    for (qreal t : {0.0, 0.5, 1.0}) {
+        fill.setColorAt(t, auroraCardColorAt(palette, t));
+    }
+    const QColor edge = auroraCardEdge(palette);
+    QLinearGradient rim(rect.topLeft(), rect.bottomLeft());
+    // (the top edge brighter, where the light falls)
+    rim.setColorAt(0.0, QColor(edge.red(), edge.green(), edge.blue(), qMin(255, isDark(palette) ? edge.alpha() * 2 + 12 : 240)));
+    rim.setColorAt(0.35, edge);
+    rim.setColorAt(1.0, alphaColor(edge, 0.6));
+    painter->setBrush(fill);
+    painter->setPen(QPen(QBrush(rim), 1));
+    painter->drawRoundedRect(rect.adjusted(0.5, 0.5, -0.5, -0.5), radius, radius);
     painter->restore();
+}
+
+void Helper::renderAuroraSideCard(QPainter *painter, const QRectF &rect, const QPalette &palette) const
+{
+    // a sidebar's card, the same as every other card of the glass (group boxes): one look for all the panels, its
+    // density the setting "Sidebar, cards, lists"
+    renderAuroraCard(painter, rect.adjusted(6, 6, -6, -6), palette, frameRadius(PenWidth::Frame));
 }
 
 bool Helper::auroraFullSelection() const
@@ -529,7 +560,8 @@ bool Helper::glassLayers(const QPainter *painter, QColor *base, QList<QColor> *p
         }
         if (_aurora && parent->inherits("QDockWidget") && !static_cast<const QDockWidget *>(parent)->isFloating()) {
             // the card a docked panel lays under its content (Style::eventFilterDockWidget)
-            panels->prepend(auroraCardColor(parent->palette()));
+            const qreal y = widget->mapTo(parent, QPoint(0, widget->height() / 2)).y();
+            panels->prepend(auroraCardColorAt(parent->palette(), parent->height() > 0 ? y / qreal(parent->height()) : 0.5));
             continue;
         }
         if (parent->inherits("QTabWidget") && child->inherits("QTabBar")) {
@@ -547,7 +579,13 @@ bool Helper::glassLayers(const QPainter *painter, QColor *base, QList<QColor> *p
             if (groupBox && groupBox->isFlat()) {
                 continue;
             }
-            panels->prepend(_aurora ? auroraCardColor(parent->palette()) : frameBackgroundColor(parent->palette()));
+            if (_aurora) {
+                // (the card's gradient at the height of what is cleared on it)
+                const qreal y = widget->mapTo(parent, QPoint(0, widget->height() / 2)).y();
+                panels->prepend(auroraCardColorAt(parent->palette(), parent->height() > 0 ? y / qreal(parent->height()) : 0.5));
+            } else {
+                panels->prepend(frameBackgroundColor(parent->palette()));
+            }
         }
     }
     if (widgetOut) {

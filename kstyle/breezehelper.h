@@ -179,6 +179,10 @@ public:
         return auroraVeilColor(palette, false, 1.45);
     }
     QColor auroraCardEdge(const QPalette &palette) const { return isDark(palette) ? QColor(255, 255, 255, 18) : QColor(255, 255, 255, 190); }
+    //* the card at a height \a t (0 top, 1 bottom): variant B of 2026-11-24, a vertical gradient, more light at the top
+    QColor auroraCardColorAt(const QPalette &palette, qreal t) const;
+    //* paint a card of the glass in \a rect (radius \a radius): its gradient and its edge, lighter along the top
+    void renderAuroraCard(QPainter *painter, const QRectF &rect, const QPalette &palette, qreal radius) const;
     bool auroraFullSelection() const;
 
     //* Breeze NG Aurora: the card of a sidebar on the glass, as the sidebar of Dolphin NG (6 px in from \a rect, round
