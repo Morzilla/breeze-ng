@@ -5552,8 +5552,8 @@ bool Style::drawFrameGroupBoxPrimitive(const QStyleOption *option, QPainter *pai
     // Aurora, the controls of 2026-11-24: a group box is a card of the glass, a veil with a light hairline (the solid
     // mix of window and base it had made every card an opaque block on the glass)
     if (_helper->isAurora()) {
-        background = _helper->auroraVeilColor(palette, false, 1.45); // (a little denser than the side panels' veil)
-        outline = _helper->isDark(palette) ? QColor(255, 255, 255, 20) : QColor(255, 255, 255, 190);
+        background = _helper->auroraCardColor(palette);
+        outline = _helper->auroraCardEdge(palette);
     }
 
     /*

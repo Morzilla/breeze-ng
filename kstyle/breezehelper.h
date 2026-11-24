@@ -166,6 +166,10 @@ public:
     //* Breeze NG Aurora: the accent of what is on (a slider's track, a progress bar, the primary action): the application's
     //* accent, at lightness 0.52 on a light scheme and 0.60 on a dark one
     QColor auroraFill(const QPalette &palette) const;
+    //* Breeze NG Aurora: a card on the glass (a group box, a sidebar's card): the panels' veil (the setting "Sidebar,
+    //* cards, lists"), a little denser, and its light hairline
+    QColor auroraCardColor(const QPalette &palette) const { return auroraVeilColor(palette, false, 1.45); }
+    QColor auroraCardEdge(const QPalette &palette) const { return isDark(palette) ? QColor(255, 255, 255, 20) : QColor(255, 255, 255, 190); }
     bool auroraFullSelection() const;
 
     //* Breeze NG Aurora: the card of a sidebar on the glass, as the sidebar of Dolphin NG (6 px in from \a rect, round

@@ -306,20 +306,14 @@ QColor Helper::auroraVeilColor(const QPalette &palette, bool button, qreal facto
 
 void Helper::renderAuroraSideCard(QPainter *painter, const QRectF &rect, const QPalette &palette) const
 {
-    // the same card as DolphinDockWidget::paintNgGlass in Dolphin NG: every application's sidebar looks like it
+    // a sidebar's card, the same as every other card of the glass (group boxes): one veil and one hairline for all the
+    // panels, its density the setting "Sidebar, cards, lists"
     const QRectF card = rect.adjusted(6, 6, -6, -6);
     painter->save();
     painter->setRenderHint(QPainter::Antialiasing, true);
-    // (the panels' veil, as Dolphin NG's card: a denser one was tried beside System Settings' page, which looked as
-    // light as the card only because its window was opaque, see polish())
-    painter->setBrush(auroraVeilColor(palette, false));
-    if (isDark(palette)) {
-        painter->setPen(Qt::NoPen);
-        painter->drawRoundedRect(card, 12, 12);
-    } else {
-        painter->setPen(QPen(QColor(255, 255, 255, 140), 1)); // (frost has a bright hairline edge)
-        painter->drawRoundedRect(card.adjusted(0.5, 0.5, -0.5, -0.5), 12, 12);
-    }
+    painter->setBrush(auroraCardColor(palette));
+    painter->setPen(QPen(auroraCardEdge(palette), 1));
+    painter->drawRoundedRect(card.adjusted(0.5, 0.5, -0.5, -0.5), frameRadius(PenWidth::Frame), frameRadius(PenWidth::Frame));
     painter->restore();
 }
 
@@ -533,6 +527,11 @@ bool Helper::glassLayers(const QPainter *painter, QColor *base, QList<QColor> *p
             panels->prepend(inputBackground(parent->palette()));
             continue;
         }
+        if (_aurora && parent->inherits("QDockWidget") && !static_cast<const QDockWidget *>(parent)->isFloating()) {
+            // the card a docked panel lays under its content (Style::eventFilterDockWidget)
+            panels->prepend(auroraCardColor(parent->palette()));
+            continue;
+        }
         if (parent->inherits("QTabWidget") && child->inherits("QTabBar")) {
             continue; // the tab bar is beside the panel of its tab widget, not on it
         }
@@ -548,7 +547,7 @@ bool Helper::glassLayers(const QPainter *painter, QColor *base, QList<QColor> *p
             if (groupBox && groupBox->isFlat()) {
                 continue;
             }
-            panels->prepend(_aurora ? auroraVeilColor(parent->palette(), false, 1.45) : frameBackgroundColor(parent->palette()));
+            panels->prepend(_aurora ? auroraCardColor(parent->palette()) : frameBackgroundColor(parent->palette()));
         }
     }
     if (widgetOut) {
