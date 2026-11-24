@@ -6137,11 +6137,11 @@ bool Style::drawPanelItemViewItemPrimitive(const QStyleOption *option, QPainter 
         painter->setRenderHint(QPainter::Antialiasing, true);
         painter->setPen(Qt::NoPen);
         // (the application's accent: the calendar's own highlight is clear, see polish)
-        QColor disc = _helper->auroraAccent(QApplication::palette(), 1.0);
+        QColor dayColour = _helper->auroraAccent(QApplication::palette(), 1.0);
         if (_helper->isDark(palette)) {
-            disc = QColor::fromHslF(disc.hslHueF(), disc.hslSaturationF(), 0.50); // (the deeper accent under a white number)
+            dayColour = QColor::fromHslF(dayColour.hslHueF(), dayColour.hslSaturationF(), 0.50); // (the deeper accent under a white number)
         }
-        painter->setBrush(selected ? disc : _helper->auroraVeilColor(palette, false));
+        painter->setBrush(selected ? dayColour : _helper->auroraVeilColor(palette, false));
         painter->drawEllipse(disc);
         painter->restore();
         return true;
@@ -8589,7 +8589,9 @@ bool Style::drawTabBarTabLabelControl(const QStyleOption *option, QPainter *pain
             return drawTabBarTabLabelControl(&copy, painter, widget);
         }
     }
-    if (!segment && _helper->isAurora() && (_helper->auroraFullSelection() || !_helper->isDark(option->palette)) && (option->state & State_Selected) && option->palette.color(QPalette::ButtonText) != _helper->auroraSelectionText(option->palette)) {
+    // (nor the current tab of a document bar: the top of its page, its label the page's text)
+    const bool documentTab = _helper->isAurora() && segmentTab && segmentTab->documentMode && !(widget && widget->property("_breeze_ng_pill_tabs").toBool());
+    if (!segment && !documentTab && _helper->isAurora() && (_helper->auroraFullSelection() || !_helper->isDark(option->palette)) && (option->state & State_Selected) && option->palette.color(QPalette::ButtonText) != _helper->auroraSelectionText(option->palette)) {
         if (const auto original = qstyleoption_cast<const QStyleOptionTab *>(option)) {
             QStyleOptionTab copy(*original);
             const QColor onSelection = _helper->auroraSelectionText(option->palette);
@@ -9283,6 +9285,23 @@ bool Style::drawGroupBoxComplexControl(const QStyleOptionComplex *option, QPaint
         int alignment = int(groupBoxOption->textAlignment);
         if (!styleHint(QStyle::SH_UnderlineShortcut, option, widget))
             alignment |= Qt::TextHideMnemonic;
+
+        // Aurora, the controls of 2026-11-24: the title of a section is small, uppercase, a little spaced and faint,
+        // at the left of its card, so that the card holds the content and the title only names it
+        if (_helper->isAurora() && !(groupBoxOption->subControls & QStyle::SC_GroupBoxCheckBox) && !textColor.isValid()) {
+            QFont small = font;
+            small.setPointSizeF(qMax(7.0, font.pointSizeF() - 1.5));
+            small.setWeight(QFont::DemiBold);
+            small.setLetterSpacing(QFont::PercentageSpacing, 106);
+            small.setCapitalization(QFont::AllUppercase);
+            painter->setFont(small);
+            QColor faint = groupBoxOption->palette.color(QPalette::WindowText);
+            faint.setAlphaF(0.55);
+            painter->setPen(faint);
+            const QRect left(groupBoxOption->rect.left() + 14, textRect.top(), groupBoxOption->rect.width() - 28, textRect.height());
+            painter->drawText(left, Qt::AlignLeft | Qt::AlignVCenter | Qt::TextHideMnemonic, groupBoxOption->text);
+            return true;
+        }
 
         drawItemText(painter,
                      textRect,

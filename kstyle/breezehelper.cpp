@@ -1618,6 +1618,10 @@ void Helper::renderCheckBoxBackground(QPainter *painter,
             // Aurora on a light scheme: an empty box is frost with a fine edge, not a grey disc of ink
             off = QColor(255, 255, 255, 215);
             edge = alphaColor(inkColor, 0.26 * (1.0 - on));
+        } else if (_aurora) {
+            // and on a dark one a faint slot with a light edge (a grey disc read as switched off and disabled)
+            off = QColor(255, 255, 255, 18);
+            edge = QColor::fromRgbF(1, 1, 1, 0.30 * (1.0 - on));
         }
         QColor fill = KColorUtils::mix(off, onColor, on);
         if (neutalHighlight) {
@@ -1809,6 +1813,10 @@ void Helper::renderRadioButtonBackground(QPainter *painter,
             // Aurora on a light scheme: an empty box is frost with a fine edge, not a grey disc of ink
             off = QColor(255, 255, 255, 215);
             edge = alphaColor(inkColor, 0.26 * (1.0 - on));
+        } else if (_aurora) {
+            // and on a dark one a faint slot with a light edge (a grey disc read as switched off and disabled)
+            off = QColor(255, 255, 255, 18);
+            edge = QColor::fromRgbF(1, 1, 1, 0.30 * (1.0 - on));
         }
         QColor fill = KColorUtils::mix(off, onColor, on);
         if (neutalHighlight) {
@@ -1907,7 +1915,8 @@ void Helper::renderRadioButton(QPainter *painter,
     // narrower in height than in width and half a pixel below the ring's centre.
     painter->setRenderHint(QPainter::Antialiasing, true);
 
-    const int radius = (std::min(frameRect.width(), frameRect.height()) - 12) / 2;
+    // (Aurora: a larger white centre, a ring of the accent round it, as the mockup of 2026-11-24)
+    const qreal radius = _aurora ? (std::min(frameRect.width(), frameRect.height()) - 10) / 2.0 : (std::min(frameRect.width(), frameRect.height()) - 12) / 2;
     const QPointF center = frameRect.center();
 
     // mark
@@ -2329,6 +2338,15 @@ void Helper::renderTabBarTab(QPainter *painter,
     QColor bgBrush;
 
 
+    // Aurora, the controls of 2026-11-24: the current tab of a document bar is the top of the page it opens on, a
+    // tongue in the page's field colour running into it; the others are only their labels (below)
+    if (_aurora && pillBar && !pillsOnly && selected && (north || south)) {
+        QRectF tongue = frameRect.adjusted(1, north ? 3 : -4, -1, north ? 4 : -3);
+        painter->setPen(Qt::NoPen);
+        painter->setBrush(inputBackground(palette));
+        painter->drawPath(roundedPath(tongue, north ? CornersTop : CornersBottom, 9));
+        return;
+    }
     if ((pillBar || pillsOnly) && (!selected || _aurora || pillsOnly)) {
         // Breeze NG: a tab at rest is a faint pill, a little brighter under the pointer
         // (Aurora: the current one too, brighter: no tongue in the opaque colour of the page, the page is glass)
