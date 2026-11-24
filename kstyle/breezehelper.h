@@ -145,8 +145,9 @@ public:
     QColor tabPanelColor(const QPalette &palette) const
     {
         if (_aurora) {
-            // Aurora: a veil, not a solid panel: the lights behind the window show through the tab pages too
-            return auroraVeilColor(palette, false);
+            // Aurora: a veil, not a solid panel: the lights behind the window show through the tab pages too (a card
+            // as every other: on a dark scheme darker than the window)
+            return isDark(palette) ? auroraCardColor(palette) : auroraVeilColor(palette, false);
         }
         return KColorUtils::mix(palette.color(QPalette::Window), ink(palette), isDark(palette) ? 0.08 : 0.05);
     }
@@ -168,8 +169,16 @@ public:
     QColor auroraFill(const QPalette &palette) const;
     //* Breeze NG Aurora: a card on the glass (a group box, a sidebar's card): the panels' veil (the setting "Sidebar,
     //* cards, lists"), a little denser, and its light hairline
-    QColor auroraCardColor(const QPalette &palette) const { return auroraVeilColor(palette, false, 1.45); }
-    QColor auroraCardEdge(const QPalette &palette) const { return isDark(palette) ? QColor(255, 255, 255, 20) : QColor(255, 255, 255, 190); }
+    //* (on a dark scheme a card is darker than the window, set into the glass: a light veil there was a milky grey under
+    //* the light keys; the density follows the same setting, 7 % giving about the 24 % of the 2026-11-24 mockup)
+    QColor auroraCardColor(const QPalette &palette) const
+    {
+        if (isDark(palette)) {
+            return QColor::fromRgbF(6 / 255.0, 8 / 255.0, 18 / 255.0, qBound(0.0, auroraVeil(palette, false) * 3.4, 0.6));
+        }
+        return auroraVeilColor(palette, false, 1.45);
+    }
+    QColor auroraCardEdge(const QPalette &palette) const { return isDark(palette) ? QColor(255, 255, 255, 18) : QColor(255, 255, 255, 190); }
     bool auroraFullSelection() const;
 
     //* Breeze NG Aurora: the card of a sidebar on the glass, as the sidebar of Dolphin NG (6 px in from \a rect, round
