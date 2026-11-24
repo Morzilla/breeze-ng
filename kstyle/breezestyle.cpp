@@ -70,6 +70,7 @@
 #include <QTreeView>
 #include <QWidgetAction>
 #include <QListView>
+#include <cmath>
 #include <QEasingCurve>
 #include <QTextCharFormat>
 #include <QCalendarWidget>
@@ -3056,6 +3057,9 @@ bool Style::eventFilterNgPopup(QWidget *popup, QEvent *event)
         QColor outline;
         const QColor sheet = _helper->menuSheet(popup->palette(), _helper->hasAlphaChannel(popup), &outline, true);
         button->setProperty(joinedProperty, buttonSide);
+        // (a new opening: a release still waiting for the last menu's fade must not let go of this one)
+        button->setProperty("_breeze_ng_join_round", button->property("_breeze_ng_join_round").toInt() + 1);
+        button->setProperty("_breeze_ng_joined_fade", QVariant());
         button->setProperty("_breeze_ng_joined_bg", sheet);
         button->setProperty("_breeze_ng_joined_edge", outline);
         button->update();
@@ -3070,16 +3074,54 @@ bool Style::eventFilterNgPopup(QWidget *popup, QEvent *event)
         const QVariant joins = popup->property("_breeze_ng_joins");
         if (joins.isValid()) {
             if (QWidget *button = joins.value<QPointer<QWidget>>()) {
-                button->setProperty(joinedProperty, QVariant());
-                button->setProperty("_breeze_ng_joined_bg", QVariant());
-                button->setProperty("_breeze_ng_joined_edge", QVariant());
-                button->setProperty("_breeze_ng_joined_item", QVariant());
-                // while the popup was open the button counted as pressed; drop that at once, or the hover tone
-                // would fade out over the button as if the pointer had just left it
-                _animations->widgetStateEngine().snap(button, AnimationHover, false);
-                _animations->widgetStateEngine().snap(button, AnimationFocus, false);
-                _animations->widgetStateEngine().snap(button, AnimationPressed, false);
-                button->update();
+                // the button lets go of the menu when the menu is gone: KWin fades a closing popup out (its "Fading
+                // popups", 600 ms at the normal speed), and a button let go at once showed the menu fading with its
+                // corner cut, joined to nothing. A new opening meanwhile keeps the button joined (the counter)
+                const int round = button->property("_breeze_ng_join_round").toInt() + 1;
+                button->setProperty("_breeze_ng_join_round", round);
+                const qreal factor = KSharedConfig::openConfig(QStringLiteral("kdeglobals"))->group(QStringLiteral("KDE")).readEntry("AnimationDurationFactor", 1.0);
+                const int fadeOut = StyleConfigData::animationsEnabled() ? qBound(0, qRound(600 * factor), 1500) : 0;
+                QPointer<QWidget> guard(button);
+                auto release = [this, guard, round] {
+                    QWidget *button = guard.data();
+                    if (!button || button->property("_breeze_ng_join_round").toInt() != round) {
+                        return;
+                    }
+                    button->setProperty(joinedProperty, QVariant());
+                    button->setProperty("_breeze_ng_joined_bg", QVariant());
+                    button->setProperty("_breeze_ng_joined_edge", QVariant());
+                    button->setProperty("_breeze_ng_joined_item", QVariant());
+                    // while the popup was open the button counted as pressed; drop that at once, or the hover tone
+                    // would fade out over the button as if the pointer had just left it
+                    _animations->widgetStateEngine().snap(button, AnimationHover, false);
+                    _animations->widgetStateEngine().snap(button, AnimationFocus, false);
+                    _animations->widgetStateEngine().snap(button, AnimationPressed, false);
+                    button->update();
+                };
+                if (fadeOut > 0) {
+                    // the joined shape fades as the menu does: opacity (1 - t)^4, KWin's OutQuart
+                    auto *fade = new QVariantAnimation(button);
+                    fade->setDuration(fadeOut);
+                    fade->setStartValue(0.0);
+                    fade->setEndValue(1.0);
+                    QObject::connect(fade, &QVariantAnimation::valueChanged, button, [guard, round](const QVariant &value) {
+                        if (!guard || guard->property("_breeze_ng_join_round").toInt() != round) {
+                            return;
+                        }
+                        const qreal t = value.toReal();
+                        guard->setProperty("_breeze_ng_joined_fade", std::pow(1.0 - t, 4.0));
+                        guard->update();
+                    });
+                    QObject::connect(fade, &QVariantAnimation::finished, button, [release, guard] {
+                        if (guard) {
+                            guard->setProperty("_breeze_ng_joined_fade", QVariant());
+                        }
+                        release();
+                    });
+                    fade->start(QAbstractAnimation::DeleteWhenStopped);
+                } else {
+                    release();
+                }
             }
             popup->setProperty("_breeze_ng_joins", QVariant());
             popup->setProperty("_breeze_ng_join_span", QVariant());

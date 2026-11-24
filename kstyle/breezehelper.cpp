@@ -1337,6 +1337,25 @@ void Helper::renderNgButtonFrame(QPainter *painter,
                                  qreal bgAnimation,
                                  qreal penAnimation) const
 {
+    // a menu closing: KWin fades it out (OutQuart), the button lets go of it at the same pace. The button as it is
+    // without the menu, then its joined shape over it at the menu's opacity (Style::eventFilterNgMenu sets it)
+    if (!_ngInJoinFade && painter->device() && painter->device()->devType() == QInternal::Widget) {
+        const QWidget *device = static_cast<const QWidget *>(painter->device());
+        const QVariant fade = device->property("_breeze_ng_joined_fade");
+        if (fade.isValid() && device->property("_breeze_ng_joined").isValid()) {
+            _ngInJoinFade = true;
+            _ngIgnoreJoined = true;
+            renderNgButtonFrame(painter, rect, palette, stateProperties, bgAnimation, penAnimation);
+            _ngIgnoreJoined = false;
+            painter->save();
+            painter->setOpacity(painter->opacity() * qBound(0.0, fade.toReal(), 1.0));
+            renderNgButtonFrame(painter, rect, palette, stateProperties, bgAnimation, penAnimation);
+            painter->restore();
+            _ngInJoinFade = false;
+            return;
+        }
+    }
+
     const bool enabled = stateProperties.value("enabled", true);
     const bool visualFocus = stateProperties.value("visualFocus");
     const bool hovered = stateProperties.value("hovered") && enabled;
@@ -1422,7 +1441,9 @@ void Helper::renderNgButtonFrame(QPainter *painter,
         edge = KColorUtils::mix(edge, alphaColor(inkColor, 0.22), penAnimation);
     }
 
-    clearUnder(painter, rect); // Breeze NG Glass: a clean sheet first (even when nothing follows: the old veil goes)
+    if (!(_ngInJoinFade && !_ngIgnoreJoined)) { // (not over the first of the two paints of a fading join)
+        clearUnder(painter, rect); // Breeze NG Glass: a clean sheet first (even when nothing follows: the old veil goes)
+    }
     if (bg.alpha() == 0 && edge.alpha() == 0) {
         if (visualFocus) {
             renderNgGlow(painter, rect, focusColor(palette), 1.0, roundButton ? std::max(rect.width(), rect.height()) / 2 : frameRadius(PenWidth::Frame));
@@ -1442,7 +1463,7 @@ void Helper::renderNgButtonFrame(QPainter *painter,
     QRectF widgetRect;
     if (painter->device() && painter->device()->devType() == QInternal::Widget) {
         const QWidget *device = static_cast<const QWidget *>(painter->device());
-        joined = device->property("_breeze_ng_joined").toString();
+        joined = _ngIgnoreJoined ? QString() : device->property("_breeze_ng_joined").toString();
         joinedBg = device->property("_breeze_ng_joined_bg").value<QColor>();
         joinedEdge = device->property("_breeze_ng_joined_edge").value<QColor>();
         widgetRect = device->rect();
@@ -1472,7 +1493,9 @@ void Helper::renderNgButtonFrame(QPainter *painter,
         painter->save();
         painter->setPen(Qt::NoPen);
         painter->setBrush(dark ? QColor(0, 0, 0, 45) : alphaColor(inkColor, defaultButton ? 0.16 : 0.08));
-        painter->drawPath(path.translated(0, 1));
+        // (only the sliver that shows below the key: the key's sheet is see-through, and a whole shadow under it
+        // darkened all of it but its top row, a key pressed in instead of raised)
+        painter->drawPath(path.translated(0, 1).subtracted(path));
         painter->restore();
     }
     if (rims && !flat) {
@@ -1485,7 +1508,9 @@ void Helper::renderNgButtonFrame(QPainter *painter,
         painter->setBrush(bg);
     }
     painter->setPen(edge.alpha() > 0 ? QPen(edge, PenWidth::Frame) : QPen(Qt::NoPen));
-    if (_aurora && (joined == QLatin1String("bottom") || joined == QLatin1String("top"))) {
+    // (while the join fades, over the button as it is without it: a plain paint at the fade's opacity. The menu's own
+    // fill starts from nothing, a hole down to the wallpaper under a partial opacity)
+    if (_aurora && !_ngInJoinFade && (joined == QLatin1String("bottom") || joined == QLatin1String("top"))) {
         joinedFill(painter, path, bg, painter->pen()); // the menu's see-through sheet, from nothing
     } else {
         painter->drawPath(path);

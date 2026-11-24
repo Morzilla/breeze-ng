@@ -530,6 +530,8 @@ private:
     //@}
 
     mutable bool _cachedAutoValid = false;
+    mutable bool _ngInJoinFade = false; // Breeze NG: inside the two paints of a fading join (no third)
+    mutable bool _ngIgnoreJoined = false; // Breeze NG: paint a button as not joined to its menu (the fade of a closing menu)
 
     qreal _contrastBias;
 
