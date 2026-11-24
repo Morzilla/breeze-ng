@@ -70,6 +70,7 @@
 #include <QTreeView>
 #include <QWidgetAction>
 #include <QListView>
+#include <QPlainTextEdit>
 #include <QStyledItemDelegate>
 #include <QVariantAnimation>
 #include <QPersistentModelIndex>
@@ -510,7 +511,14 @@ void Style::polish(QWidget *widget)
     } else if (widget->parent() && widget->parent()->inherits("QComboBoxListView")) {
         widget->setAutoFillBackground(false);
 
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+    // (Qt 6 only: there the calendar's delegate asks the style for each cell's panel, where the disc is drawn. Qt 5's
+    // paints the cell itself: with this palette its chosen day would be white on white, no mark)
     } else if ((widget->objectName() == QLatin1String("qt_calendar_calendarview") || widget->inherits("QCalendarWidget")) && _helper->isAurora()) {
+        if (!widget->property("_breeze_ng_calendar_palette").isValid()) {
+            widget->setProperty("_breeze_ng_calendar_palette", QVariant::fromValue(widget->palette()));
+            widget->setProperty("_breeze_ng_calendar_own", widget->testAttribute(Qt::WA_SetPalette));
+        }
         // (the calendar's model takes the chosen day's colours from the calendar widget's palette, not its view's)
         // the chosen day is a disc of the full accent (drawPanelItemViewItemPrimitive): its number white. The
         // calendar's own delegate fills the whole cell with the highlight first: the cell's own ground, the disc is ours
@@ -520,6 +528,16 @@ void Style::polish(QWidget *widget)
             // (the cell's own ground, not a clear colour: clear, the chosen cell was a hole in the calendar's ground
             // onto the glass, a square around the disc)
             palette.setColor(group, QPalette::Highlight, palette.color(group, QPalette::Base));
+        }
+        widget->setPalette(palette);
+#endif
+
+    } else if (_helper->isGlass() && (qobject_cast<QLineEdit *>(widget) || qobject_cast<QTextEdit *>(widget) || qobject_cast<QPlainTextEdit *>(widget))) {
+        // Breeze NG Glass: text selected in a field or an editor sits on the scheme's full accent (Glass gives a
+        // selection the normal text colour, made for the light sheet of the views): white on it
+        QPalette palette = widget->palette();
+        for (QPalette::ColorGroup group : {QPalette::Active, QPalette::Inactive}) {
+            palette.setColor(group, QPalette::HighlightedText, QColor(255, 255, 255));
         }
         widget->setPalette(palette);
 
@@ -1082,6 +1100,26 @@ void Style::polishScrollArea(QAbstractScrollArea *scrollArea)
             scrollArea->setAutoFillBackground(false); // (the list of pages of a settings dialog fills itself, not its viewport)
             scrollArea->setProperty("_breeze_ng_unfilled", true);
         }
+        // a list in a docked panel (Places): its rows stand in from the sides, inside the card the dock lays under it
+        // (eventFilterDockWidget), as Dolphin NG's sidebar. Only the view's own default delegate
+        if (auto *list = qobject_cast<QListView *>(scrollArea); list && !list->property("_breeze_ng_rows").toBool() && list->itemDelegate()
+            && list->itemDelegate()->parent() == list && QByteArray(list->itemDelegate()->metaObject()->className()) == "QStyledItemDelegate"
+            && !scrollArea->inherits("KDEPrivate::KPageListView")) {
+            bool inDock = false;
+            for (const QWidget *up = scrollArea->parentWidget(); up && !inDock; up = up->parentWidget()) {
+                inDock = qobject_cast<const QDockWidget *>(up) != nullptr;
+            }
+            if (inDock) {
+                list->setProperty("_breeze_ng_rows", true);
+                list->setProperty("_breeze_ng_rows_delegate", QVariant::fromValue(QPointer<QObject>(list->itemDelegate())));
+                list->setProperty("_breeze_ng_rows_mode", int(list->viewMode()));
+                list->setProperty("_breeze_ng_rows_wrap", list->wordWrap());
+                list->setProperty("_breeze_ng_rows_frame", int(list->frameShape()));
+                list->setProperty("_breeze_ng_rows_icon", list->iconSize());
+                list->setProperty("_breeze_ng_rows_palette", QVariant::fromValue(list->palette()));
+                list->setItemDelegate(new NgSideRowDelegate(list));
+            }
+        }
     }
 
     // Breeze NG: a sidebar with compact rows takes small icons (the lists of pages of settings dialogs had 32 px ones)
@@ -1180,6 +1218,17 @@ void Style::unpolish(QWidget *widget)
     _blurHelper->unregisterWidget(widget);
     _toolsAreaManager->unregisterWidget(widget);
 
+    if (widget->property("_breeze_ng_calendar_palette").isValid()) {
+        // the calendar's palette as it was before the chosen day became a disc (see polish)
+        if (widget->property("_breeze_ng_calendar_own").toBool()) {
+            widget->setPalette(widget->property("_breeze_ng_calendar_palette").value<QPalette>());
+        } else {
+            widget->setPalette(QPalette());
+            widget->setAttribute(Qt::WA_SetPalette, false);
+        }
+        widget->setProperty("_breeze_ng_calendar_palette", QVariant());
+        widget->setProperty("_breeze_ng_calendar_own", QVariant());
+    }
     if (auto *list = qobject_cast<QListView *>(widget); list && list->property("_breeze_ng_rows").toBool()) {
         // the list of pages of a settings window as it was before the compact rows (see polishScrollArea)
         QAbstractItemDelegate *ours = list->itemDelegate();
@@ -2450,14 +2499,20 @@ bool Style::eventFilter(QObject *object, QEvent *event)
     if (auto tabBar = qobject_cast<QTabBar *>(object)) {
         // Breeze NG Glass: a tab bar in a translucent window is not cleared between paints, so the old tongue and
         // the labels would pile up when the current tab changes. Lay a fresh sheet first.
-        if (event->type() == QEvent::Paint && tabBar->window() && tabBar->window()->property("_breeze_ng_glass").toBool()) {
+        const bool glassBar = tabBar->window() && tabBar->window()->property("_breeze_ng_glass").toBool();
+        const bool segmented = _helper->isAurora() && !tabBar->documentMode() && tabBar->count() > 0 && !tabBar->property("_breeze_ng_pill_tabs").toBool()
+            && (tabBar->shape() == QTabBar::RoundedNorth || tabBar->shape() == QTabBar::RoundedSouth || tabBar->shape() == QTabBar::TriangularNorth
+                || tabBar->shape() == QTabBar::TriangularSouth);
+        if (event->type() == QEvent::Paint && (glassBar || segmented)) {
             QPainter painter(tabBar);
             painter.setClipRegion(static_cast<QPaintEvent *>(event)->region());
-            _helper->clearUnder(&painter, tabBar->rect());
+            if (glassBar) {
+                _helper->clearUnder(&painter, tabBar->rect());
+            }
             // Aurora, the controls of 2026-11-24: the track of a segmented control, once across all the tabs, before
-            // they paint (the tabs draw only the raised segment of the current one, see drawTabBarTabShapeControl)
-            if (_helper->isAurora() && !tabBar->documentMode() && tabBar->count() > 0 && !tabBar->property("_breeze_ng_pill_tabs").toBool()
-                && (tabBar->shape() == QTabBar::RoundedNorth || tabBar->shape() == QTabBar::RoundedSouth)) {
+            // they paint (the tabs draw only the raised segment of the current one, see drawTabBarTabShapeControl),
+            // in any window, opaque or glass
+            if (segmented) {
                 QRect bar = tabBar->tabRect(0);
                 for (int i = 1; i < tabBar->count(); ++i) {
                     bar = bar.united(tabBar->tabRect(i));
@@ -3078,6 +3133,11 @@ bool Style::eventFilterDockWidget(QDockWidget *dockWidget, QEvent *event)
             _helper->renderAuroraLights(&painter, QRectF(dockWidget->mapFrom(dockWidget->window(), QPoint(0, 0)), dockWidget->window()->size()), dockWidget->palette(), dockWidget->isActiveWindow());
         }
         painter.setCompositionMode(QPainter::CompositionMode_SourceOver);
+        // Aurora, the controls of 2026-11-24: the content of a docked panel (Places, a sidebar) stands on a card, a
+        // different tone from the window, as Dolphin NG's sidebar (it stood on the bare glass)
+        if (_helper->isAurora() && dockWidget->widget() && dockWidget->widget()->isVisible() && !dockWidget->widget()->inherits("KFilePlacesView")) {
+            _helper->renderAuroraSideCard(&painter, QRectF(dockWidget->widget()->geometry()).adjusted(-2, -2, 2, 2), dockWidget->palette());
+        }
         _helper->cutCorners(&painter, dockWidget); // (a window that rounds its own corners: the dock reaches into one)
         return false;
     }
@@ -5150,8 +5210,10 @@ bool Style::drawFramePrimitive(const QStyleOption *option, QPainter *painter, co
     }
 
     // render
-    if (_helper->isAurora() && widget && widget->property(PropertyNames::sidePanelView).toBool() && widget->property("_breeze_ng_veil").toBool()
-        && widget->window()->property("_breeze_ng_glass").toBool()) {
+    // (any side panel of a glass window: the veil mark is set only when the panel filled itself, and a dock's list that
+    // did not stood on the bare glass, the same as the window)
+    if (_helper->isAurora() && widget && widget->property(PropertyNames::sidePanelView).toBool() && widget->window()->property("_breeze_ng_glass").toBool()
+        && !widget->inherits("KFilePlacesView")) {
         // Aurora: a side panel is a card on the glass, as the sidebar of Dolphin NG
         _helper->renderAuroraSideCard(painter, QRectF(rect), palette);
     } else if (!StyleConfigData::sidePanelDrawFrame() && widget && widget->property(PropertyNames::sidePanelView).toBool()) {
@@ -5485,8 +5547,14 @@ bool Style::drawFrameGroupBoxPrimitive(const QStyleOption *option, QPainter *pai
 
     // normal frame
     const auto &palette(option->palette);
-    const auto background(_helper->frameBackgroundColor(palette));
-    const auto outline(_helper->frameOutlineColor(palette));
+    auto background(_helper->frameBackgroundColor(palette));
+    auto outline(_helper->frameOutlineColor(palette));
+    // Aurora, the controls of 2026-11-24: a group box is a card of the glass, a veil with a light hairline (the solid
+    // mix of window and base it had made every card an opaque block on the glass)
+    if (_helper->isAurora()) {
+        background = _helper->auroraVeilColor(palette, false, 1.45); // (a little denser than the side panels' veil)
+        outline = _helper->isDark(palette) ? QColor(255, 255, 255, 20) : QColor(255, 255, 255, 190);
+    }
 
     /*
      * need to reset painter's clip region in order to paint behind textbox label
@@ -6139,7 +6207,7 @@ bool Style::drawPanelItemViewItemPrimitive(const QStyleOption *option, QPainter 
         // (the application's accent: the calendar's own highlight is clear, see polish)
         QColor dayColour = _helper->auroraAccent(QApplication::palette(), 1.0);
         if (_helper->isDark(palette)) {
-            dayColour = QColor::fromHslF(dayColour.hslHueF(), dayColour.hslSaturationF(), 0.50); // (the deeper accent under a white number)
+            dayColour = QColor::fromHslF(dayColour.hslHueF(), dayColour.hslSaturationF(), 0.60); // (the deeper accent under a white number)
         }
         painter->setBrush(selected ? dayColour : _helper->auroraVeilColor(palette, false));
         painter->drawEllipse(disc);
@@ -7815,6 +7883,9 @@ bool Style::drawProgressBarContentsControl(const QStyleOption *option, QPainter 
         }
 
         auto contentsColor(option->state.testFlag(QStyle::State_Selected) ? palette.color(QPalette::HighlightedText) : palette.color(HighlightColor));
+        if (_helper->isAurora() && !option->state.testFlag(QStyle::State_Selected) && option->state.testFlag(QStyle::State_Enabled)) {
+            contentsColor = _helper->auroraFill(palette); // (as a slider's track)
+        }
 
         _helper->renderProgressBarGroove(painter, rect, contentsColor, palette.color(QPalette::Window));
         painter->setClipRegion(oldClipRegion);
@@ -9741,7 +9812,10 @@ bool Style::drawSliderComplexControl(const QStyleOptionComplex *option, QPainter
             const bool upsideDown(sliderOption->upsideDown);
 
             // highlight color
-            const auto &highlight = hasHighlightNeutral(widget, option, mouseOver, hasFocus) ? _helper->neutralText(palette) : palette.color(HighlightColor);
+            QColor highlight = hasHighlightNeutral(widget, option, mouseOver, hasFocus) ? _helper->neutralText(palette) : palette.color(HighlightColor);
+            if (_helper->isAurora() && !hasHighlightNeutral(widget, option, mouseOver, hasFocus) && enabled) {
+                highlight = _helper->auroraFill(palette); // (the accent of the mockup, light enough on a dark scheme)
+            }
 
             if (sliderOption->orientation == Qt::Horizontal) {
                 auto leftRect(grooveRect);

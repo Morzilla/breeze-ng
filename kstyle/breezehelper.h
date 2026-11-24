@@ -163,6 +163,9 @@ public:
     QColor auroraSelection(const QPalette &palette, qreal more = 0.0) const;
     //* the colour of text and marks on auroraSelection()
     QColor auroraSelectionText(const QPalette &palette) const;
+    //* Breeze NG Aurora: the accent of what is on (a slider's track, a progress bar, the primary action): the application's
+    //* accent, at lightness 0.52 on a light scheme and 0.60 on a dark one
+    QColor auroraFill(const QPalette &palette) const;
     bool auroraFullSelection() const;
 
     //* Breeze NG Aurora: the card of a sidebar on the glass, as the sidebar of Dolphin NG (6 px in from \a rect, round

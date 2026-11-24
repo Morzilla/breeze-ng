@@ -21,6 +21,7 @@
 #endif
 
 #include <QApplication>
+#include <QGroupBox>
 #include <QCursor>
 #include <cmath>
 #include <QDockWidget>
@@ -346,6 +347,12 @@ QColor Helper::auroraSelection(const QPalette &palette, qreal more) const
     return QColor::fromRgbF((w + accent.redF() * a) / alpha, (w + accent.greenF() * a) / alpha, (w + accent.blueF() * a) / alpha, alpha);
 }
 
+QColor Helper::auroraFill(const QPalette &palette) const
+{
+    const QColor accent = auroraAccent(QApplication::palette(), 1.0);
+    return QColor::fromHslF(accent.hslHueF(), accent.hslSaturationF(), isDark(palette) ? 0.60 : 0.52);
+}
+
 QColor Helper::auroraSelectionText(const QPalette &palette) const
 {
     if (auroraFullSelection()) {
@@ -536,7 +543,12 @@ bool Helper::glassLayers(const QPainter *painter, QColor *base, QList<QColor> *p
                 panels->prepend(tabPanelColor(parent->palette()));
             }
         } else if (parent->inherits("QGroupBox")) {
-            panels->prepend(frameBackgroundColor(parent->palette()));
+            // (Aurora: the card's veil, as Style::drawFrameGroupBoxPrimitive lays it; a flat group box lays none)
+            const auto groupBox = qobject_cast<const QGroupBox *>(parent);
+            if (groupBox && groupBox->isFlat()) {
+                continue;
+            }
+            panels->prepend(_aurora ? auroraVeilColor(parent->palette(), false, 1.45) : frameBackgroundColor(parent->palette()));
         }
     }
     if (widgetOut) {
@@ -1362,7 +1374,7 @@ void Helper::renderNgButtonFrame(QPainter *painter,
         QColor accent = auroraAccent(palette, 1.0);
         if (dark) {
             // (the dark scheme's accent is a light one, made for lights and text: under a white label, the deeper one)
-            accent = QColor::fromHslF(accent.hslHueF(), accent.hslSaturationF(), 0.50);
+            accent = QColor::fromHslF(accent.hslHueF(), accent.hslSaturationF(), 0.60);
         }
         const qreal lift = (penAnimation != AnimationData::OpacityInvalid ? penAnimation : hovered ? 1.0 : 0.0);
         const qreal press = (bgAnimation != AnimationData::OpacityInvalid ? bgAnimation : down ? 1.0 : 0.0);
@@ -1372,7 +1384,7 @@ void Helper::renderNgButtonFrame(QPainter *painter,
         const qreal lift = (penAnimation != AnimationData::OpacityInvalid ? penAnimation : hovered ? 1.0 : 0.0);
         const qreal press = (bgAnimation != AnimationData::OpacityInvalid ? bgAnimation : down ? 1.0 : 0.0);
         if (dark) {
-            bg = QColor::fromRgbF(1, 1, 1, 0.10 + 0.05 * lift + 0.08 * press);
+            bg = QColor::fromRgbF(1, 1, 1, 0.13 + 0.05 * lift + 0.08 * press);
         } else {
             bg = auroraVeilColor(palette, true);
             bg.setAlphaF(qBound(0.0, 0.84 + 0.10 * lift - 0.10 * press, 1.0));
@@ -1390,7 +1402,7 @@ void Helper::renderNgButtonFrame(QPainter *painter,
         edge = alphaColor(inkColor, checked ? 0.26 : (hovered ? 0.22 : 0.14));
     }
     if (key && !defaultButton) {
-        edge = dark ? QColor::fromRgbF(1, 1, 1, 0.10) : alphaColor(inkColor, 0.10);
+        edge = dark ? QColor::fromRgbF(1, 1, 1, 0.17) : alphaColor(inkColor, 0.10); // (dark: a light edge that shows, as the mockup)
     }
     if (visualFocus) {
         // the glow below says it
@@ -1447,7 +1459,7 @@ void Helper::renderNgButtonFrame(QPainter *painter,
         // the soft shadow under a key: its own shape a pixel lower, faint, under the fill
         painter->save();
         painter->setPen(Qt::NoPen);
-        painter->setBrush(dark ? QColor(0, 0, 0, 70) : alphaColor(inkColor, defaultButton ? 0.16 : 0.08));
+        painter->setBrush(dark ? QColor(0, 0, 0, 45) : alphaColor(inkColor, defaultButton ? 0.16 : 0.08));
         painter->drawPath(path.translated(0, 1));
         painter->restore();
     }
@@ -1470,7 +1482,7 @@ void Helper::renderNgButtonFrame(QPainter *painter,
         // the light along the top of a key, inside its edge
         painter->save();
         painter->setClipPath(path);
-        painter->setPen(QPen(defaultButton ? QColor(255, 255, 255, 56) : (dark ? QColor(255, 255, 255, 30) : QColor(255, 255, 255, 230)), 1));
+        painter->setPen(QPen(defaultButton ? QColor(255, 255, 255, 56) : (dark ? QColor(255, 255, 255, 36) : QColor(255, 255, 255, 230)), 1));
         painter->drawLine(QPointF(frameRect.left() + radius * 0.6, frameRect.top() + 1.0), QPointF(frameRect.right() - radius * 0.6, frameRect.top() + 1.0));
         painter->restore();
     }
@@ -1614,7 +1626,7 @@ void Helper::renderCheckBoxBackground(QPainter *painter,
         // brings a palette whose highlight can be the light sheet of a selection, and its box was barely tinted)
         QColor onColor = _aurora ? auroraAccent(QApplication::palette(), 1.0) : palette.color(QPalette::Highlight);
         if (_aurora && isDark(palette)) {
-            onColor = QColor::fromHslF(onColor.hslHueF(), onColor.hslSaturationF(), 0.50); // (the deeper accent under a white mark)
+            onColor = QColor::fromHslF(onColor.hslHueF(), onColor.hslSaturationF(), 0.60); // (the deeper accent under a white mark)
         }
         QColor edge = glass ? alphaColor(inkColor, 0.22 * (1.0 - on)) : QColor(0, 0, 0, 0);
         if (_aurora && !isDark(palette)) {
@@ -1812,7 +1824,7 @@ void Helper::renderRadioButtonBackground(QPainter *painter,
         // brings a palette whose highlight can be the light sheet of a selection, and its box was barely tinted)
         QColor onColor = _aurora ? auroraAccent(QApplication::palette(), 1.0) : palette.color(QPalette::Highlight);
         if (_aurora && isDark(palette)) {
-            onColor = QColor::fromHslF(onColor.hslHueF(), onColor.hslSaturationF(), 0.50); // (the deeper accent under a white mark)
+            onColor = QColor::fromHslF(onColor.hslHueF(), onColor.hslSaturationF(), 0.60); // (the deeper accent under a white mark)
         }
         QColor edge = glass ? alphaColor(inkColor, 0.22 * (1.0 - on)) : QColor(0, 0, 0, 0);
         if (_aurora && !isDark(palette)) {
