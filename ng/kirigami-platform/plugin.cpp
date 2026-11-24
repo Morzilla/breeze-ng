@@ -462,8 +462,15 @@ void giveAir(QObject *owner)
     for (const char *name : {"topInset", "bottomInset"}) {
         owner->setProperty(name, 1.0);
     }
+    // (once: a row given its air again after its insets were reset may have kept its padding, which already holds
+    // the inset: the padding we set is remembered, and added to only when the row has another one now)
     for (const char *name : {"leftPadding", "rightPadding"}) {
-        owner->setProperty(name, owner->property(name).toReal() + inset);
+        const QByteArray mark = QByteArray("_breeze_ng_padded_") + name;
+        const qreal now = owner->property(name).toReal();
+        if (!owner->property(mark).isValid() || owner->property(mark).toReal() != now) {
+            owner->setProperty(name, now + inset);
+            owner->setProperty(mark, now + inset);
+        }
     }
     if (compactSide()) {
         for (const char *name : {"topPadding", "bottomPadding"}) {

@@ -515,7 +515,11 @@ void Style::polish(QWidget *widget)
         // with the scheme's full accent whatever the view's palette says (dark text on blue, Glass giving a selection
         // the normal text colour). Qt's own delegate only (a combo box with its own delegate keeps it): the styled one,
         // so the row is drawn by the style, as every other list's, the light sheet of a selection
-        if (auto *view = qobject_cast<QAbstractItemView *>(widget); view && QByteArray(view->itemDelegate() ? view->itemDelegate()->metaObject()->className() : "") == "QItemDelegate") {
+        // (Qt's own: a plain item delegate that QComboBox made as a child of its view. A delegate of the application's,
+        // even a subclass without Q_OBJECT that reports the same class name, is made by the application and parented
+        // to it or to the combo box)
+        if (auto *view = qobject_cast<QAbstractItemView *>(widget); view && view->itemDelegate() && view->itemDelegate()->parent() == view
+            && QByteArray(view->itemDelegate()->metaObject()->className()) == "QItemDelegate") {
             view->setItemDelegate(new QStyledItemDelegate(view));
         }
 
@@ -5272,8 +5276,8 @@ bool Style::drawFrameLineEditPrimitive(const QStyleOption *option, QPainter *pai
             // ground much lighter, so that its text (a font's name, a path) still reads as the content
             edge = _helper->alphaColor(_helper->ink(palette), _helper->isDark(palette) ? 0.16 : 0.12);
             if (!enabled || readOnly) {
-                background = _helper->alphaColor(background, background.alphaF() * 0.40);
-                edge = _helper->alphaColor(edge, edge.alphaF() * (enabled ? 0.9 : 0.6));
+                background = _helper->alphaColor(background, 0.40);
+                edge = _helper->alphaColor(edge, enabled ? 0.9 : 0.6);
             }
         }
         _helper->renderFrame(painter, rect, background, edge);
