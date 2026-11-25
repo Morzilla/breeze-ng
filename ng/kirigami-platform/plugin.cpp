@@ -33,6 +33,7 @@
 #include <QQmlProperty>
 #include <QSet>
 #include <QLibraryInfo>
+#include <QMetaMethod>
 #include <QFile>
 #include <QGuiApplication>
 #include <QPalette>
@@ -534,10 +535,11 @@ private:
 class PlasmaLights : public QQuickPaintedItem
 {
 public:
-    PlasmaLights(QQuickItem *background, Look *look, QObject *notifier, qreal radius)
+    PlasmaLights(QQuickItem *background, Look *look, QObject *notifier, qreal radius, bool sheet = true)
         : QQuickPaintedItem(background)
         , m_look(look)
         , m_radius(radius)
+        , m_sheet(sheet)
     {
         setAntialiasing(true);
         setObjectName(QStringLiteral("breeze-ng-plasma-lights"));
@@ -556,6 +558,11 @@ public:
     {
         const QRectF rect(0, 0, width(), height());
         QPainterPath shape;
+        if (!m_sheet) {
+            // (a panel: only the lights and the grain over the Plasma style's own sheet)
+            paintAuroraLights(painter, rect, *m_look, true, false);
+            return;
+        }
         shape.addRoundedRect(rect.adjusted(1, 1, -1, -1), m_radius - 1, m_radius - 1);
         painter->setRenderHint(QPainter::Antialiasing, true);
         painter->setClipPath(shape);
@@ -572,6 +579,7 @@ public:
 private:
     Look *m_look; // (the plugin's own: a change of the settings reaches what is already shown)
     qreal m_radius;
+    bool m_sheet;
 };
 
 // A card of glass under a list of a Plasma popup (the launcher's sidebar, a system tray page's list), as the widget
@@ -856,6 +864,56 @@ bool isBackground(const QObject *owner)
 }
 
 // Calls a function when a signal found by name is sent (a signal of a QML type, unknown at compile time)
+// The sheet of a Kirigami inline message: a gradient of the message's colour, more of it at the icon's side, fading
+// to nearly white (a dark scheme: to nearly nothing), in place of the block of colour Kirigami draws
+class MessageSheet : public QQuickPaintedItem
+{
+public:
+    explicit MessageSheet(QQuickItem *background)
+        : QQuickPaintedItem(background)
+    {
+        setAntialiasing(true);
+        auto fit = [this, background] {
+            setSize(QSizeF(background->width(), background->height()));
+            update();
+        };
+        connect(background, &QQuickItem::widthChanged, this, fit);
+        connect(background, &QQuickItem::heightChanged, this, fit);
+        fit();
+    }
+    void setKind(const QColor &kind, qreal radius)
+    {
+        m_kind = kind;
+        m_radius = radius;
+        update();
+    }
+    void paint(QPainter *painter) override
+    {
+        if (!m_kind.isValid()) {
+            return;
+        }
+        const bool dark = QGuiApplication::palette().color(QPalette::Window).lightnessF() < 0.5;
+        const bool reversed = QGuiApplication::layoutDirection() == Qt::RightToLeft;
+        const QRectF rect(0, 0, width(), height());
+        auto tone = [&](qreal tint, qreal alpha) {
+            QColor c = dark ? m_kind : QColor::fromRgbF(1.0 - tint * (1.0 - m_kind.redF()), 1.0 - tint * (1.0 - m_kind.greenF()), 1.0 - tint * (1.0 - m_kind.blueF()));
+            c.setAlphaF(alpha);
+            return c;
+        };
+        QLinearGradient fill(reversed ? rect.topRight() : rect.topLeft(), reversed ? rect.topLeft() : rect.topRight());
+        fill.setColorAt(0.0, dark ? tone(1, 0.42) : tone(0.34, 0.86));
+        fill.setColorAt(1.0, dark ? tone(1, 0.10) : tone(0.06, 0.60));
+        painter->setRenderHint(QPainter::Antialiasing, true);
+        painter->setPen(Qt::NoPen);
+        painter->setBrush(fill);
+        painter->drawRoundedRect(rect, m_radius, m_radius);
+    }
+
+private:
+    QColor m_kind;
+    qreal m_radius = 0;
+};
+
 class Relay : public QObject
 {
     Q_OBJECT
@@ -1271,7 +1329,35 @@ private:
         if (!popup) {
             setHook(window, 8);
             if (window->inherits("PanelView")) {
-                panelHighlights(window);
+                if (!window->property("_breeze_ng_highlights").toBool()) {
+                    window->setProperty("_breeze_ng_highlights", true);
+                    panelHighlights(window);
+                }
+                // Aurora's lights in the panel too, over its background (the largest frame of the Plasma style's
+                // panel-background), under its applets
+                QQuickItem *frame = nullptr;
+                std::function<void(QQuickItem *, int)> look = [&](QQuickItem *node, int depth) {
+                    if (node->property("imagePath").toString().endsWith(QLatin1String("widgets/panel-background")) && node->opacity() > 0 && node->isVisible()
+                        && !node->property("imagePath").toString().contains(QLatin1String("solid/"))
+                        && (!frame || node->width() * node->height() >= frame->width() * frame->height())) {
+                        frame = node;
+                    }
+                    if (depth < 3) {
+                        const auto children = node->childItems();
+                        for (QQuickItem *child : children) {
+                            look(child, depth + 1);
+                        }
+                    }
+                };
+                look(window->contentItem(), 0);
+                if (qEnvironmentVariableIsSet("BREEZE_NG_DEBUG_QUICK")) {
+                    qWarning("breeze-ng plasma: panel frame %s %.0fx%.0f", frame ? qPrintable(frame->property("imagePath").toString()) : "-", frame ? frame->width() : 0.0, frame ? frame->height() : 0.0);
+                }
+                if (frame && frame->width() > 100) {
+                    new PlasmaLights(frame, &m_look, m_notifier, 0, false);
+                } else {
+                    windowHooks()[window] &= ~8; // (not laid out yet: the next item asks again)
+                }
             }
             return;
         }
@@ -1642,10 +1728,62 @@ private:
                 return;
             }
             if (auto background = qobject_cast<QQuickItem *>(guard->property("background").value<QObject *>())) {
-                // (a veil of the message's colour: at a third, orange over the glass was a muddy brown block under
-                // dark text. Kirigami lays the colour itself in its background's children and binds it again, so the
-                // colour cannot be replaced from here: thinner)
-                background->setOpacity(QGuiApplication::palette().color(QPalette::Window).lightnessF() < 0.5 ? 0.30 : 0.16);
+                // a pale sheet with a tinge of the message's colour, not the colour itself (orange over the glass was a
+                // muddy brown block under dark text). Kirigami lays the colour in the background and its children and
+                // binds it again: each large coloured item is given the sheet, and given it again when Kirigami
+                // writes its own
+                MessageSheet *sheet = nullptr;
+                const auto laid = background->childItems();
+                for (QQuickItem *child : laid) {
+                    if (child->objectName() == QLatin1String("breeze-ng-message-sheet")) {
+                        sheet = static_cast<MessageSheet *>(child);
+                    }
+                }
+                if (!sheet) {
+                    sheet = new MessageSheet(background);
+                    sheet->setObjectName(QStringLiteral("breeze-ng-message-sheet"));
+                }
+                QPointer<MessageSheet> sheetGuard(sheet);
+                std::function<void(QQuickItem *, int)> pale = [&](QQuickItem *node, int depth) {
+                    const int index = node->metaObject()->indexOfProperty("color");
+                    if (node != sheet && index >= 0 && node->width() >= background->width() * 0.5 && !node->property("_breeze_ng_pale").toBool()) {
+                        node->setProperty("_breeze_ng_pale", true);
+                        QPointer<QQuickItem> item(node);
+                        // (the item's own colour goes to the sheet, and the item is emptied; again whenever Kirigami
+                        // writes its colour)
+                        auto apply = [item, sheetGuard] {
+                            if (!item || !sheetGuard) {
+                                return;
+                            }
+                            const QColor now = item->property("color").value<QColor>();
+                            if (!now.isValid() || now.alpha() == 0) {
+                                return;
+                            }
+                            QColor kind = now;
+                            kind.setAlpha(255);
+                            sheetGuard->setKind(kind, item->property("radius").toReal());
+                            QColor none = now;
+                            none.setAlpha(0);
+                            item->setProperty("color", none);
+                        };
+                        apply();
+                        const QMetaMethod notify = node->metaObject()->property(index).notifySignal();
+                        if (notify.isValid()) {
+                            auto relay = new Relay(node, apply);
+                            QObject::connect(node, notify, relay, relay->metaObject()->method(relay->metaObject()->indexOfSlot("fire()")));
+                        }
+                    }
+                    if (depth < 3) {
+                        const auto children = node->childItems();
+                        for (QQuickItem *child : children) {
+                            if (child != sheet) {
+                                pale(child, depth + 1);
+                            }
+                        }
+                    }
+                };
+                pale(background, 0);
+                background->setOpacity(1.0);
                 guard->setProperty("_breeze_ng_glass", true);
             }
         };
