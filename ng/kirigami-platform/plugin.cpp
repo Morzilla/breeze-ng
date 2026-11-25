@@ -24,6 +24,8 @@
 
 #include <QCoreApplication>
 #include <QDBusConnection>
+#include <QDBusMessage>
+#include <QDBusPendingCall>
 #include <QDir>
 #include <QEvent>
 #include <QFileInfo>
@@ -1417,9 +1419,38 @@ public:
         // the settings are not written with KConfig's notification)
         QDBusConnection::sessionBus().connect(QString(), QStringLiteral("/BreezeStyle"), QStringLiteral("org.kde.Breeze.Style"),
                                               QStringLiteral("reparseConfiguration"), this, SLOT(reloadLook()));
+        // (the shell's scripting answers once the shell is up)
+        QTimer::singleShot(6000, this, [this] {
+            floatingPanels();
+        });
     }
 
 public Q_SLOTS:
+    // Aurora's preset for Plasma's panels (AuroraFloatingPanel): floating or not, told to the shell through its own
+    // scripting, once each time the setting changes (the value last applied is kept in breezengrc): a panel the user
+    // then sets otherwise in Plasma is left alone. Only inside plasmashell
+    void floatingPanels()
+    {
+#ifdef BREEZE_NG_PLASMA_STYLE
+        if (!m_look.aurora || QCoreApplication::applicationName() != QLatin1String("plasmashell")) {
+            return;
+        }
+        KSharedConfig::Ptr config = KSharedConfig::openConfig(QStringLiteral("breezengrc"));
+        const bool wanted = config->group(QStringLiteral("Common")).readEntry("AuroraFloatingPanel", true);
+        KConfigGroup applied = config->group(QStringLiteral("Plasma"));
+        const QString mark = wanted ? QStringLiteral("true") : QStringLiteral("false");
+        if (applied.readEntry("FloatingPanelApplied", QString()) == mark) {
+            return;
+        }
+        applied.writeEntry("FloatingPanelApplied", mark);
+        applied.sync();
+        QDBusMessage call = QDBusMessage::createMethodCall(QStringLiteral("org.kde.plasmashell"), QStringLiteral("/PlasmaShell"), QStringLiteral("org.kde.PlasmaShell"),
+                                                           QStringLiteral("evaluateScript"));
+        call << QStringLiteral("for (const p of panels()) { p.floating = %1; }").arg(mark);
+        QDBusConnection::sessionBus().asyncCall(call);
+#endif
+    }
+
     void reloadLook()
     {
         // (the whole look again: titles, lights, grain, the second light, the glass' density; a change of the look
@@ -1429,6 +1460,7 @@ public Q_SLOTS:
         m_look = readLook();
         m_look.aurora = aurora;
         Q_EMIT m_notifier->changed();
+        floatingPanels();
     }
 
 public:

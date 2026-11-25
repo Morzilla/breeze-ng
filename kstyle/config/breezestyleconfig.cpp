@@ -819,6 +819,11 @@ QWidget *StyleConfig::pageAurora()
         m_auroraPlasmaPanel->setToolTip(ngText("How dense Plasma's panel is: lower, more of the desktop shows through it, blurred. Plasma follows as soon as the settings are applied.",
                                                "Quanto è denso il pannello di Plasma: più basso, più si vede il desktop attraverso, sfocato. Plasma lo segue appena si applicano le impostazioni."));
         aurora->addRow(ngText("Plasma panel", "Pannello di Plasma"), sliderRow(m_auroraPlasmaPanel, m_auroraPlasmaPanelValue, m_auroraGroup));
+        m_auroraFloatingPanel = new QCheckBox(ngText("Floating Plasma panel", "Pannello di Plasma flottante"), m_auroraGroup);
+        m_auroraFloatingPanel->setToolTip(ngText("Plasma's panels stand apart from the screen edge, with round corners. Plasma follows as soon as the settings are applied; a panel you then change in Plasma's own settings is left as you set it.",
+                                                 "I pannelli di Plasma stanno staccati dal bordo dello schermo, con gli angoli arrotondati. Plasma lo segue appena si applicano le impostazioni; un pannello che poi cambi dalle impostazioni di Plasma resta come lo hai messo."));
+        aurora->addRow(QString(), m_auroraFloatingPanel);
+        connect(m_auroraFloatingPanel, &QCheckBox::toggled, this, &StyleConfig::updateChanged);
         group->addLayout(aurora);
         auto *auroraNote = new QLabel(ngText("The two veils are equal by default, so that sidebar, cards, buttons and fields have one intensity. The grain hides the bands that faint gradients show on some screens.",
                                              "I due veli sono uguali in partenza, così barra laterale, schede, pulsanti e campi hanno la stessa intensità. La grana nasconde le bande che le sfumature tenui mostrano su certi schermi."),
@@ -836,6 +841,7 @@ QWidget *StyleConfig::pageAurora()
         m_auroraLights->setValue(100);
         m_auroraGrain->setValue(30);
         m_auroraPlasmaPanel->setValue(45);
+        m_auroraFloatingPanel->setChecked(true);
         updateChanged();
     });
     auto *row = new QHBoxLayout();
@@ -1053,6 +1059,7 @@ void StyleConfig::save()
     StyleConfigData::setAuroraLights(m_auroraLights->value());
     StyleConfigData::setAuroraGrain(m_auroraGrain->value());
     StyleConfigData::setAuroraPlasmaPanel(m_auroraPlasmaPanel->value());
+    StyleConfigData::setAuroraFloatingPanel(m_auroraFloatingPanel->isChecked());
     const bool secondChanged = StyleConfigData::auroraSecondAccent() != m_auroraSecond || StyleConfigData::auroraDimInactive() != m_auroraDim->isChecked()
         || StyleConfigData::auroraAccentRight() != m_auroraAccentRight->isChecked();
     StyleConfigData::setAuroraAccentRight(m_auroraAccentRight->isChecked());
@@ -1221,7 +1228,7 @@ void StyleConfig::updateChanged()
         || m_auroraBody->value() != StyleConfigData::auroraBodyOpacity()
         || m_auroraSidebar->value() != (StyleConfigData::auroraSidebarOpacity() < 0 ? StyleConfigData::auroraBodyOpacity() : StyleConfigData::auroraSidebarOpacity()) || m_auroraPanel->value() != StyleConfigData::auroraPanelVeil()
         || m_auroraButton->value() != StyleConfigData::auroraButtonVeil() || m_auroraLights->value() != StyleConfigData::auroraLights()
-        || m_auroraGrain->value() != StyleConfigData::auroraGrain() || m_auroraPlasmaPanel->value() != StyleConfigData::auroraPlasmaPanel() || m_auroraSecond != StyleConfigData::auroraSecondAccent() || m_auroraDim->isChecked() != StyleConfigData::auroraDimInactive() || m_auroraAccentRight->isChecked() != StyleConfigData::auroraAccentRight() || m_auroraFull->isChecked() != StyleConfigData::auroraFullSelection() || m_auroraCorners->isChecked() != StyleConfigData::auroraCornerLights() || m_accentTint->isChecked() != StyleConfigData::accentTint() || m_accentText->currentIndex() != StyleConfigData::accentText() || m_sidebarCompact->isChecked() != StyleConfigData::sidebarCompact() || (m_aurora->isChecked() && m_auroraLight->isChecked() != ngCurrentAuroraLight())
+        || m_auroraGrain->value() != StyleConfigData::auroraGrain() || m_auroraPlasmaPanel->value() != StyleConfigData::auroraPlasmaPanel() || m_auroraFloatingPanel->isChecked() != StyleConfigData::auroraFloatingPanel() || m_auroraSecond != StyleConfigData::auroraSecondAccent() || m_auroraDim->isChecked() != StyleConfigData::auroraDimInactive() || m_auroraAccentRight->isChecked() != StyleConfigData::auroraAccentRight() || m_auroraFull->isChecked() != StyleConfigData::auroraFullSelection() || m_auroraCorners->isChecked() != StyleConfigData::auroraCornerLights() || m_accentTint->isChecked() != StyleConfigData::accentTint() || m_accentText->currentIndex() != StyleConfigData::accentText() || m_sidebarCompact->isChecked() != StyleConfigData::sidebarCompact() || (m_aurora->isChecked() && m_auroraLight->isChecked() != ngCurrentAuroraLight())
         || m_blurStrength->value() != blurStrength() || m_textShadow->currentIndex() != StyleConfigData::textShadow()
         || m_animations->isChecked() != StyleConfigData::animationsEnabled() || m_animationSpeed->value() != animationIndex()
         || m_transitions->isChecked() != StyleConfigData::stackedWidgetTransitionsEnabled() || m_mnemonics->currentIndex() != StyleConfigData::mnemonicsMode()
@@ -1258,6 +1265,7 @@ void StyleConfig::load()
     m_auroraLights->setValue(StyleConfigData::auroraLights());
     m_auroraGrain->setValue(StyleConfigData::auroraGrain());
     m_auroraPlasmaPanel->setValue(StyleConfigData::auroraPlasmaPanel());
+    m_auroraFloatingPanel->setChecked(StyleConfigData::auroraFloatingPanel());
     m_auroraSecond = StyleConfigData::auroraSecondAccent();
     m_auroraDim->setChecked(StyleConfigData::auroraDimInactive());
     m_auroraAccentRight->setChecked(StyleConfigData::auroraAccentRight());

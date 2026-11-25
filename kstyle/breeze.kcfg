@@ -129,6 +129,11 @@
     </entry>
     <!-- Breeze NG Aurora: how dense the mask of Plasma's panel is (per cent; the desktop shows through the rest,
          blurred). Painted by the Kirigami plugin for Plasma over the Plasma style's nearly empty panel -->
+    <!-- Breeze NG Aurora: Plasma's panels float (rounded, apart from the screen edge). Applied by the Kirigami plugin
+         inside plasmashell, once each time this changes: a panel the user then sets otherwise is left alone -->
+    <entry name="AuroraFloatingPanel" type="Bool">
+      <default>true</default>
+    </entry>
     <entry name="AuroraPlasmaPanel" type="Int">
       <default>45</default>
       <min>0</min>
