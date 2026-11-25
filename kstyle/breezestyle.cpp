@@ -1722,7 +1722,8 @@ int Style::pixelMetric(PixelMetric metric, const QStyleOption *option, const QWi
     case PM_DockWidgetFrameWidth:
         return 0;
     case PM_DockWidgetTitleMargin:
-        return Metrics::Frame_FrameWidth;
+        // (Aurora: the title stands inside the panel's card, with room around it as a group's title has)
+        return Metrics::Frame_FrameWidth + (_helper->isAurora() ? 8 : 0);
     case PM_DockWidgetTitleBarButtonMargin:
         return Metrics::ToolButton_MarginWidth;
 
@@ -3425,6 +3426,15 @@ void Style::ngRenderPopupPanel(QPainter *painter, const QRect &rect, const QPale
 }
 
 //____________________________________________________________________________
+// Aurora: a docked panel whose title Qt draws (no title bar widget of the application's, horizontal) has it inside
+// the card its content stands on (eventFilterDockWidget, drawDockWidgetTitleControl)
+static bool ngDockTitleInCard(const QDockWidget *dockWidget)
+{
+    return dockWidget && !dockWidget->isFloating() && !dockWidget->titleBarWidget() && !(dockWidget->features() & QDockWidget::DockWidgetVerticalTitleBar)
+        && dockWidget->window() && dockWidget->window()->property("_breeze_ng_glass").toBool() && dockWidget->widget()
+        && !dockWidget->widget()->inherits("KFilePlacesView");
+}
+
 bool Style::eventFilterDockWidget(QDockWidget *dockWidget, QEvent *event)
 {
     // Breeze NG Glass: inside a translucent window the dock area is not cleared before its children repaint, so
@@ -3442,7 +3452,13 @@ bool Style::eventFilterDockWidget(QDockWidget *dockWidget, QEvent *event)
         // Aurora, the controls of 2026-11-24: the content of a docked panel (Places, a sidebar) stands on a card, a
         // different tone from the window, as Dolphin NG's sidebar (it stood on the bare glass)
         if (_helper->isAurora() && dockWidget->widget() && dockWidget->widget()->isVisible() && !dockWidget->widget()->inherits("KFilePlacesView")) {
-            _helper->renderAuroraSideCard(&painter, QRectF(dockWidget->widget()->geometry()).adjusted(-2, -2, 2, 2), dockWidget->palette());
+            QRectF card = QRectF(dockWidget->widget()->geometry()).adjusted(-2, -2, 2, 2);
+            // the panel's own title ("Places") inside the card, as a group's title in its card (it stood above the
+            // card, on the bare glass); a title bar of the application's own stays outside
+            if (ngDockTitleInCard(dockWidget)) {
+                card.setTop(0);
+            }
+            _helper->renderAuroraSideCard(&painter, card, dockWidget->palette());
         }
         _helper->cutCorners(&painter, dockWidget); // (a window that rounds its own corners: the dock reaches into one)
         return false;
@@ -9546,6 +9562,29 @@ bool Style::drawDockWidgetTitleControl(const QStyleOption *option, QPainter *pai
             rect.setRight(buttonRect.left() - 1);
         }
         rect.adjust(4, 0, 0, 0);
+    }
+
+    // Aurora: the title inside the panel's card, as a group's title: small, uppercase, a little spaced, faint, set in
+    // from the card's edge; no line under it
+    if (_helper->isAurora() && !verticalTitleBar && ngDockTitleInCard(qobject_cast<const QDockWidget *>(widget))) {
+        QFont small = painter->font();
+        small.setPointSizeF(qMax(7.0, small.pointSizeF() - 1.5));
+        small.setWeight(QFont::DemiBold);
+        small.setLetterSpacing(QFont::PercentageSpacing, 106);
+        small.setCapitalization(QFont::AllUppercase);
+        painter->save();
+        painter->setFont(small);
+        QColor faint = palette.color(QPalette::WindowText);
+        faint.setAlphaF(enabled ? 0.55 : 0.35);
+        painter->setPen(faint);
+        if (_helper->accentText(palette) == 3 && enabled) {
+            painter->setPen(QPen(_helper->accentTitleBrush(palette), 1)); // (AccentText 3: the secondary titles' gradient)
+        }
+        const QRect text = reverseLayout ? rect.adjusted(0, 0, -12, 0) : rect.adjusted(12, 0, 0, 0);
+        const QString shown = QFontMetrics(small).elidedText(dockWidgetOption->title, Qt::ElideRight, text.width(), Qt::TextHideMnemonic);
+        painter->drawText(text, Qt::AlignLeft | Qt::AlignVCenter | Qt::TextHideMnemonic, shown);
+        painter->restore();
+        return true;
     }
 
     if (!verticalTitleBar) {
