@@ -134,10 +134,10 @@ void tintText(PlatformTheme *theme, int accentText)
         const int level = owner->property("level").isValid() ? owner->property("level").toInt() : 1;
         QColor colour;
         if (level <= 2) {
-            colour = accentText == 2 ? (dark ? QColor::fromHslF(hue, 0.82, 0.78) : QColor::fromHslF(hue, 0.66, 0.33))
-                                     : (dark ? QColor::fromHslF(hue, 0.78, 0.80) : QColor::fromHslF(hue, 0.62, 0.31));
+            colour = accentText == 2 ? (dark ? QColor::fromHslF(hue, 0.90, 0.76) : QColor::fromHslF(hue, 0.66, 0.33))
+                                     : (dark ? QColor::fromHslF(hue, 0.92, 0.78) : QColor::fromHslF(hue, 0.62, 0.31));
         } else {
-            colour = dark ? QColor::fromHslF(hue, 0.66, 0.72) : QColor::fromHslF(hue, 0.56, 0.44);
+            colour = dark ? QColor::fromHslF(hue, 0.78, 0.70) : QColor::fromHslF(hue, 0.56, 0.44);
         }
         if (theme->textColor() != colour) {
             theme->setCustomTextColor(colour);
@@ -164,12 +164,14 @@ void tintText(PlatformTheme *theme, int accentText)
     // (from the palette, not from the theme's own colour: read back right after a change it was not there yet, and the
     // text came out empty. In an application of widgets the palette is the style's, already tinged: tinging is the same)
     const QColor text = palette.color(QPalette::Active, role);
-    if (!text.isValid() || text.alpha() < 128 || text.hslSaturationF() > 0.35) {
+    // (with AccentText the widget style's palette is already a pastel of the accent: that one is taken, not left)
+    const bool accentInk = accentText > 0 && text.isValid() && qAbs(text.hslHueF() - accent.hslHueF()) < 0.03;
+    if (!text.isValid() || text.alpha() < 128 || (text.hslSaturationF() > 0.35 && !accentInk)) {
         release(); // (coloured text is left as it is)
         return;
     }
     // (AccentText: a darker ink of the accent's hue, a tinged white on dark schemes, as Helper::accentInk)
-    QColor tinted = accentText > 0 ? (text.lightnessF() < 0.5 ? QColor::fromHslF(accent.hslHueF(), 0.26, 0.21) : QColor::fromHslF(accent.hslHueF(), 0.24, 0.90))
+    QColor tinted = accentText > 0 ? (text.lightnessF() < 0.5 ? QColor::fromHslF(accent.hslHueF(), 0.26, 0.21) : QColor::fromHslF(accent.hslHueF(), 0.62, 0.88))
                                    : QColor::fromHslF(accent.hslHueF(), text.lightnessF() < 0.5 ? 0.24 : 0.10, text.lightnessF());
     tinted.setAlphaF(text.alphaF());
     if (theme->textColor() != tinted) {

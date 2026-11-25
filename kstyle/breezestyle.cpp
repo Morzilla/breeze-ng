@@ -826,6 +826,14 @@ void Style::polish(QPalette &palette)
                     palette.setColor(group, role, _helper->accentInk(palette, text));
                 }
             }
+            // the secondary text (hints, notes, placeholders) on a dark scheme: the accent at mid tone, solid, as the
+            // mockup's "secondario" (a faded white over the glass read grey)
+            if (_helper->isDark(palette)) {
+                const QColor accent = palette.color(QPalette::Active, QPalette::Highlight);
+                QColor secondary = QColor::fromHslF(accent.hslHueF() < 0 ? 0.58 : accent.hslHueF(), 0.48, 0.72);
+                secondary.setAlphaF(palette.color(group, QPalette::PlaceholderText).alphaF());
+                palette.setColor(group, QPalette::PlaceholderText, secondary);
+            }
         }
     }
     if (_helper->isGlass()) {
