@@ -588,9 +588,14 @@ void Decoration::recalculateBorders()
     if (isMaximized() || !outlinesEnabled()) {
         setBorderOutline(KDecoration3::BorderOutline());
     } else {
-        const auto color = KColorUtils::mix(window()->color(window()->isActive() ? ColorGroup::Active : ColorGroup::Inactive, ColorRole::Frame),
-                                            window()->palette().text().color(),
-                                            KColorScheme::frameContrast());
+        const QColor frame = window()->color(window()->isActive() ? ColorGroup::Active : ColorGroup::Inactive, ColorRole::Frame);
+        auto color = KColorUtils::mix(frame, window()->palette().text().color(), KColorScheme::frameContrast());
+        if (m_ngGlass && frame.lightnessF() < 0.5) {
+            // Breeze NG glass on a dark scheme: a faint hairline of light, as the edge of Aurora's dark cards. The frame's
+            // colour, solid, was a near black line around every window, apart from the glass it bounds. (Solid: KWin
+            // draws the outline without its alpha, a see-through white came out plain white)
+            color = KColorUtils::mix(frame, QColor(255, 255, 255), window()->isActive() ? 0.16 : 0.10);
+        }
         const qreal thickness = std::max(KDecoration3::pixelSize(window()->nextScale()), KDecoration3::snapToPixelGrid(1, window()->nextScale()));
 
         qreal topLeftRightRadius = 0;
