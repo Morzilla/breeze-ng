@@ -65,6 +65,7 @@ struct Look {
     int body = 52; // settings of Breeze NG (breezengrc)
     int panel = 7;
     bool lightGlass = false; // "Breeze NG Aurora Light"
+    bool cornerLights = true; // AuroraCornerLights
     qreal lights = 1.0; // strength of the lights behind the window
     int grain = 30; // the grain over them
     bool dim = true; // windows in the background dim their lights
@@ -216,6 +217,7 @@ Look readLook()
     const QString secondAccent = common.readEntry("AuroraSecondAccent", QString());
     look.second = secondAccent.isEmpty() ? QColor() : QColor(secondAccent);
     look.accentRight = common.readEntry("AuroraAccentRight", false);
+    look.cornerLights = common.readEntry("AuroraCornerLights", true);
     colours(look);
     return look;
 }
@@ -290,10 +292,12 @@ public:
             const QColor highlight = QGuiApplication::palette().color(QPalette::Active, QPalette::Highlight);
             const qreal hue = highlight.hslHueF() < 0 ? 0.58 : highlight.hslHueF();
             const qreal saturation = (highlight.hslSaturationF() < 0.15 ? highlight.hslSaturationF() : qBound(0.60, highlight.hslSaturationF() * 1.4, 0.95));
-            const QColor accent = QColor::fromHslF(hue, saturation, (m_look.dark) ? 0.62 : 0.90);
-            QColor second = QColor::fromHslF(std::fmod(hue + 0.17, 1.0), saturation, (m_look.dark) ? 0.64 : 0.91);
+            // (as Helper::renderAuroraLights: 0.76 / 0.78 on light schemes. This copy had stayed at 0.90, nearly white
+            // lights, and a Qt Quick window came out lighter and plainer than its own title bar)
+            const QColor accent = QColor::fromHslF(hue, saturation, (m_look.dark) ? 0.62 : 0.76);
+            QColor second = QColor::fromHslF(std::fmod(hue + 0.17, 1.0), saturation, (m_look.dark) ? 0.64 : 0.78);
             if (m_look.second.isValid()) {
-                second = QColor::fromHslF(m_look.second.hslHueF() < 0 ? hue : m_look.second.hslHueF(), (m_look.second.hslSaturationF() < 0.15 ? m_look.second.hslSaturationF() : qBound(0.60, m_look.second.hslSaturationF() * 1.4, 0.95)), (m_look.dark) ? 0.64 : 0.91);
+                second = QColor::fromHslF(m_look.second.hslHueF() < 0 ? hue : m_look.second.hslHueF(), (m_look.second.hslSaturationF() < 0.15 ? m_look.second.hslSaturationF() : qBound(0.60, m_look.second.hslSaturationF() * 1.4, 0.95)), (m_look.dark) ? 0.64 : 0.78);
             }
             const qreal radius = qBound(260.0, rect.width() * 0.55, 620.0);
             auto light = [&](const QPointF &centre, qreal r, QColor colour, qreal alpha) {
@@ -309,12 +313,14 @@ public:
             if (!m_look.dark) { // (as Helper::renderAuroraLights: the wash of the accent on light schemes)
                 painter->fillRect(rect, QColor(255, 255, 255, 120));
                 QColor wash = accent;
-                wash.setAlphaF(qMin(1.0, 0.20 * strength));
+                wash.setAlphaF(qMin(1.0, 0.10 * strength));
                 painter->fillRect(rect, wash);
             }
-            light(m_look.accentRight ? rect.topRight() : rect.topLeft(), radius, accent, 0.52); // (as the widget style)
-            light(m_look.accentRight ? rect.topLeft() : rect.topRight(), radius * 0.8, second, 0.36);
-            light(m_look.accentRight ? rect.bottomLeft() : rect.bottomRight(), radius * 0.9, accent, 0.32);
+            if (m_look.cornerLights) { // (the corners' lights off: the sheet, the wash and the grain only)
+                light(m_look.accentRight ? rect.topRight() : rect.topLeft(), radius, accent, 0.52); // (as the widget style)
+                light(m_look.accentRight ? rect.topLeft() : rect.topRight(), radius * 0.8, second, 0.36);
+                light(m_look.accentRight ? rect.bottomLeft() : rect.bottomRight(), radius * 0.9, accent, 0.32);
+            }
         }
         if (m_look.grain > 0) {
             painter->drawTiledPixmap(rect, grainTile(m_look.grain));
