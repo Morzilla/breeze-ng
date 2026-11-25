@@ -22,6 +22,7 @@
 #include <KSharedConfig>
 #include <KWindowEffects>
 
+#include <QAbstractItemModel>
 #include <QCoreApplication>
 #include <QDBusConnection>
 #include <QDBusMessage>
@@ -32,6 +33,7 @@
 #include <QHash>
 #include <QQmlComponent>
 #include <QQmlEngine>
+#include <QQmlListReference>
 #include <QQmlProperty>
 #include <QSet>
 #include <QLibraryInfo>
@@ -59,6 +61,8 @@
 
 #include <dlfcn.h>
 
+#include "../auroraring.h"
+
 using namespace Kirigami::Platform;
 
 namespace
@@ -81,6 +85,7 @@ struct Look {
     bool fullSelection = false; // selections in the full accent with white text
     bool accentTint = true; // the text tinged by the accent, as the widget style's palette (Breeze NG's AccentTint)
     int plasmaPanel = 45; // the density of the mask of Plasma's panel (AuroraPlasmaPanel)
+    int ring = 1; // how rings are drawn (AuroraRing: 0 plain, 1 gradient, 2 glow, 3 ticks)
     int accentText = 0; // titles in the accent (Breeze NG's AccentText: 1 accent, 2 gradient titles, 3 secondary titles too)
     QColor onSelection; // text on a selection, where it is not the scheme's own
     QColor listSheet; // a selected row of a list: the light sheet of the accent (dark schemes: the accent, see-through)
@@ -381,6 +386,7 @@ Look readLook()
     look.accentTint = common.readEntry("AccentTint", true);
     look.accentText = qBound(0, common.readEntry("AccentText", 0), 3);
     look.plasmaPanel = qBound(0, common.readEntry("AuroraPlasmaPanel", 45), 100);
+    look.ring = qBound(0, common.readEntry("AuroraRing", 1), 3);
     const QString secondAccent = common.readEntry("AuroraSecondAccent", QString());
     look.second = secondAccent.isEmpty() ? QColor() : QColor(secondAccent);
     look.accentRight = common.readEntry("AuroraAccentRight", false);
@@ -1066,26 +1072,135 @@ private:
     std::function<void()> m_call;
 };
 
-// The ring charts of KQuickCharts (System Monitor's gauges: CPU, memory) on glass: their track is worked out from the
-// theme's background, see-through here, and came out a thick ring of solid white (or dark) with a dull arc. A thinner
-// ring with round ends on a faint track of ink. Charts come and go with the pages: looked for now and then while the
-// window shows
-void ringCharts(QQuickWindow *window)
+// A ring chart of KQuickCharts with one value (System Monitor's gauges: CPU, memory) drawn as the rings of the widget
+// style are (BreezeNg::paintAuroraRing, the setting AuroraRing): the chart itself only takes a colour and a thickness. The
+// gauge lies over the chart, which is hidden while the gauge draws; a chart of several values, or the plain ring of the
+// settings, is left to the chart
+class RingGauge : public QQuickPaintedItem
+{
+public:
+    RingGauge(QQuickItem *chart, Look *look, QObject *notifier)
+        : QQuickPaintedItem(chart->parentItem())
+        , m_chart(chart)
+        , m_look(look)
+    {
+        setAntialiasing(true);
+        setZ(chart->z() + 0.5);
+        auto fit = [this] {
+            if (m_chart) {
+                setPosition(m_chart->position());
+                setSize(m_chart->size());
+                update();
+            }
+        };
+        for (auto signal : {&QQuickItem::xChanged, &QQuickItem::yChanged, &QQuickItem::widthChanged, &QQuickItem::heightChanged}) {
+            connect(chart, signal, this, fit);
+        }
+        connect(chart, &QQuickItem::visibleChanged, this, [this] {
+            setVisible(m_chart && m_chart->isVisible());
+        });
+        connect(chart, &QObject::destroyed, this, &QObject::deleteLater);
+        QObject::connect(notifier, SIGNAL(changed()), this, SLOT(update()));
+        if (QObject *source = valueSource()) {
+            if (source->metaObject()->indexOfSignal("dataChanged()") >= 0) {
+                QObject::connect(source, SIGNAL(dataChanged()), this, SLOT(update()));
+            }
+        }
+        fit();
+    }
+
+    void paint(QPainter *painter) override
+    {
+        if (!m_chart) {
+            return;
+        }
+        QObject *source = valueSource();
+        // (the source's count and values are C++ methods out of reach here: read from its model, one value a column)
+        QAbstractItemModel *model = source ? qobject_cast<QAbstractItemModel *>(source->property("model").value<QObject *>()) : nullptr;
+        const int items = model ? (source->property("indexColumns").toBool() ? model->columnCount() : model->rowCount()) : 0;
+        const bool ours = m_look->ring != BreezeNg::RingPlain && items == 1;
+        if (model && !m_watched) {
+            m_watched = true;
+            connect(model, &QAbstractItemModel::dataChanged, this, [this] {
+                update();
+            });
+            connect(model, &QAbstractItemModel::modelReset, this, [this] {
+                update();
+            });
+            connect(model, &QAbstractItemModel::columnsInserted, this, [this] {
+                update();
+            });
+        }
+        if (qEnvironmentVariableIsSet("BREEZE_NG_DEBUG_QUICK") && !m_told) {
+            m_told = true;
+            QQmlListReference sources(m_chart, "valueSources");
+            qWarning("breeze-ng ring gauge: sources valid %d count %d, source %s items %d, ring %d", int(sources.isValid()), int(sources.isValid() ? sources.count() : -1),
+                     source ? source->metaObject()->className() : "-", items, m_look->ring);
+        }
+        m_chart->setOpacity(ours ? 0.0 : 1.0);
+        if (!ours) {
+            return;
+        }
+        const int role = model->roleNames().key(source->property("roleName").toString().toUtf8(), Qt::DisplayRole);
+        const qreal value = model->data(model->index(0, 0), role).toReal();
+        const QObject *range = m_chart->property("range").value<QObject *>();
+        qreal from = range ? range->property("from").toReal() : 0.0, to = range ? range->property("to").toReal() : 100.0;
+        if (!range || range->property("automatic").toBool() || to <= from) {
+            // (an automatic range: the sensors' own limits, which their model carries, as the chart takes them)
+            const QVariant least = model->property("minimum"), most = model->property("maximum");
+            from = least.isValid() ? least.toReal() : 0.0;
+            to = (most.isValid() && most.toReal() > from) ? most.toReal() : qMax(value, 1e-9);
+        }
+        const qreal fromAngle = m_chart->property("fromAngle").isValid() ? m_chart->property("fromAngle").toReal() : 0.0;
+        const qreal toAngle = m_chart->property("toAngle").isValid() ? m_chart->property("toAngle").toReal() : 360.0;
+        const qreal side = qMin(width(), height());
+        const QRectF rect((width() - side) / 2, (height() - side) / 2, side, side);
+        const QPalette palette = QGuiApplication::palette();
+        const bool dark = palette.color(QPalette::Window).lightnessF() < 0.5;
+        const QColor accent = palette.color(QPalette::Active, QPalette::Highlight);
+        const bool grey = accent.hslSaturationF() < 0.15;
+        const qreal hue = accent.hslHueF() < 0 ? 0.58 : accent.hslHueF();
+        const qreal hue2 = (m_look->second.isValid() && m_look->second.hslHueF() >= 0) ? m_look->second.hslHueF() : std::fmod(hue + 0.17, 1.0);
+        QColor track = palette.color(QPalette::WindowText);
+        track.setAlphaF(dark ? 0.16 : 0.13);
+        // (the chart's angles run clockwise from twelve o'clock)
+        BreezeNg::paintAuroraRing(painter, rect, qMax(5.0, m_chart->property("thickness").toReal()), 90.0 - fromAngle, -(toAngle - fromAngle),
+                                  (value - from) / (to - from), m_look->ring, grey ? accent : QColor::fromHslF(hue, dark ? 0.90 : 0.80, dark ? 0.66 : 0.50),
+                                  grey ? accent : QColor::fromHslF(hue2, dark ? 0.88 : 0.68, dark ? 0.72 : 0.56), track);
+    }
+
+private:
+    QObject *valueSource() const
+    {
+        QQmlListReference sources(m_chart, "valueSources");
+        return (sources.isValid() && sources.count() > 0) ? sources.at(0) : nullptr;
+    }
+
+    QPointer<QQuickItem> m_chart;
+    Look *m_look;
+    bool m_told = false;
+    bool m_watched = false;
+};
+
+// The ring charts of KQuickCharts on glass: their track is worked out from the theme's background, see-through here, and
+// came out a thick ring of solid white (or dark) with a dull arc. A thinner ring with round ends on a quiet track, and a
+// RingGauge over each. Charts come and go with the pages: looked for now and then while the window shows
+void ringCharts(QQuickWindow *window, Look *look, QObject *notifier)
 {
     auto timer = new QTimer(window);
     timer->setInterval(1500);
     QPointer<QQuickWindow> guard(window);
-    QObject::connect(timer, &QTimer::timeout, window, [guard] {
+    QObject::connect(timer, &QTimer::timeout, window, [guard, look, notifier] {
         if (!guard || !guard->isVisible()) {
             return;
         }
         const bool dark = QGuiApplication::palette().color(QPalette::Window).lightnessF() < 0.5;
         std::function<void(QQuickItem *, int)> visit = [&](QQuickItem *node, int depth) {
-            if (node->inherits("PieChart") && !node->property("_breeze_ng_ring").toBool() && node->property("thickness").isValid()) {
+            if (node->inherits("PieChart") && !node->property("_breeze_ng_ring").toBool() && node->property("thickness").isValid() && node->parentItem()) {
                 node->setProperty("_breeze_ng_ring", true);
-                // (through QQmlProperty: the face binds these, and a bound value would come back)
-                // (a solid tone: the chart adds a see-through colour to what is under it, and a faint ink came out
-                // lighter than the card, a white ring again)
+                // (through QQmlProperty: the face binds these, and a bound value would come back. A solid tone for the
+                // track: the chart adds a see-through colour to what is under it, and a faint ink came out lighter than
+                // the card, a white ring again)
                 const QPalette palette = QGuiApplication::palette();
                 const QColor window = palette.color(QPalette::Window), text = palette.color(QPalette::WindowText);
                 const qreal t = dark ? 0.20 : 0.16;
@@ -1094,11 +1209,7 @@ void ringCharts(QQuickWindow *window)
                                             window.blueF() + (text.blueF() - window.blueF()) * t));
                 QQmlProperty(node, QStringLiteral("thickness")).write(qMax(5.0, node->property("thickness").toReal() * 0.62));
                 QQmlProperty(node, QStringLiteral("smoothEnds")).write(true);
-                if (qEnvironmentVariableIsSet("BREEZE_NG_DEBUG_QUICK")) {
-                    const QObject *source = node->property("colorSource").value<QObject *>();
-                    qWarning("breeze-ng ring: background now %s, thickness %.1f, colour source %s, values %d", qPrintable(node->property("backgroundColor").value<QColor>().name(QColor::HexArgb)),
-                             node->property("thickness").toReal(), source ? source->metaObject()->className() : "-", source ? source->property("itemCount").toInt() : -1);
-                }
+                inject(new RingGauge(node, look, notifier));
             }
             if (depth < 60) {
                 const auto children = node->childItems();
@@ -1925,7 +2036,7 @@ private:
                     quickWindow->setColor(Qt::transparent);
                     new AuroraBackdrop(quickWindow, &m_look, m_notifier);
                     topLine(quickWindow);
-                    ringCharts(quickWindow);
+                    ringCharts(quickWindow, &m_look, m_notifier);
                     if (!qEnvironmentVariableIsSet("BREEZE_NG_QUICK_NO_COVERS")) {
                         unfillCovers(quickWindow);
                     }

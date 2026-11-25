@@ -134,6 +134,13 @@
     <entry name="AuroraFloatingPanel" type="Bool">
       <default>true</default>
     </entry>
+    <!-- Breeze NG Aurora: how rings are drawn (a dial's groove, System Monitor's gauges). 0: a plain arc of the accent.
+         1: a gradient from the accent to the second light. 2: that gradient with a glow. 3: ticks -->
+    <entry name="AuroraRing" type="Int">
+      <default>1</default>
+      <min>0</min>
+      <max>3</max>
+    </entry>
     <entry name="AuroraPlasmaPanel" type="Int">
       <default>45</default>
       <min>0</min>

@@ -106,6 +106,7 @@ private:
     QSlider *m_auroraGrain = nullptr;
     QLabel *m_auroraGrainValue = nullptr;
     QCheckBox *m_auroraFloatingPanel = nullptr;
+    QComboBox *m_auroraRing = nullptr;
     QSlider *m_auroraPlasmaPanel = nullptr;
     QLabel *m_auroraPlasmaPanelValue = nullptr;
     int m_savedAuroraGrain = 30;

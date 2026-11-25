@@ -45,6 +45,7 @@
 #include <QGraphicsItem>
 #include <QGraphicsProxyWidget>
 #include <QGraphicsView>
+#include "../ng/auroraring.h"
 #include <QGroupBox>
 #include <QItemDelegate>
 #include <QLineEdit>
@@ -10340,10 +10341,29 @@ bool Style::drawDialComplexControl(const QStyleOptionComplex *option, QPainter *
         const qreal first(dialAngle(sliderOption, sliderOption->minimum));
         const qreal last(dialAngle(sliderOption, sliderOption->maximum));
 
+        if (_helper->isAurora()) {
+            // Aurora: the ring of the settings (AuroraRing: plain, gradient, glow or ticks), as System Monitor's gauges
+            const qreal second = dialAngle(sliderOption, sliderOption->sliderPosition);
+            const QColor accent = palette.color(QPalette::Active, QPalette::Highlight);
+            const bool dark = _helper->isDark(palette);
+            const qreal hue = accent.hslHueF() < 0 ? 0.58 : accent.hslHueF();
+            qreal hue2 = std::fmod(hue + 0.17, 1.0);
+            if (const QColor chosen(StyleConfigData::auroraSecondAccent()); chosen.isValid() && !StyleConfigData::auroraSecondAccent().isEmpty() && chosen.hslHueF() >= 0) {
+                hue2 = chosen.hslHueF();
+            }
+            const bool grey = accent.hslSaturationF() < 0.15;
+            const QColor a1 = grey ? accent : QColor::fromHslF(hue, dark ? 0.90 : 0.80, dark ? 0.66 : 0.50);
+            const QColor a2 = grey ? accent : QColor::fromHslF(hue2, dark ? 0.88 : 0.68, dark ? 0.72 : 0.56);
+            const qreal span = (last - first) * 180 / M_PI;
+            BreezeNg::paintAuroraRing(painter, QRectF(grooveRect), Metrics::Slider_GrooveThickness, first * 180 / M_PI, span,
+                                      (enabled && last != first) ? (second - first) / (last - first) : 0.0, qBound(0, StyleConfigData::auroraRing(), 3), a1, a2,
+                                      _helper->alphaColor(palette.color(QPalette::WindowText), dark ? 0.16 : 0.13));
+        } else {
         // render groove
         _helper->renderDialGroove(painter, grooveRect, grooveColor, palette.color(QPalette::Window), first, last);
+        }
 
-        if (enabled) {
+        if (enabled && !_helper->isAurora()) {
             // highlight
             const auto &highlight = palette.color(HighlightColor);
 
