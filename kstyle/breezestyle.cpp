@@ -3069,6 +3069,26 @@ bool Style::eventFilterNgPopup(QWidget *popup, QEvent *event)
         // (a new opening: a release still waiting for the last menu's fade must not let go of this one)
         button->setProperty("_breeze_ng_join_round", button->property("_breeze_ng_join_round").toInt() + 1);
         button->setProperty("_breeze_ng_joined_fade", QVariant());
+        // the corners on the joined side go from round to square as the menu opens (160 ms, as the menu fades in)
+        if (StyleConfigData::animationsEnabled()) {
+            button->setProperty("_breeze_ng_join_corner", 1.0);
+            const int openRound = button->property("_breeze_ng_join_round").toInt();
+            QPointer<QWidget> opened(button);
+            auto *square = new QVariantAnimation(button);
+            square->setDuration(160);
+            square->setStartValue(1.0);
+            square->setEndValue(0.0);
+            square->setEasingCurve(QEasingCurve::OutCubic);
+            QObject::connect(square, &QVariantAnimation::valueChanged, button, [opened, openRound](const QVariant &value) {
+                if (opened && opened->property("_breeze_ng_join_round").toInt() == openRound) {
+                    opened->setProperty("_breeze_ng_join_corner", value.toReal());
+                    opened->update();
+                }
+            });
+            square->start(QAbstractAnimation::DeleteWhenStopped);
+        } else {
+            button->setProperty("_breeze_ng_join_corner", 0.0);
+        }
         button->setProperty("_breeze_ng_joined_bg", sheet);
         // (on Aurora's light frost the menu's edge is a white hairline, which a joined button on the frost did not
         // show: the button's open side read as no edge at all. There a faint edge of ink, as the menu's shadow draws it)
@@ -3102,6 +3122,7 @@ bool Style::eventFilterNgPopup(QWidget *popup, QEvent *event)
                         return;
                     }
                     button->setProperty(joinedProperty, QVariant());
+                    button->setProperty("_breeze_ng_join_corner", QVariant());
                     button->setProperty("_breeze_ng_joined_bg", QVariant());
                     button->setProperty("_breeze_ng_joined_edge", QVariant());
                     button->setProperty("_breeze_ng_joined_item", QVariant());
@@ -3123,7 +3144,9 @@ bool Style::eventFilterNgPopup(QWidget *popup, QEvent *event)
                             return;
                         }
                         const qreal t = value.toReal();
-                        guard->setProperty("_breeze_ng_joined_fade", std::pow(1.0 - t, 4.0));
+                        const qreal opacity = std::pow(1.0 - t, 4.0);
+                        guard->setProperty("_breeze_ng_joined_fade", opacity);
+                        guard->setProperty("_breeze_ng_join_corner", 1.0 - opacity); // (the corners round off as the menu goes)
                         guard->update();
                     });
                     QObject::connect(fade, &QVariantAnimation::finished, button, [release, guard] {

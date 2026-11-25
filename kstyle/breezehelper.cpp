@@ -214,7 +214,9 @@ QColor Helper::menuSheet(const QPalette &palette, bool alpha, QColor *outline, b
         background.setAlphaF(menuOpacity / 100.0);
         edge = alphaColor(ink(palette), isGlass() ? 0.16 : 0.12);
         if (_aurora && !isDark(palette)) {
-            edge = QColor(255, 255, 255, 190); // frost has a bright hairline edge
+            // frost has a bright hairline edge; a menu joined to its button takes the button's edge of ink (see
+            // Style::eventFilterNgMenu): its white hairline under the button's dark one read as a white side
+            edge = joined ? alphaColor(ink(palette), 0.34) : QColor(255, 255, 255, 190);
         }
     } else if (isSoft()) {
         edge = alphaColor(ink(palette), 0.10);
@@ -1517,7 +1519,28 @@ void Helper::renderNgButtonFrame(QPainter *painter,
         // the menu's own sheet and outline. The shape covers the whole widget, whatever sub-rect the style was
         // handed, because the menu sits against the widget's edge; it runs past the joined side, which the widget clips.
         frameRect = strokedRect(widgetRect.isValid() ? widgetRect : QRectF(rect));
-        if (joined == QLatin1String("bottom")) {
+        // the corners on the joined side round off as the menu comes and goes (0: square, joined; 1: round), as the
+        // buttons of Dolphin NG's bar do (Style::eventFilterNgMenu animates it)
+        qreal corner = 0.0;
+        if (painter->device() && painter->device()->devType() == QInternal::Widget) {
+            corner = qBound(0.0, static_cast<const QWidget *>(painter->device())->property("_breeze_ng_join_corner").toReal(), 1.0);
+        }
+        if (corner > 0.0) {
+            const qreal near = radius * corner; // the radius of the joined side's corners
+            const bool bottom = joined == QLatin1String("bottom");
+            const QRectF r = frameRect;
+            const qreal tl = bottom ? radius : near, tr = tl, bl = bottom ? near : radius, br = bl;
+            path.moveTo(r.left() + tl, r.top());
+            path.lineTo(r.right() - tr, r.top());
+            path.arcTo(QRectF(r.right() - 2 * tr, r.top(), 2 * tr, 2 * tr), 90, -90);
+            path.lineTo(r.right(), r.bottom() - br);
+            path.arcTo(QRectF(r.right() - 2 * br, r.bottom() - 2 * br, 2 * br, 2 * br), 0, -90);
+            path.lineTo(r.left() + bl, r.bottom());
+            path.arcTo(QRectF(r.left(), r.bottom() - 2 * bl, 2 * bl, 2 * bl), 270, -90);
+            path.lineTo(r.left(), r.top() + tl);
+            path.arcTo(QRectF(r.left(), r.top(), 2 * tl, 2 * tl), 180, -90);
+            path.closeSubpath();
+        } else if (joined == QLatin1String("bottom")) {
             frameRect.adjust(0, 0, 0, radius + 3);
             path = roundedPath(frameRect, CornersTop, radius);
         } else {
