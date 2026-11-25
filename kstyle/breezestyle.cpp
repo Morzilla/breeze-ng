@@ -3073,7 +3073,7 @@ bool Style::eventFilterNgPopup(QWidget *popup, QEvent *event)
         // (on Aurora's light frost the menu's edge is a white hairline, which a joined button on the frost did not
         // show: the button's open side read as no edge at all. There a faint edge of ink, as the menu's shadow draws it)
         if (_helper->isAurora() && !_helper->isDark(popup->palette())) {
-            outline = _helper->alphaColor(_helper->ink(popup->palette()), 0.27); // (as dark as the menu's edge with its shadow)
+            outline = _helper->alphaColor(_helper->ink(popup->palette()), 0.34); // (as dark as the menu's edge with its shadow, also on the darker glass of a menu bar)
         }
         button->setProperty("_breeze_ng_joined_edge", outline);
         button->update();
