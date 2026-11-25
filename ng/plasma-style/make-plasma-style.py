@@ -16,6 +16,7 @@ colour scheme's (ColorScheme-Text as "ink", ColorScheme-Highlight), so both styl
   list items            a pill on hover, the highlight colour when selected
   fields                an ink sheet, a rim on hover, the highlight colour on focus
   menu bar items, tabs  pills
+  scroll bars           a pill of ink, no rim, no groove
 """
 import gzip
 import json
@@ -157,6 +158,16 @@ redraw('widgets/lineedit', [
 
 # tabs (the launcher's Applications / Places)
 redraw('widgets/tabbar', [(f'{side}-active-tab-', R_ITEM, (INK, 0.12), rim) for side in ('north', 'south', 'east', 'west')])
+
+# scroll bars (the launcher's lists, the panel popups'): the default slider is a solid grey bar with a white rim, a
+# bright line on the glass. A pill of ink with no rim, a little more ink under the pointer, and no groove
+R_SCROLL = 3
+redraw('widgets/scrollbar', [
+    ('slider-', R_SCROLL, (INK, 0.26 if GLASS else 0.30), None),
+    ('mouseover-slider-', R_SCROLL, (INK, 0.42 if GLASS else 0.45), None),
+    ('background-vertical-', R_SCROLL, None, None),
+    ('background-horizontal-', R_SCROLL, None, None),
+])
 
 # separator lines (the launcher's, the panel popups'): the default draws them in the scheme's frame colour, black
 # lines on a dark glass. Breeze NG has no separator lines: a breath of ink, enough to tell two areas apart
