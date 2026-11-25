@@ -3251,6 +3251,7 @@ void Style::ngRenderPopupPanel(QPainter *painter, const QRect &rect, const QPale
     }
 
     painter->save();
+    const auto mode = painter->compositionMode();
     _helper->renderMenuFrame(painter, rect, background, outline, hasAlpha, seamlessEdges);
 
     if (joinSpan.isValid()) {
@@ -3268,16 +3269,36 @@ void Style::ngRenderPopupPanel(QPainter *painter, const QRect &rect, const QPale
         // popup is wider than the button or shifted, its edge then meets the button's sides without a break
         painter->drawRect(QRect(joinSpan.left() + 1, y, qMax(1, joinSpan.width() - 2), 2));
         // a corner under the button becomes square, and the side outline runs straight up to the button
-        const int cornerTop = top ? rect.top() : rect.bottom() - radius;
-        // (a see-through sheet is laid in place of what was there, and so is its outline: the frame's own colour then)
-        const QColor sideLine = background.alpha() < 255 ? outline : KColorUtils::overlayColors(background, outline);
-        if (joinSpan.left() <= rect.left() + radius) {
-            painter->drawRect(QRect(rect.left(), cornerTop, radius, radius));
-            painter->fillRect(QRect(rect.left(), cornerTop, 1, radius), sideLine);
-        }
-        if (joinSpan.right() >= rect.right() - radius) {
-            painter->drawRect(QRect(rect.right() - radius, cornerTop, radius + 1, radius));
-            painter->fillRect(QRect(rect.right(), cornerTop, 1, radius), sideLine);
+        if (hasAlpha) {
+            // a see-through sheet: the corner is the frame itself again, drawn by the same code with its top (and the
+            // side towards the button) left open, so that the side line is the same antialiased stroke over half a pixel
+            // of sheet as the rest of the edge. A plain line laid there came out lighter than the edge below it
+            auto openCorner = [&](const QRect &corner, Qt::Edges open) {
+                painter->save();
+                painter->setCompositionMode(QPainter::CompositionMode_Source);
+                painter->fillRect(corner, Qt::transparent);
+                painter->setCompositionMode(mode);
+                _helper->renderMenuFrame(painter, corner, background, outline, true, open);
+                painter->restore();
+            };
+            const int cornerY = top ? rect.top() : rect.bottom() - radius + 1;
+            if (joinSpan.left() <= rect.left() + radius) {
+                openCorner(QRect(rect.left(), cornerY, radius, radius), Qt::TopEdge | Qt::RightEdge | Qt::BottomEdge);
+            }
+            if (joinSpan.right() >= rect.right() - radius) {
+                openCorner(QRect(rect.right() - radius + 1, cornerY, radius, radius), Qt::TopEdge | Qt::LeftEdge | Qt::BottomEdge);
+            }
+        } else {
+            const int cornerTop = top ? rect.top() : rect.bottom() - radius;
+            const QColor sideLine = KColorUtils::overlayColors(background, outline);
+            if (joinSpan.left() <= rect.left() + radius) {
+                painter->drawRect(QRect(rect.left(), cornerTop, radius, radius));
+                painter->fillRect(QRect(rect.left(), cornerTop, 1, radius), sideLine);
+            }
+            if (joinSpan.right() >= rect.right() - radius) {
+                painter->drawRect(QRect(rect.right() - radius, cornerTop, radius + 1, radius));
+                painter->fillRect(QRect(rect.right(), cornerTop, 1, radius), sideLine);
+            }
         }
     }
 
