@@ -226,5 +226,9 @@ if os.path.exists(f'{SRC}/plasmarc'):
         # strong blue under the text
         # (whatever the default's value: only the key of the ContrastEffect group carries this name)
         rc = re.sub(r'(?m)^saturation=.*$', 'saturation=1.0', rc)
+    if AURORA:
+        # (Aurora: no contrast effect at all. The windows have the blur only, and with it a popup came out whiter and
+        # more uniform than a window of the same glass, the wallpaper hardly showing through)
+        rc = re.sub(r'(?ms)^(\[ContrastEffect\][^\[]*?)^enabled=true', r'\1enabled=false', rc)
     open(f'{DST}/plasmarc', 'w').write(rc)
 print('written', DST)

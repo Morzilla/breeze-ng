@@ -1335,7 +1335,7 @@ private:
                 inLauncher = true;
             } else if (!inLauncher && name.startsWith("ScrollView") && node->width() > window->width() * 0.6 && node->height() > window->height() * 0.3) {
                 target = node; // the main list of a system tray page
-                reach = 4;
+                reach = -6; // (inside the popup's edges: reaching them, the card read as the popup cut in two under its header)
             }
         }
         if (!target || target->property("_breeze_ng_card").toBool()) {
