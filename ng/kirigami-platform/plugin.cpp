@@ -529,6 +529,34 @@ private:
     Look *m_look; // (the plugin's own: a change of the settings reaches what is already shown)
 };
 
+// What the plugin lays into other people's scenes (lights, cards, sheets): taken out again before the application
+// tears its windows down. Left in, plasmashell crashed now and then when it stopped (in the destruction of a system
+// tray applet, an item taking leave of a window that was gone)
+QList<QPointer<QQuickItem>> &injected()
+{
+    static QList<QPointer<QQuickItem>> items;
+    return items;
+}
+void inject(QQuickItem *item)
+{
+    static bool hooked = false;
+    if (!hooked) {
+        hooked = true;
+        QObject::connect(qApp, &QCoreApplication::aboutToQuit, qApp, [] {
+            const auto items = injected();
+            injected().clear();
+            for (const QPointer<QQuickItem> &one : items) {
+                if (one) {
+                    one->setParentItem(nullptr);
+                    delete one.data();
+                }
+            }
+        }, Qt::DirectConnection);
+    }
+    injected().removeAll(QPointer<QQuickItem>());
+    injected().append(item);
+}
+
 // The lights of Aurora in a popup of Plasma (the launcher, the system tray, the calendar, a notification), as in the
 // windows: laid on the popup's own background (the Plasma style's sheet), under its content, inside its rounded
 // corners. The sheet itself stays the Plasma style's.
@@ -1362,7 +1390,7 @@ private:
                     qWarning("breeze-ng plasma: panel frame %s %.0fx%.0f", frame ? qPrintable(frame->property("imagePath").toString()) : "-", frame ? frame->width() : 0.0, frame ? frame->height() : 0.0);
                 }
                 if (frame && frame->width() > 100) {
-                    new PlasmaLights(frame, &m_look, m_notifier, 0, false);
+                    inject(new PlasmaLights(frame, &m_look, m_notifier, 0, false));
                 } else {
                     windowHooks()[window] &= ~8; // (not laid out yet: the next item asks again)
                 }
@@ -1402,7 +1430,7 @@ private:
             return;
         }
         setHook(window, 8);
-        new PlasmaLights(background, &m_look, m_notifier, 14); // (the radius of the Plasma style's popups, make-plasma-style.py R_POPUP)
+        inject(new PlasmaLights(background, &m_look, m_notifier, 14)); // (the radius of the Plasma style's popups, make-plasma-style.py R_POPUP)
     }
 
     // the card under a list of a Plasma popup (PlasmaCard), once per list: the launcher's sidebar (its categories,
@@ -1411,7 +1439,7 @@ private:
     void popupCard(QQuickItem *item)
     {
         QQuickWindow *window = item ? item->window() : nullptr;
-        if (!window || !window->inherits("PlasmaQuick::AppletPopup")) {
+        if (!window || !window->inherits("PlasmaQuick::AppletPopup") || qEnvironmentVariableIsSet("BREEZE_NG_PLASMA_NO_CARDS")) {
             return;
         }
         // (the themes are asked for by the rows and the labels, not by the lists: from the item up to its list)
@@ -1447,7 +1475,7 @@ private:
             return;
         }
         target->setProperty("_breeze_ng_card", true);
-        new PlasmaCard(target, &m_look, m_notifier, reach);
+        inject(new PlasmaCard(target, &m_look, m_notifier, reach));
     }
 
     // The highlight of an open applet in a panel (the system tray's icon, the launcher's button) is the Plasma
