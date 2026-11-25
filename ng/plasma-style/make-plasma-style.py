@@ -139,10 +139,10 @@ popup_rim = 0.22 if AURORA else 0.16 if GLASS else 0.10
 # (Aurora: 50 % let the wallpaper through, boosted by the contrast effect's saturation: dark text on a strong blue,
 # hard to read. The launcher and the panel popups hold as much sheet as the applications' menus)
 glass_popup = 0.80 if AURORA else 0.62
-# (Aurora with compositing: the popup's own sheet is faint; Breeze NG's Kirigami plugin lays the windows' glass, wash and
-# lights over it (PlasmaLights), so that a popup is the same glass as a window. Without the plugin the popup stays
-# readable, if lighter)
-AURORA_POPUP_SVG = 0.20
+# (Aurora: the popup's own sheet is readable by itself. Breeze NG's Kirigami plugin, where it runs, thins it to a fifth
+# and lays the windows' glass, wash and lights over it (PlasmaLights), so that a popup is the same glass as a window.
+# Without the plugin, as between an update and the next login, the popup is this plain sheet)
+AURORA_POPUP_SVG = 0.80
 
 # Aurora: the controls of the widget style's Aurora (the 2026-11-24 mockups), one SVG for light and dark schemes:
 #   a key is the background colour with a veil of near white over it: white on a light scheme, a lighter grey key
@@ -161,7 +161,8 @@ redraw('translucent/widgets/tooltip', [('', R_TIP, (BG, 0.72 if GLASS else 0.9),
 if AURORA:
     # (see-through, the compositor's blur behind it, under a light mask: a little of the background colour and a veil of
     # near white, frost on a light scheme and a lighter glass on a dark one)
-    redraw('translucent/widgets/panel-background', [('', 2, (BG, 0.06), None)])  # (the mask itself: Breeze NG's plugin, at the density of the settings)
+    # (the floor, readable by itself: Breeze NG's plugin adds to it, up to the density of the settings)
+    redraw('translucent/widgets/panel-background', [('', 2, [(BG, 0.25), (HLT, 0.22)], None)])
 
 # buttons: raised ones (normal, pressed, with hover and focus drawn over them) and flat ones (toolbutton-*)
 if AURORA:

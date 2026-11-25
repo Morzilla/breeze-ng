@@ -596,7 +596,10 @@ public:
             const qreal lift = m_look->dark ? 0.22 : 0.55;
             QColor mask = QColor::fromRgbF(window.redF() + (1.0 - window.redF()) * lift, window.greenF() + (1.0 - window.greenF()) * lift,
                                            window.blueF() + (1.0 - window.blueF()) * lift);
-            mask.setAlphaF(m_look->plasmaPanel / 100.0);
+            // (the Plasma style's own panel sheet is the floor, about 41 %, readable without this plugin: the mask
+            // adds what is missing to the density of the settings)
+            const qreal floor = 0.41;
+            mask.setAlphaF(qBound(0.0, (m_look->plasmaPanel / 100.0 - floor) / (1.0 - floor), 1.0));
             painter->fillRect(rect, mask);
             paintAuroraLights(painter, rect, *m_look, true, false);
             return;
@@ -1544,6 +1547,19 @@ private:
             return;
         }
         setHook(window, 8);
+        // the Plasma style's own sheet (readable by itself, 80 %) is thinned to a fifth under the glass laid here
+        bool thinned = false;
+        const auto parts = background->childItems();
+        for (QQuickItem *part : parts) {
+            if (part->property("imagePath").toString().endsWith(QLatin1String("dialogs/background"))) {
+                part->setOpacity(0.25);
+                thinned = true;
+            }
+        }
+        if (!thinned) {
+            setHook(window, 8);
+            return; // (a popup built another way: left as the Plasma style draws it)
+        }
         inject(new PlasmaLights(background, &m_look, m_notifier, 14)); // (the radius of the Plasma style's popups, make-plasma-style.py R_POPUP)
     }
 
