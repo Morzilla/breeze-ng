@@ -119,6 +119,10 @@ popup_rim = 0.22 if AURORA else 0.16 if GLASS else 0.10
 # (Aurora: 50 % let the wallpaper through, boosted by the contrast effect's saturation: dark text on a strong blue,
 # hard to read. The launcher and the panel popups hold as much sheet as the applications' menus)
 glass_popup = 0.80 if AURORA else 0.62
+# (Aurora with compositing: the popup's own sheet is faint; Breeze NG's Kirigami plugin lays the windows' glass, wash and
+# lights over it (PlasmaLights), so that a popup is the same glass as a window. Without the plugin the popup stays
+# readable, if lighter)
+AURORA_POPUP_SVG = 0.20
 
 # Aurora: the controls of the widget style's Aurora (the 2026-11-24 mockups), one SVG for light and dark schemes:
 #   a key is the background colour with a veil of near white over it: white on a light scheme, a lighter grey key
@@ -129,7 +133,7 @@ KEY_EDGE = (INK, 0.12)
 
 # popups (the panel's, the launcher) and tooltips
 redraw('dialogs/background', [('', R_POPUP, (BG, 1 if not GLASS else glass_popup), (INK, popup_rim)), ('mask-', R_POPUP, None, None, True)])
-redraw('translucent/dialogs/background', [('', R_POPUP, (BG, glass_popup if GLASS else 0.86), (INK, popup_rim)), ('mask-', R_POPUP, None, None, True)])
+redraw('translucent/dialogs/background', [('', R_POPUP, (BG, AURORA_POPUP_SVG if AURORA else glass_popup if GLASS else 0.86), (INK, popup_rim)), ('mask-', R_POPUP, None, None, True)])
 redraw('widgets/tooltip', [('', R_TIP, (BG, 1), (INK, popup_rim)), ('mask-', R_TIP, None, None, True)])
 redraw('translucent/widgets/tooltip', [('', R_TIP, (BG, 0.72 if GLASS else 0.9), (INK, popup_rim)), ('mask-', R_TIP, None, None, True)])
 

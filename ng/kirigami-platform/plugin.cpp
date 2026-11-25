@@ -498,13 +498,14 @@ void paintAuroraLights(QPainter *painter, const QRectF &rect, Look &m_look, bool
 class AuroraBackdrop : public QQuickPaintedItem
 {
 public:
-    AuroraBackdrop(QQuickWindow *window, const Look &look)
+    AuroraBackdrop(QQuickWindow *window, Look *look, QObject *notifier)
         : QQuickPaintedItem(window->contentItem())
         , m_window(window)
         , m_look(look)
     {
         setZ(-100000);
         setAntialiasing(false);
+        QObject::connect(notifier, SIGNAL(changed()), this, SLOT(update()));
         auto fit = [this] {
             setSize(QSizeF(m_window->width(), m_window->height()));
             update();
@@ -519,12 +520,12 @@ public:
 
     void paint(QPainter *painter) override
     {
-        paintAuroraLights(painter, QRectF(0, 0, width(), height()), m_look, m_window->isActive(), true);
+        paintAuroraLights(painter, QRectF(0, 0, width(), height()), *m_look, m_window->isActive(), true);
     }
 
 private:
     QQuickWindow *m_window;
-    Look m_look;
+    Look *m_look; // (the plugin's own: a change of the settings reaches what is already shown)
 };
 
 // The lights of Aurora in a popup of Plasma (the launcher, the system tray, the calendar, a notification), as in the
@@ -533,13 +534,14 @@ private:
 class PlasmaLights : public QQuickPaintedItem
 {
 public:
-    PlasmaLights(QQuickItem *background, const Look &look, qreal radius)
+    PlasmaLights(QQuickItem *background, Look *look, QObject *notifier, qreal radius)
         : QQuickPaintedItem(background)
         , m_look(look)
         , m_radius(radius)
     {
         setAntialiasing(true);
         setObjectName(QStringLiteral("breeze-ng-plasma-lights"));
+        QObject::connect(notifier, SIGNAL(changed()), this, SLOT(update()));
         auto fit = [this, background] {
             setSize(QSizeF(background->width(), background->height()));
             update();
@@ -549,11 +551,6 @@ public:
         fit();
     }
 
-    void setLook(const Look &look)
-    {
-        m_look = look;
-        update();
-    }
 
     void paint(QPainter *painter) override
     {
@@ -562,11 +559,18 @@ public:
         shape.addRoundedRect(rect.adjusted(1, 1, -1, -1), m_radius - 1, m_radius - 1);
         painter->setRenderHint(QPainter::Antialiasing, true);
         painter->setClipPath(shape);
-        paintAuroraLights(painter, rect, m_look, true, false);
+        // the window's glass, as AuroraBackdrop lays it: over the Plasma style's faint sheet (make-plasma-style.py
+        // AURORA_POPUP_SVG), together as dense as a window's body
+        colours(*m_look);
+        QColor sheet = m_look->sheet;
+        const qreal svg = 0.20;
+        sheet.setAlphaF(qBound(0.0, 1.0 - (1.0 - m_look->sheet.alphaF()) / (1.0 - svg), 1.0));
+        painter->fillRect(rect, sheet);
+        paintAuroraLights(painter, rect, *m_look, true, false);
     }
 
 private:
-    Look m_look;
+    Look *m_look; // (the plugin's own: a change of the settings reaches what is already shown)
     qreal m_radius;
 };
 
@@ -576,13 +580,14 @@ private:
 class PlasmaCard : public QQuickPaintedItem
 {
 public:
-    PlasmaCard(QQuickItem *list, const Look &look, qreal reach)
+    PlasmaCard(QQuickItem *list, Look *look, QObject *notifier, qreal reach)
         : QQuickPaintedItem(list)
         , m_look(look)
     {
         setZ(-1);
         setAntialiasing(true);
         setObjectName(QStringLiteral("breeze-ng-plasma-card"));
+        QObject::connect(notifier, SIGNAL(changed()), this, SLOT(update()));
         auto fit = [this, list, reach] {
             setPosition(QPointF(-reach, -reach));
             setSize(QSizeF(list->width() + 2 * reach, list->height() + 2 * reach));
@@ -595,11 +600,11 @@ public:
 
     void paint(QPainter *painter) override
     {
-        colours(m_look);
+        colours(*m_look);
         const QRectF rect = QRectF(0, 0, width(), height()).adjusted(0.5, 0.5, -0.5, -0.5);
         QLinearGradient fill(rect.topLeft(), rect.bottomLeft());
         QColor edge;
-        if (m_look.dark) {
+        if (m_look->dark) {
             // (from the scheme's window colour, darker towards the bottom: a neutral or warm scheme keeps its tone)
             QColor top = QGuiApplication::palette().color(QPalette::Active, QPalette::Window).darker(130);
             QColor bottom = top.darker(600);
@@ -609,9 +614,11 @@ public:
             fill.setColorAt(1.0, bottom);
             edge = QColor(255, 255, 255, 22);
         } else {
-            fill.setColorAt(0.0, QColor(255, 255, 255, 168));
-            fill.setColorAt(1.0, QColor(255, 255, 255, 87));
-            edge = QColor(255, 255, 255, 190);
+            // (a veil over the popup's lights, not a sheet: denser, it turned a list that fills its popup white and
+            // the lights showed only round the title)
+            fill.setColorAt(0.0, QColor(255, 255, 255, 84));
+            fill.setColorAt(1.0, QColor(255, 255, 255, 26));
+            edge = QColor(255, 255, 255, 150);
         }
         painter->setRenderHint(QPainter::Antialiasing, true);
         painter->setBrush(fill);
@@ -620,7 +627,7 @@ public:
     }
 
 private:
-    Look m_look;
+    Look *m_look; // (the plugin's own: a change of the settings reaches what is already shown)
 };
 
 // debugging: BREEZE_NG_DEBUG_QUICK=1 lists the large coloured items of each window a few seconds after it opens
@@ -633,10 +640,15 @@ void dumpTree(QQuickItem *item, int depth)
     const QVariant text = item->property("text");
     const QVariant level = item->property("level");
     const QFont font = item->property("font").value<QFont>();
-    qWarning("breeze-ng tree: %*s%s %dx%d%s%s%s", depth * 2, "", item->metaObject()->className(), int(item->width()), int(item->height()),
+    const QVariant colour = item->property("color");
+    const QVariant image = item->property("imagePath");
+    const QVariant prefix = item->property("prefix");
+    qWarning("breeze-ng tree: %*s%s %dx%d op %.2f%s%s%s%s%s", depth * 2, "", item->metaObject()->className(), int(item->width()), int(item->height()), item->opacity(),
              text.isValid() ? qPrintable(QStringLiteral(" text=\"%1\"").arg(text.toString().left(40))) : "",
              level.isValid() ? qPrintable(QStringLiteral(" level=%1").arg(level.toInt())) : "",
-             text.isValid() ? qPrintable(QStringLiteral(" weight=%1").arg(font.weight())) : "");
+             text.isValid() ? qPrintable(QStringLiteral(" weight=%1").arg(font.weight())) : "",
+             (colour.isValid() && !text.isValid()) ? qPrintable(QStringLiteral(" color=%1").arg(colour.value<QColor>().name(QColor::HexArgb))) : "",
+             image.isValid() ? qPrintable(QStringLiteral(" svg=%1:%2").arg(image.toString(), prefix.toString())) : "");
     const auto children = item->childItems();
     for (QQuickItem *child : children) {
         dumpTree(child, depth + 1);
@@ -1141,13 +1153,12 @@ public:
 public Q_SLOTS:
     void reloadLook()
     {
-        KSharedConfig::Ptr config = KSharedConfig::openConfig(QStringLiteral("breezengrc"));
-        config->reparseConfiguration();
-        const KConfigGroup common = config->group(QStringLiteral("Common"));
-        m_look.accentTint = common.readEntry("AccentTint", true);
-        m_look.accentText = qBound(0, common.readEntry("AccentText", 0), 3);
-        const QString secondAccent = common.readEntry("AuroraSecondAccent", QString());
-        m_look.second = secondAccent.isEmpty() ? QColor() : QColor(secondAccent);
+        // (the whole look again: titles, lights, grain, the second light, the glass' density; a change of the look
+        // itself, Aurora on or off, needs the application started again, as the glass is set up when it starts)
+        KSharedConfig::openConfig(QStringLiteral("breezengrc"))->reparseConfiguration();
+        const bool aurora = m_look.aurora;
+        m_look = readLook();
+        m_look.aurora = aurora;
         Q_EMIT m_notifier->changed();
     }
 
@@ -1294,7 +1305,7 @@ private:
             return;
         }
         setHook(window, 8);
-        new PlasmaLights(background, m_look, 14); // (the radius of the Plasma style's popups, make-plasma-style.py R_POPUP)
+        new PlasmaLights(background, &m_look, m_notifier, 14); // (the radius of the Plasma style's popups, make-plasma-style.py R_POPUP)
     }
 
     // the card under a list of a Plasma popup (PlasmaCard), once per list: the launcher's sidebar (its categories,
@@ -1331,7 +1342,7 @@ private:
             return;
         }
         target->setProperty("_breeze_ng_card", true);
-        new PlasmaCard(target, m_look, reach);
+        new PlasmaCard(target, &m_look, m_notifier, reach);
     }
 
     // a heading of Plasma: the title's colour (or gradient) once it has its level and colour set. On Plasma's own
@@ -1521,7 +1532,7 @@ private:
                     };
                     QObject::connect(quickWindow, &QQuickWindow::colorChanged, quickWindow, clear, Qt::QueuedConnection);
                     quickWindow->setColor(Qt::transparent);
-                    new AuroraBackdrop(quickWindow, look);
+                    new AuroraBackdrop(quickWindow, &m_look, m_notifier);
                     if (!qEnvironmentVariableIsSet("BREEZE_NG_QUICK_NO_COVERS")) {
                         unfillCovers(quickWindow);
                     }
