@@ -1488,12 +1488,18 @@ private:
                 }
                 // Aurora's lights in the panel too, over its background (the largest frame of the Plasma style's
                 // panel-background), under its applets
-                QQuickItem *frame = nullptr;
+                // (each of the panel's background frames, shown or not: Plasma keeps one for a floating panel and one
+                // for a panel against the edge and shows one of them; the overlay of each follows its frame)
+                int laid = 0;
                 std::function<void(QQuickItem *, int)> look = [&](QQuickItem *node, int depth) {
-                    if (node->property("imagePath").toString().endsWith(QLatin1String("widgets/panel-background")) && node->opacity() > 0 && node->isVisible()
-                        && !node->property("imagePath").toString().contains(QLatin1String("solid/"))
-                        && (!frame || node->width() * node->height() >= frame->width() * frame->height())) {
-                        frame = node;
+                    const QString path = node->property("imagePath").toString();
+                    if (path.endsWith(QLatin1String("widgets/panel-background")) && !path.contains(QLatin1String("solid/"))
+                        && qMax(node->width(), node->height()) > 100 && qMin(node->width(), node->height()) > 8) {
+                        ++laid;
+                        if (!node->property("_breeze_ng_lights").toBool()) {
+                            node->setProperty("_breeze_ng_lights", true);
+                            inject(new PlasmaLights(node, &m_look, m_notifier, 0, false));
+                        }
                     }
                     if (depth < 3) {
                         const auto children = node->childItems();
@@ -1504,11 +1510,9 @@ private:
                 };
                 look(window->contentItem(), 0);
                 if (qEnvironmentVariableIsSet("BREEZE_NG_DEBUG_QUICK")) {
-                    qWarning("breeze-ng plasma: panel frame %s %.0fx%.0f", frame ? qPrintable(frame->property("imagePath").toString()) : "-", frame ? frame->width() : 0.0, frame ? frame->height() : 0.0);
+                    qWarning("breeze-ng plasma: panel frames with lights %d", laid);
                 }
-                if (frame && qMax(frame->width(), frame->height()) > 100 && qMin(frame->width(), frame->height()) > 8) {
-                    inject(new PlasmaLights(frame, &m_look, m_notifier, 0, false));
-                } else {
+                if (laid == 0) {
                     windowHooks()[window] &= ~8; // (not laid out yet: the next item asks again)
                 }
             }
