@@ -27,6 +27,8 @@
 #include <QEvent>
 #include <QFileInfo>
 #include <QHash>
+#include <QQmlComponent>
+#include <QQmlEngine>
 #include <QQmlProperty>
 #include <QSet>
 #include <QLibraryInfo>
@@ -101,7 +103,81 @@ bool listRowsStyled()
 // the accent's hue (a light one only a hint). Kirigami takes its text from the colour scheme, not from the style's
 // palette: in System Settings' sidebar the text was the scheme's grey beside the tinged text of Dolphin NG's.
 // BREEZE_NG_TINTED_TEXT=0 leaves it, as in the widget style.
-void tintText(PlatformTheme *theme, int accentText)
+// AccentText 2 ("in an Aurora gradient") for a Kirigami title: a Text item takes no gradient as its colour, so the
+// heading is drawn through a layer whose effect is a LinearGradient of Qt5Compat.GraphicalEffects, masked by the text
+// itself, across the width of the text, from the accent to Aurora's second light, as the widget style's titles. (A layer:
+// an item laid over the heading went into its ColumnLayout as one more row; the effect of a layer is left out of
+// layouts.) Without Qt5Compat the heading keeps its plain colour.
+void titleGradient(QQuickItem *heading, const QColor &first, const QColor &second)
+{
+    QPointer<QQuickItem> guard(heading);
+    QTimer::singleShot(0, heading, [guard, first, second] {
+        if (!guard) {
+            return;
+        }
+        const bool had = guard->property("_breeze_ng_title_gradient").toBool();
+        if (!first.isValid()) {
+            if (had) {
+                QQmlProperty::write(guard, QStringLiteral("layer.enabled"), false);
+                guard->setProperty("_breeze_ng_title_gradient", QVariant());
+            }
+            return;
+        }
+        QQmlEngine *engine = qmlEngine(guard);
+        if (!engine) {
+            return;
+        }
+        // one holder per engine and pair of colours: a QML object whose property is the effect's component (a
+        // component made from C++ has no creation context, and the layer, creating the effect in it, crashed)
+        static QHash<QString, QObject *> holders;
+        const QString key = QString::number(quintptr(engine)) + first.name() + second.name();
+        QObject *holder = holders.value(key);
+        if (!holder) {
+            QQmlComponent maker(engine);
+            maker.setData(QStringLiteral(R"(
+import QtQuick
+import Qt5Compat.GraphicalEffects
+QtObject {
+    property Component effect: Component {
+        LinearGradient {
+            start: Qt.point(0, 0)
+            end: Qt.point(Math.max(1, Math.min(width, source && source.sourceItem && source.sourceItem.contentWidth > 0 ? source.sourceItem.contentWidth : width)), 0)
+            gradient: Gradient {
+                GradientStop { position: 0.0; color: "%1" }
+                GradientStop { position: 1.0; color: "%2" }
+            }
+        }
+    }
+}
+)").arg(first.name(), second.name()).toUtf8(), QUrl(QStringLiteral("breeze-ng:/TitleGradient.qml")));
+            if (!maker.isReady()) {
+                return; // (no Qt5Compat.GraphicalEffects: the plain colour stays)
+            }
+            holder = maker.create(engine->rootContext());
+            if (!holder) {
+                return;
+            }
+            holder->setParent(engine);
+            holders.insert(key, holder);
+            QObject::connect(holder, &QObject::destroyed, [key] {
+                holders.remove(key);
+            });
+        }
+        auto component = holder->property("effect").value<QQmlComponent *>();
+        if (!component) {
+            return;
+        }
+        if (guard->property("_breeze_ng_shadow").toBool()) { // (the halo off: it would be masked into the gradient)
+            guard->setProperty("style", 0);
+            guard->setProperty("_breeze_ng_shadow", false);
+        }
+        QQmlProperty::write(guard, QStringLiteral("layer.effect"), QVariant::fromValue(component), qmlContext(guard));
+        QQmlProperty::write(guard, QStringLiteral("layer.enabled"), true, qmlContext(guard));
+        guard->setProperty("_breeze_ng_title_gradient", true);
+    });
+}
+
+void tintText(PlatformTheme *theme, int accentText, const QColor &secondLight)
 {
     // (an icon of a button that is on has its text colour set by checkedIcon: left to it)
     if (theme->property("_breeze_ng_checked_icon").toBool()) {
@@ -134,6 +210,15 @@ void tintText(PlatformTheme *theme, int accentText)
         const qreal hue = accent.hslHueF();
         const QColor colour = accentText == 2 ? (dark ? QColor::fromHslF(hue, 0.80, 0.89) : QColor::fromHslF(hue, 0.66, 0.33))
                                               : (dark ? QColor::fromHslF(hue, 0.80, 0.90) : QColor::fromHslF(hue, 0.62, 0.31));
+        if (auto heading = qobject_cast<QQuickItem *>(const_cast<QObject *>(owner))) {
+            if (accentText == 2) {
+                // (the second light: the user's colour, or the hue next to the accent's, as Helper::accentTitleBrush)
+                const qreal hue2 = (secondLight.isValid() && secondLight.hslHueF() >= 0) ? secondLight.hslHueF() : std::fmod(hue + 0.17, 1.0);
+                titleGradient(heading, colour, dark ? QColor::fromHslF(hue2, 0.75, 0.88) : QColor::fromHslF(hue2, 0.58, 0.40));
+            } else {
+                titleGradient(heading, QColor(), QColor());
+            }
+        }
         if (theme->textColor() != colour) {
             theme->setCustomTextColor(colour);
         }
@@ -702,7 +787,8 @@ void textShadows(QQuickWindow *window, const Look &look)
             if (node->inherits("QQuickText")) {
                 const QColor colour = node->property("color").value<QColor>();
                 const bool ours = node->property("_breeze_ng_shadow").toBool();
-                const bool skip = bare || !node->isEnabled() || node->opacity() < 0.75 || colour.alphaF() < 0.75
+                // (a title drawn through the Aurora gradient: its halo would take the gradient too, a bold rim)
+                const bool skip = bare || node->property("_breeze_ng_title_gradient").toBool() || !node->isEnabled() || node->opacity() < 0.75 || colour.alphaF() < 0.75
                     || (close(colour, highlighted) && !close(colour, windowText)) || (onSelection.isValid() && close(colour, onSelection))
                     || (close(colour, disabled) && !close(colour, windowText));
                 if (skip) {
@@ -951,7 +1037,7 @@ private:
             }
             sideRowAir(owner);
             if (look.accentTint) {
-                tintText(guard, look.accentText); // (before checkedIcon: a button that is on has its own text colour)
+                tintText(guard, look.accentText, look.second); // (before checkedIcon: a button that is on has its own text colour)
             }
             {
                 Look forIcon = m_look;
