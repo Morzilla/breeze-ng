@@ -162,7 +162,8 @@ if AURORA:
     # (see-through, the compositor's blur behind it, under a light mask: a little of the background colour and a veil of
     # near white, frost on a light scheme and a lighter glass on a dark one)
     # (the floor, readable by itself: Breeze NG's plugin adds to it, up to the density of the settings)
-    redraw('translucent/widgets/panel-background', [('', 2, [(BG, 0.25), (HLT, 0.22)], None)])
+    # (rounded as the popups: seen when the panel floats; against a screen edge Plasma draws no corners)
+    redraw('translucent/widgets/panel-background', [('', R_POPUP, [(BG, 0.25), (HLT, 0.22)], (INK, 0.10)), ('mask-', R_POPUP, None, None, True)])
 
 # buttons: raised ones (normal, pressed, with hover and focus drawn over them) and flat ones (toolbutton-*)
 if AURORA:

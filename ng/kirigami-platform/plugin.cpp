@@ -578,6 +578,9 @@ public:
             setSize(QSizeF(background->width(), background->height()));
             update();
         };
+        if (background->metaObject()->indexOfSignal("enabledBordersChanged()") >= 0) {
+            connect(background, SIGNAL(enabledBordersChanged()), this, SLOT(update()));
+        }
         connect(background, &QQuickItem::widthChanged, this, fit);
         connect(background, &QQuickItem::heightChanged, this, fit);
         fit();
@@ -589,6 +592,15 @@ public:
         const QRectF rect(0, 0, width(), height());
         QPainterPath shape;
         if (!m_sheet) {
+            // (a floating panel has all four borders and round corners: the overlay keeps inside them)
+            const QQuickItem *frame = parentItem();
+            const QVariant borders = frame ? frame->property("enabledBorders") : QVariant();
+            if (borders.isValid() && borders.toInt() == 15) {
+                QPainterPath round;
+                round.addRoundedRect(rect.adjusted(1, 1, -1, -1), 13, 13);
+                painter->setRenderHint(QPainter::Antialiasing, true);
+                painter->setClipPath(round);
+            }
             // a panel: its mask (the window's colour lifted towards white: frost on a light scheme, a lighter glass on
             // a dark one) at the density of the settings, then the lights and the grain
             colours(*m_look);
