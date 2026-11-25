@@ -73,6 +73,7 @@ struct Look {
     bool accentRight = false; // the accent's light from the top right, the second light from the top left
     bool fullSelection = false; // selections in the full accent with white text
     bool accentTint = true; // the text tinged by the accent, as the widget style's palette (Breeze NG's AccentTint)
+    int accentText = 0; // titles and labels in the accent (Breeze NG's AccentText: 1 accent, 2 gradient titles)
     QColor onSelection; // text on a selection, where it is not the scheme's own
     QColor listSheet; // a selected row of a list: the light sheet of the accent (dark schemes: the accent, see-through)
 };
@@ -100,7 +101,7 @@ bool listRowsStyled()
 // the accent's hue (a light one only a hint). Kirigami takes its text from the colour scheme, not from the style's
 // palette: in System Settings' sidebar the text was the scheme's grey beside the tinged text of Dolphin NG's.
 // BREEZE_NG_TINTED_TEXT=0 leaves it, as in the widget style.
-void tintText(PlatformTheme *theme)
+void tintText(PlatformTheme *theme, int accentText)
 {
     // (an icon of a button that is on has its text colour set by checkedIcon: left to it)
     if (theme->property("_breeze_ng_checked_icon").toBool()) {
@@ -122,6 +123,28 @@ void tintText(PlatformTheme *theme)
     }
     // the surfaces of the window's own colours only: not the dark ones of a light scheme (Complementary), not the text
     // of a selection or a tooltip
+    // AccentText (as the widget style, Helper::accentTitleColor / accentLabelColor): a Kirigami.Heading of level 1 or 2
+    // is a title, in a deep accent (the gradient of the widget style's titles has no plain way into a Text item: its
+    // first colour); a heading of a lower level labels a section, in the accent
+    const QObject *owner = theme->parent();
+    if (accentText > 0 && owner && QByteArray(owner->metaObject()->className()).startsWith("Heading")
+        && (theme->colorSet() == PlatformTheme::Window || theme->colorSet() == PlatformTheme::View || theme->colorSet() == PlatformTheme::Header)) {
+        const bool dark = palette.color(QPalette::Window).lightnessF() < 0.5;
+        const qreal hue = accent.hslHueF();
+        const int level = owner->property("level").isValid() ? owner->property("level").toInt() : 1;
+        QColor colour;
+        if (level <= 2) {
+            colour = accentText == 2 ? (dark ? QColor::fromHslF(hue, 0.82, 0.78) : QColor::fromHslF(hue, 0.66, 0.33))
+                                     : (dark ? QColor::fromHslF(hue, 0.78, 0.80) : QColor::fromHslF(hue, 0.62, 0.31));
+        } else {
+            colour = dark ? QColor::fromHslF(hue, 0.66, 0.72) : QColor::fromHslF(hue, 0.56, 0.44);
+        }
+        if (theme->textColor() != colour) {
+            theme->setCustomTextColor(colour);
+        }
+        theme->setProperty("_breeze_ng_tinted", true);
+        return;
+    }
     QPalette::ColorRole role;
     switch (theme->colorSet()) {
     case PlatformTheme::View:
@@ -145,7 +168,9 @@ void tintText(PlatformTheme *theme)
         release(); // (coloured text is left as it is)
         return;
     }
-    QColor tinted = QColor::fromHslF(accent.hslHueF(), text.lightnessF() < 0.5 ? 0.24 : 0.10, text.lightnessF());
+    // (AccentText: a darker ink of the accent's hue, a tinged white on dark schemes, as Helper::accentInk)
+    QColor tinted = accentText > 0 ? (text.lightnessF() < 0.5 ? QColor::fromHslF(accent.hslHueF(), 0.26, 0.21) : QColor::fromHslF(accent.hslHueF(), 0.24, 0.90))
+                                   : QColor::fromHslF(accent.hslHueF(), text.lightnessF() < 0.5 ? 0.24 : 0.10, text.lightnessF());
     tinted.setAlphaF(text.alphaF());
     if (theme->textColor() != tinted) {
         theme->setCustomTextColor(tinted);
@@ -214,6 +239,7 @@ Look readLook()
     look.dim = common.readEntry("AuroraDimInactive", true);
     look.fullSelection = common.readEntry("AuroraFullSelection", false);
     look.accentTint = common.readEntry("AccentTint", true);
+    look.accentText = qBound(0, common.readEntry("AccentText", 0), 2);
     const QString secondAccent = common.readEntry("AuroraSecondAccent", QString());
     look.second = secondAccent.isEmpty() ? QColor() : QColor(secondAccent);
     look.accentRight = common.readEntry("AuroraAccentRight", false);
@@ -932,7 +958,7 @@ private:
             }
             sideRowAir(owner);
             if (look.accentTint) {
-                tintText(guard); // (before checkedIcon: a button that is on has its own text colour)
+                tintText(guard, look.accentText); // (before checkedIcon: a button that is on has its own text colour)
             }
             {
                 Look forIcon = m_look;

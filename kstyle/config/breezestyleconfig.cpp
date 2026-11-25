@@ -786,6 +786,20 @@ QWidget *StyleConfig::pageAurora()
                                         "Il testo tende al colore d'accento, e campi, pulsanti e pannelli delle varianti chiare ne prendono una tinta (in ogni variante di Breeze NG). Spento: come li dà lo schema di colori."));
         group->addWidget(m_accentTint);
         connect(m_accentTint, &QCheckBox::toggled, this, &StyleConfig::updateChanged);
+        {
+            auto *row = new QHBoxLayout();
+            row->addWidget(new QLabel(ngText("Titles and labels:", "Titoli ed etichette:"), m_auroraGroup));
+            m_accentText = new QComboBox(m_auroraGroup);
+            m_accentText->addItem(ngText("As the text", "Come il testo"));
+            m_accentText->addItem(ngText("In the accent", "Nel colore d'accento"));
+            m_accentText->addItem(ngText("Titles in an Aurora gradient", "Titoli sfumati Aurora"));
+            m_accentText->setToolTip(ngText("In the accent: titles in a deep accent, the labels of sections and groups in the accent, the text a darker ink of the accent's hue. Titles in an Aurora gradient: the same, with the titles running from the accent to Aurora's second light.",
+                                            "Nel colore d'accento: titoli in un accento profondo, etichette di sezioni e gruppi in accento, il testo un inchiostro più scuro della tinta dell'accento. Titoli sfumati Aurora: lo stesso, con i titoli che sfumano dall'accento alla seconda luce di Aurora."));
+            row->addWidget(m_accentText);
+            row->addStretch(1);
+            group->addLayout(row);
+            connect(m_accentText, &QComboBox::currentIndexChanged, this, &StyleConfig::updateChanged);
+        }
         auto *aurora = new QFormLayout();
         m_auroraPanel = slider(0, 25, m_auroraGroup);
         m_auroraButton = slider(0, 25, m_auroraGroup);
@@ -1038,6 +1052,7 @@ void StyleConfig::save()
     StyleConfigData::setAuroraFullSelection(m_auroraFull->isChecked());
     StyleConfigData::setAuroraCornerLights(m_auroraCorners->isChecked());
     StyleConfigData::setAccentTint(m_accentTint->isChecked());
+    StyleConfigData::setAccentText(m_accentText->currentIndex());
     StyleConfigData::setSidebarCompact(m_sidebarCompact->isChecked());
     StyleConfigData::setAuroraSecondAccent(m_auroraSecond);
     const bool blurChanged = m_blurStrength->value() != blurStrength();
@@ -1197,7 +1212,7 @@ void StyleConfig::updateChanged()
         || m_auroraBody->value() != StyleConfigData::auroraBodyOpacity()
         || m_auroraSidebar->value() != (StyleConfigData::auroraSidebarOpacity() < 0 ? StyleConfigData::auroraBodyOpacity() : StyleConfigData::auroraSidebarOpacity()) || m_auroraPanel->value() != StyleConfigData::auroraPanelVeil()
         || m_auroraButton->value() != StyleConfigData::auroraButtonVeil() || m_auroraLights->value() != StyleConfigData::auroraLights()
-        || m_auroraGrain->value() != StyleConfigData::auroraGrain() || m_auroraSecond != StyleConfigData::auroraSecondAccent() || m_auroraDim->isChecked() != StyleConfigData::auroraDimInactive() || m_auroraAccentRight->isChecked() != StyleConfigData::auroraAccentRight() || m_auroraFull->isChecked() != StyleConfigData::auroraFullSelection() || m_auroraCorners->isChecked() != StyleConfigData::auroraCornerLights() || m_accentTint->isChecked() != StyleConfigData::accentTint() || m_sidebarCompact->isChecked() != StyleConfigData::sidebarCompact() || (m_aurora->isChecked() && m_auroraLight->isChecked() != ngCurrentAuroraLight())
+        || m_auroraGrain->value() != StyleConfigData::auroraGrain() || m_auroraSecond != StyleConfigData::auroraSecondAccent() || m_auroraDim->isChecked() != StyleConfigData::auroraDimInactive() || m_auroraAccentRight->isChecked() != StyleConfigData::auroraAccentRight() || m_auroraFull->isChecked() != StyleConfigData::auroraFullSelection() || m_auroraCorners->isChecked() != StyleConfigData::auroraCornerLights() || m_accentTint->isChecked() != StyleConfigData::accentTint() || m_accentText->currentIndex() != StyleConfigData::accentText() || m_sidebarCompact->isChecked() != StyleConfigData::sidebarCompact() || (m_aurora->isChecked() && m_auroraLight->isChecked() != ngCurrentAuroraLight())
         || m_blurStrength->value() != blurStrength() || m_textShadow->currentIndex() != StyleConfigData::textShadow()
         || m_animations->isChecked() != StyleConfigData::animationsEnabled() || m_animationSpeed->value() != animationIndex()
         || m_transitions->isChecked() != StyleConfigData::stackedWidgetTransitionsEnabled() || m_mnemonics->currentIndex() != StyleConfigData::mnemonicsMode()
@@ -1239,6 +1254,7 @@ void StyleConfig::load()
     m_auroraFull->setChecked(StyleConfigData::auroraFullSelection());
     m_auroraCorners->setChecked(StyleConfigData::auroraCornerLights());
     m_accentTint->setChecked(StyleConfigData::accentTint());
+    m_accentText->setCurrentIndex(qBound(0, StyleConfigData::accentText(), 2));
     m_sidebarCompact->setChecked(StyleConfigData::sidebarCompact());
     for (QAbstractButton *b : std::as_const(m_auroraSecondButtons)) {
         b->setChecked(b->property("colour").toString() == m_auroraSecond);

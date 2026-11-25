@@ -25,6 +25,8 @@
 #include <KIconLoader>
 #include <kguiaddons_version.h>
 
+#include <QLabel>
+#include <QRegularExpression>
 #include <QApplication>
 #include <QWindow>
 #include <QElapsedTimer>
@@ -338,10 +340,74 @@ Style::~Style()
 }
 
 //______________________________________________________________
+// Breeze NG AccentText: a label set in a larger font than the application's is a title (KTitleWidget's, the heading of
+// a settings page, a welcome screen's): it takes the accent's title brush. Its palette is set, and given back when the
+// style is unpolished or the option turned off
+static void ngAccentTitle(QLabel *label, const Helper &helper)
+{
+    // KTitleWidget (the heading of every KPageDialog page: Kate's settings, Dolphin's) gives its label a style sheet
+    // with the size and the colour of the title, which the palette cannot override: the colour is rewritten in that
+    // sheet (a style sheet takes gradients too, in the text's own box). KTitleWidget writes its sheet again whenever its
+    // palette or font change; the style is asked to polish the label every time, and lays the colour in again
+    static const QString marker = QStringLiteral("/* breeze-ng accent */");
+    if (label->parentWidget() && label->parentWidget()->inherits("KTitleWidget") && label->styleSheet().contains(QLatin1String("font-size"))) {
+        const QString sheet = label->styleSheet();
+        const int mode = helper.accentText(QApplication::palette());
+        if (mode == 0 || sheet.contains(marker)) {
+            return;
+        }
+        QString colour = helper.accentTitleColor(QApplication::palette()).name();
+        const QBrush brush = helper.accentTitleBrush(QApplication::palette());
+        if (brush.gradient() && brush.gradient()->stops().size() >= 2) {
+            colour = QStringLiteral("qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 %1, stop:1 %2)")
+                         .arg(brush.gradient()->stops().constFirst().second.name(), brush.gradient()->stops().constLast().second.name());
+        }
+        static const QRegularExpression colourRule(QStringLiteral("(^|[;{\\s])color\\s*:[^;}]*"));
+        QString accented = sheet;
+        if (accented.contains(colourRule)) {
+            accented.replace(colourRule, QStringLiteral("\\1color: ") + colour);
+        } else {
+            accented += QStringLiteral(" QLabel { color: %1 }").arg(colour);
+        }
+        QPointer<QLabel> guard(label);
+        QTimer::singleShot(0, label, [guard, accented] {
+            if (guard) {
+                guard->setStyleSheet(accented + QLatin1Char(' ') + marker);
+            }
+        });
+        return;
+    }
+    const bool was = label->property("_breeze_ng_title").toBool();
+    const QFontInfo own(label->font()), app(QApplication::font());
+    const bool title = helper.accentText(QApplication::palette()) > 0 && own.pixelSize() >= qRound(app.pixelSize() * 1.2) && !label->text().isEmpty()
+        && !label->window()->inherits("QToolTip") && !qobject_cast<QMenu *>(label->window());
+    if (!title) {
+        if (was) {
+            label->setPalette(QPalette());
+            label->setProperty("_breeze_ng_title", QVariant());
+        }
+        return;
+    }
+    QPalette palette = label->palette();
+    // (rich text is laid out by a text document, which takes a plain colour: the gradient's first colour there)
+    const bool rich = label->textFormat() == Qt::RichText || (label->textFormat() == Qt::AutoText && Qt::mightBeRichText(label->text()));
+    const QBrush brush = rich ? QBrush(helper.accentTitleColor(palette)) : helper.accentTitleBrush(palette);
+    for (QPalette::ColorGroup group : {QPalette::Active, QPalette::Inactive}) {
+        palette.setBrush(group, QPalette::WindowText, brush);
+        palette.setBrush(group, QPalette::Text, brush);
+    }
+    label->setPalette(palette);
+    label->setProperty("_breeze_ng_title", true);
+}
+
 void Style::polish(QWidget *widget)
 {
     if (!widget) {
         return;
+    }
+
+    if (auto label = qobject_cast<QLabel *>(widget)) {
+        ngAccentTitle(label, *_helper);
     }
 
     // register widget to animations
@@ -746,6 +812,18 @@ void Style::polish(QPalette &palette)
                     QColor tinted = QColor::fromHslF(hue, saturation, lightness);
                     tinted.setAlphaF(text.alphaF());
                     palette.setColor(group, role, tinted);
+                }
+            }
+        }
+    }
+    // AccentText: the running text a darker ink of the accent's hue (a tinged white on dark schemes), under titles and
+    // labels in the accent
+    if (_helper->accentText(palette) > 0) {
+        for (QPalette::ColorGroup group : {QPalette::Active, QPalette::Inactive, QPalette::Disabled}) {
+            for (QPalette::ColorRole role : {QPalette::WindowText, QPalette::Text, QPalette::ButtonText}) {
+                const QColor text = palette.color(group, role);
+                if (text.hslSaturationF() <= 0.35) {
+                    palette.setColor(group, role, _helper->accentInk(palette, text));
                 }
             }
         }
@@ -1284,6 +1362,11 @@ void Style::polishScrollArea(QAbstractScrollArea *scrollArea)
 //_______________________________________________________________
 void Style::unpolish(QWidget *widget)
 {
+    if (widget && widget->property("_breeze_ng_title").toBool()) {
+        widget->setPalette(QPalette());
+        widget->setProperty("_breeze_ng_title", QVariant());
+    }
+
     // register widget to animations
     _animations->unregisterWidget(widget);
     _frameShadowFactory->unregisterWidget(widget);
@@ -2476,7 +2559,9 @@ void Style::drawItemText(QPainter *painter,
     // under dimmed text (the notes of a settings page, a disabled control): faint and thin, the shadow smudged it
     if (enabled && !_ngNoGlassShadow && textRole != QPalette::NoRole && textRole != QPalette::HighlightedText && !text.isEmpty()) {
         QColor shadow;
-        const QColor ink = palette.color(enabled ? QPalette::Active : QPalette::Disabled, textRole);
+        const QBrush inkBrush = palette.brush(enabled ? QPalette::Active : QPalette::Disabled, textRole);
+        // (a title in a gradient: the tone of its first colour)
+        const QColor ink = (inkBrush.gradient() && !inkBrush.gradient()->stops().isEmpty()) ? inkBrush.gradient()->stops().constFirst().second : inkBrush.color();
         if (_helper->textShadow(painter->device(), ink, &shadow)) {
             const qreal strength = 1.0;
             // (mostly below the strokes, a little at their sides: a ring all round blurred small grey text instead)
@@ -9553,7 +9638,8 @@ bool Style::drawGroupBoxComplexControl(const QStyleOptionComplex *option, QPaint
             painter->setFont(small);
             QColor faint = groupBoxOption->palette.color(QPalette::WindowText);
             faint.setAlphaF(0.55);
-            painter->setPen(faint);
+            // (AccentText: the label of the group in the accent)
+            painter->setPen(_helper->accentText(groupBoxOption->palette) > 0 ? _helper->accentLabelColor(groupBoxOption->palette) : faint);
             const QRect left(groupBoxOption->rect.left() + 14, textRect.top(), groupBoxOption->rect.width() - 28, textRect.height());
             painter->drawText(left, Qt::AlignLeft | Qt::AlignVCenter | Qt::TextHideMnemonic, groupBoxOption->text);
             return true;
