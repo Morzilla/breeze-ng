@@ -179,6 +179,17 @@ QtObject {
     });
 }
 
+// a Kirigami.Heading, or a type made from one (Plasma's notifications draw their title with Summary, a Heading)
+bool isHeading(const QObject *object)
+{
+    for (const QMetaObject *meta = object ? object->metaObject() : nullptr; meta; meta = meta->superClass()) {
+        if (QByteArray(meta->className()).startsWith("Heading")) {
+            return true;
+        }
+    }
+    return false;
+}
+
 // AccentText for a title: only a Kirigami.Heading of level 1, the title of a page, takes the accent (as the widget
 // style, Helper::accentTitleColor), or Aurora's gradient through titleGradient. Every other heading is text:
 // FormLayout's labels ("General:") are headings of level 5. The surfaces of the window's own colours only: not the
@@ -189,7 +200,7 @@ bool titleText(PlatformTheme *theme, int accentText, const QColor &secondLight, 
     const int headingLevel = (owner && owner->property("level").isValid()) ? owner->property("level").toInt() : 1;
     // (AccentText 3: the secondary titles too, headings down to level 4: a section's title, a list's header, the name
     // in the launcher, a notification's title. Level 5 stays text: FormLayout's labels)
-    if (accentText <= 0 || !owner || headingLevel > (accentText == 3 ? 4 : 1) || !QByteArray(owner->metaObject()->className()).startsWith("Heading")
+    if (accentText <= 0 || !owner || headingLevel > (accentText == 3 ? 4 : 1) || !isHeading(owner)
         || !(theme->colorSet() == PlatformTheme::Window || theme->colorSet() == PlatformTheme::View || theme->colorSet() == PlatformTheme::Header)) {
         return false;
     }
@@ -559,7 +570,74 @@ private:
     qreal m_radius;
 };
 
+// A card of glass under a list of a Plasma popup (the launcher's sidebar, a system tray page's list), as the widget
+// style lays under a sidebar (Helper::renderAuroraCard): lighter and denser at the top, a hairline all round. Under
+// the list's content (a child with a negative z), a little larger than the list
+class PlasmaCard : public QQuickPaintedItem
+{
+public:
+    PlasmaCard(QQuickItem *list, const Look &look, qreal reach)
+        : QQuickPaintedItem(list)
+        , m_look(look)
+    {
+        setZ(-1);
+        setAntialiasing(true);
+        setObjectName(QStringLiteral("breeze-ng-plasma-card"));
+        auto fit = [this, list, reach] {
+            setPosition(QPointF(-reach, -reach));
+            setSize(QSizeF(list->width() + 2 * reach, list->height() + 2 * reach));
+            update();
+        };
+        connect(list, &QQuickItem::widthChanged, this, fit);
+        connect(list, &QQuickItem::heightChanged, this, fit);
+        fit();
+    }
+
+    void paint(QPainter *painter) override
+    {
+        colours(m_look);
+        const QRectF rect = QRectF(0, 0, width(), height()).adjusted(0.5, 0.5, -0.5, -0.5);
+        QLinearGradient fill(rect.topLeft(), rect.bottomLeft());
+        QColor edge;
+        if (m_look.dark) {
+            fill.setColorAt(0.0, QColor(30, 34, 52, 140));
+            fill.setColorAt(1.0, QColor(4, 5, 12, 107));
+            edge = QColor(255, 255, 255, 22);
+        } else {
+            fill.setColorAt(0.0, QColor(255, 255, 255, 168));
+            fill.setColorAt(1.0, QColor(255, 255, 255, 87));
+            edge = QColor(255, 255, 255, 190);
+        }
+        painter->setRenderHint(QPainter::Antialiasing, true);
+        painter->setBrush(fill);
+        painter->setPen(QPen(edge, 1));
+        painter->drawRoundedRect(rect, 10, 10);
+    }
+
+private:
+    Look m_look;
+};
+
 // debugging: BREEZE_NG_DEBUG_QUICK=1 lists the large coloured items of each window a few seconds after it opens
+// debugging (BREEZE_NG_DEBUG_QUICK=3): the tree of a Plasma popup, with the text items' level, weight and colour
+void dumpTree(QQuickItem *item, int depth)
+{
+    if (!item || depth > 40) {
+        return;
+    }
+    const QVariant text = item->property("text");
+    const QVariant level = item->property("level");
+    const QFont font = item->property("font").value<QFont>();
+    qWarning("breeze-ng tree: %*s%s %dx%d%s%s%s", depth * 2, "", item->metaObject()->className(), int(item->width()), int(item->height()),
+             text.isValid() ? qPrintable(QStringLiteral(" text=\"%1\"").arg(text.toString().left(40))) : "",
+             level.isValid() ? qPrintable(QStringLiteral(" level=%1").arg(level.toInt())) : "",
+             text.isValid() ? qPrintable(QStringLiteral(" weight=%1").arg(font.weight())) : "");
+    const auto children = item->childItems();
+    for (QQuickItem *child : children) {
+        dumpTree(child, depth + 1);
+    }
+}
+
 void dumpItems(QQuickItem *item, int depth)
 {
     if (!item || depth > 80) {
@@ -1077,7 +1155,7 @@ public:
 #ifdef BREEZE_NG_PLASMA_STYLE
         // in Plasma (the shell's panels and popups) only the titles, as the windows have them: the glass and the
         // rest of the colours are the Plasma style's own
-        if (theme && m_look.aurora && parent && QByteArray(parent->metaObject()->className()).startsWith("Heading")) {
+        if (theme && m_look.aurora && parent && isHeading(parent)) {
             plasmaTitle(theme); // (with the option off too: it can be turned on while Plasma runs)
         }
         if (theme && m_look.aurora && !qEnvironmentVariableIsSet("BREEZE_NG_PLASMA_NO_LIGHTS")) {
@@ -1086,11 +1164,13 @@ public:
                 QPointer<QQuickItem> guard(item);
                 QTimer::singleShot(0, item, [this, guard] {
                     popupLights(guard);
+                    popupCard(guard);
                 });
                 // (a popup's content is made when Plasma starts, its window when it first opens)
                 QObject::connect(item, &QQuickItem::windowChanged, item, [this, guard](QQuickWindow *window) {
                     if (window) {
                         popupLights(guard);
+                        popupCard(guard);
                     }
                 });
             }
@@ -1154,6 +1234,24 @@ private:
         }
         const bool popup = (window->inherits("PlasmaQuick::PlasmaWindow") || window->inherits("PlasmaQuick::Dialog")) && !window->inherits("ToolTipDialog")
             && !QByteArray(window->metaObject()->className()).contains("ToolTip");
+        if (qgetenv("BREEZE_NG_DEBUG_QUICK") == "3" && !window->property("_breeze_ng_dumped").toBool()) {
+            window->setProperty("_breeze_ng_dumped", true);
+            QByteArray chain;
+            for (const QMetaObject *meta = window->metaObject(); meta; meta = meta->superClass()) {
+                chain += QByteArray(meta->className()) + " < ";
+            }
+            qWarning("breeze-ng window: %s popup %d", chain.constData(), int(popup));
+            QPointer<QQuickWindow> seen(window);
+            QObject::connect(window, &QWindow::visibleChanged, window, [seen](bool visible) {
+                if (visible) {
+                    QTimer::singleShot(1500, seen, [seen] {
+                        if (seen && seen->isVisible()) {
+                            dumpTree(seen->contentItem(), 0);
+                        }
+                    });
+                }
+            });
+        }
         if (!popup) {
             setHook(window, 8);
             return;
@@ -1194,6 +1292,43 @@ private:
         new PlasmaLights(background, m_look, 14); // (the radius of the Plasma style's popups, make-plasma-style.py R_POPUP)
     }
 
+    // the card under a list of a Plasma popup (PlasmaCard), once per list: the launcher's sidebar (its categories,
+    // a KickoffListView in the TriangleMouseFilter of its applications page) and the main list of a system tray
+    // page (a ScrollView that fills most of its popup). Other popups and lists are left as they are
+    void popupCard(QQuickItem *item)
+    {
+        QQuickWindow *window = item ? item->window() : nullptr;
+        if (!window || !window->inherits("PlasmaQuick::AppletPopup")) {
+            return;
+        }
+        // (the themes are asked for by the rows and the labels, not by the lists: from the item up to its list)
+        QQuickItem *target = nullptr;
+        qreal reach = 0;
+        bool inLauncher = false;
+        int depth = 0;
+        for (QQuickItem *node = item; node && depth < 16 && !target; node = node->parentItem(), ++depth) {
+            if (node->property("_breeze_ng_card").toBool()) {
+                return; // (its list has its card already)
+            }
+            const QByteArray name = node->metaObject()->className();
+            if (name.startsWith("KickoffListView") && node->parentItem() && node->parentItem()->parentItem()
+                && QByteArray(node->parentItem()->parentItem()->metaObject()->className()).startsWith("TriangleMouseFilter")) {
+                target = node->parentItem()->parentItem(); // the launcher's sidebar
+                reach = -4; // (inside the sidebar's own room: its rows' highlight reaches its edges)
+            } else if (name.startsWith("NormalPage") || name.startsWith("ApplicationsPage") || name.startsWith("KickoffListView") || name.startsWith("DropAreaGridView")) {
+                inLauncher = true;
+            } else if (!inLauncher && name.startsWith("ScrollView") && node->width() > window->width() * 0.6 && node->height() > window->height() * 0.3) {
+                target = node; // the main list of a system tray page
+                reach = 4;
+            }
+        }
+        if (!target || target->property("_breeze_ng_card").toBool()) {
+            return;
+        }
+        target->setProperty("_breeze_ng_card", true);
+        new PlasmaCard(target, m_look, reach);
+    }
+
     // a heading of Plasma: the title's colour (or gradient) once it has its level and colour set. On Plasma's own
     // surfaces: dark or light from the theme's background, not from the application's palette (a Plasma style can
     // have colours of its own)
@@ -1203,7 +1338,7 @@ private:
         auto apply = [guard, this] {
             const int accentText = m_look.accentText;
             const QColor second = m_look.second;
-            if (!guard || !guard->parent() || !QByteArray(guard->parent()->metaObject()->className()).startsWith("Heading")) {
+            if (!guard || !guard->parent() || !isHeading(guard->parent())) {
                 return;
             }
             const bool tinted = guard->property("_breeze_ng_tinted").toBool();
