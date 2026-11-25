@@ -210,7 +210,12 @@ QColor Helper::menuSheet(const QPalette &palette, bool alpha, QColor *outline, b
     // (2026-11-25, asked for: a menu joined to its button is see-through as every other menu, at the menus' opacity;
     // the button takes the same sheet, and the small difference of tone between the two is accepted)
     const int glassOpacity = _aurora ? (isDark(palette) ? 38 : 72) : 78;
-    const int menuOpacity = (joined && !_aurora) ? 100 : ((isGlass() && StyleConfigData::menuOpacity() >= 100) ? glassOpacity : StyleConfigData::menuOpacity());
+    int menuOpacity = (joined && !_aurora) ? 100 : ((isGlass() && StyleConfigData::menuOpacity() >= 100) ? glassOpacity : StyleConfigData::menuOpacity());
+    // (joined to its button: never thinner than 70 %. The button lies on the window's glass, the menu on the blur of
+    // that window: through a thin sheet the two came out some five levels apart, at 70 % about two)
+    if (joined) {
+        menuOpacity = qMax(menuOpacity, 70);
+    }
     QColor edge = isGlass() ? alphaColor(ink(palette), 0.16) : frameOutlineColor(palette);
     if (menuOpacity < 100 && alpha) {
         background.setAlphaF(menuOpacity / 100.0);
