@@ -845,6 +845,18 @@ void Style::polish(QPalette &palette)
             }
         }
     }
+    // Aurora on a light scheme: the glass takes the colour of what lies behind it (a lilac, a peach), a middle tone on
+    // which the scheme's slate text was soft. A deeper ink: the same hue, darker
+    if (_helper->isAurora() && !darkScheme) {
+        for (QPalette::ColorGroup group : {QPalette::Active, QPalette::Inactive}) {
+            for (QPalette::ColorRole role : {QPalette::WindowText, QPalette::Text, QPalette::ButtonText}) {
+                const QColor text = palette.color(group, role);
+                if (text.alpha() == 255 && text.lightnessF() > 0.16 && text.lightnessF() < 0.5) {
+                    palette.setColor(group, role, QColor::fromHslF(qMax(0.0f, text.hslHueF()), text.hslSaturationF(), text.lightnessF() * 0.62));
+                }
+            }
+        }
+    }
     if (_helper->isGlass()) {
         // the selection is translucent: selected text keeps the normal text colour
         // (Aurora with the full accent for selections: white on it)
@@ -2598,10 +2610,12 @@ void Style::drawItemText(QPainter *painter,
         const QColor ink = (inkBrush.gradient() && !inkBrush.gradient()->stops().isEmpty()) ? inkBrush.gradient()->stops().constFirst().second : inkBrush.color();
         if (_helper->textShadow(painter->device(), ink, &shadow)) {
             const qreal strength = 1.0;
-            // (mostly below the strokes, a little at their sides: a ring all round blurred small grey text instead)
+            // (one line of the opposite tone right under the strokes, as the etched text of macOS: it lifts the
+            // letters off the glass and leaves their edges sharp. Six spots round the strokes, a soft halo, read as
+            // text out of focus at these sizes)
             static const struct {
                 qreal dx, dy, alpha;
-            } spots[] = {{0, 1, 0.55}, {-1, 1, 0.22}, {1, 1, 0.22}, {0, 2, 0.22}, {-1, 0, 0.12}, {1, 0, 0.12}};
+            } spots[] = {{0, 1, 0.60}};
             for (const auto &spot : spots) {
                 QPalette ghost(palette);
                 QColor c = shadow;
@@ -7184,7 +7198,12 @@ bool Style::drawPushButtonLabelControl(const QStyleOption *option, QPainter *pai
             for (QPalette::ColorRole role : {QPalette::ButtonText, QPalette::WindowText, QPalette::Text}) {
                 copy.palette.setColor(role, onPrimary);
             }
-            return drawPushButtonLabelControl(&copy, painter, widget);
+            // (the label stands on the full accent, not on the glass: no glass shadow, which doubled the white text)
+            const bool before = _ngNoGlassShadow;
+            _ngNoGlassShadow = true;
+            const bool done = drawPushButtonLabelControl(&copy, painter, widget);
+            _ngNoGlassShadow = before;
+            return done;
         }
     }
     // cast option and check
