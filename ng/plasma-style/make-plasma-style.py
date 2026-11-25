@@ -110,7 +110,9 @@ pressed = 0.18 if GLASS else 0.16
 focus = (HL, 0.85)
 R_BUTTON, R_ITEM, R_POPUP, R_TIP = 9, 7, 14, 9
 popup_rim = 0.22 if AURORA else 0.16 if GLASS else 0.10
-glass_popup = 0.50 if AURORA else 0.62
+# (Aurora: 50 % let the wallpaper through, boosted by the contrast effect's saturation: dark text on a strong blue,
+# hard to read. The launcher and the panel popups hold as much sheet as the applications' menus)
+glass_popup = 0.80 if AURORA else 0.62
 
 # popups (the panel's, the launcher) and tooltips
 redraw('dialogs/background', [('', R_POPUP, (BG, 1 if not GLASS else glass_popup), (INK, popup_rim)), ('mask-', R_POPUP, None, None, True)])
@@ -172,5 +174,10 @@ json.dump({'KPlugin': {'Id': f'breeze-ng-{VARIANT}', 'Name': f'Breeze NG {VARIAN
                        'Website': 'https://github.com/Morzilla/breeze-ng'},
            'X-Plasma-API': '5.0'}, open(f'{DST}/metadata.json', 'w'), indent=4)
 if os.path.exists(f'{SRC}/plasmarc'):
-    shutil.copyfile(f'{SRC}/plasmarc', f'{DST}/plasmarc')
+    rc = open(f'{SRC}/plasmarc').read()
+    if GLASS:
+        # the blur behind the popups at its own colours: the default saturation (1.5) turned a blue wallpaper into a
+        # strong blue under the text
+        rc = rc.replace('saturation=1.5', 'saturation=1.0')
+    open(f'{DST}/plasmarc', 'w').write(rc)
 print('written', DST)
