@@ -3488,7 +3488,9 @@ bool Style::eventFilterDockWidget(QDockWidget *dockWidget, QEvent *event)
         painter.setCompositionMode(QPainter::CompositionMode_SourceOver);
         // Aurora, the controls of 2026-11-24: the content of a docked panel (Places, a sidebar) stands on a card, a
         // different tone from the window, as Dolphin NG's sidebar (it stood on the bare glass)
-        if (_helper->isAurora() && dockWidget->widget() && dockWidget->widget()->isVisible() && !dockWidget->widget()->inherits("KFilePlacesView")) {
+        // (not under a panel of Dolphin NG, which lays its own card: the two came out as a double white edge)
+        if (_helper->isAurora() && dockWidget->widget() && dockWidget->widget()->isVisible() && !dockWidget->widget()->inherits("KFilePlacesView")
+            && !dockWidget->inherits("DolphinDockWidget")) {
             QRectF card = QRectF(dockWidget->widget()->geometry()).adjusted(-2, -2, 2, 2);
             // the panel's own title ("Places") inside the card, as a group's title in its card (it stood above the
             // card, on the bare glass); a title bar of the application's own stays outside
