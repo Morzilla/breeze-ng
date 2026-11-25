@@ -1052,6 +1052,52 @@ private:
     std::function<void()> m_call;
 };
 
+// The ring charts of KQuickCharts (System Monitor's gauges: CPU, memory) on glass: their track is worked out from the
+// theme's background, see-through here, and came out a thick ring of solid white (or dark) with a dull arc. A thinner
+// ring with round ends on a faint track of ink. Charts come and go with the pages: looked for now and then while the
+// window shows
+void ringCharts(QQuickWindow *window)
+{
+    auto timer = new QTimer(window);
+    timer->setInterval(1500);
+    QPointer<QQuickWindow> guard(window);
+    QObject::connect(timer, &QTimer::timeout, window, [guard] {
+        if (!guard || !guard->isVisible()) {
+            return;
+        }
+        const bool dark = QGuiApplication::palette().color(QPalette::Window).lightnessF() < 0.5;
+        std::function<void(QQuickItem *, int)> visit = [&](QQuickItem *node, int depth) {
+            if (node->inherits("PieChart") && !node->property("_breeze_ng_ring").toBool() && node->property("thickness").isValid()) {
+                node->setProperty("_breeze_ng_ring", true);
+                // (through QQmlProperty: the face binds these, and a bound value would come back)
+                // (a solid tone: the chart adds a see-through colour to what is under it, and a faint ink came out
+                // lighter than the card, a white ring again)
+                const QPalette palette = QGuiApplication::palette();
+                const QColor window = palette.color(QPalette::Window), text = palette.color(QPalette::WindowText);
+                const qreal t = dark ? 0.20 : 0.16;
+                QQmlProperty(node, QStringLiteral("backgroundColor"))
+                    .write(QColor::fromRgbF(window.redF() + (text.redF() - window.redF()) * t, window.greenF() + (text.greenF() - window.greenF()) * t,
+                                            window.blueF() + (text.blueF() - window.blueF()) * t));
+                QQmlProperty(node, QStringLiteral("thickness")).write(qMax(5.0, node->property("thickness").toReal() * 0.62));
+                QQmlProperty(node, QStringLiteral("smoothEnds")).write(true);
+                if (qEnvironmentVariableIsSet("BREEZE_NG_DEBUG_QUICK")) {
+                    const QObject *source = node->property("colorSource").value<QObject *>();
+                    qWarning("breeze-ng ring: background now %s, thickness %.1f, colour source %s, values %d", qPrintable(node->property("backgroundColor").value<QColor>().name(QColor::HexArgb)),
+                             node->property("thickness").toReal(), source ? source->metaObject()->className() : "-", source ? source->property("itemCount").toInt() : -1);
+                }
+            }
+            if (depth < 60) {
+                const auto children = node->childItems();
+                for (QQuickItem *child : children) {
+                    visit(child, depth + 1);
+                }
+            }
+        };
+        visit(guard->contentItem(), 0);
+    });
+    timer->start();
+}
+
 // A Kirigami.Separator laid across the top of a window, right under the title bar (the authentication dialog has one):
 // its colour is worked out from a background that is see-through here and came out a solid dark line between the title
 // bar and the glass. Aurora has no line there: the two are one sheet. Looked for when the window shows
@@ -1835,6 +1881,7 @@ private:
                     quickWindow->setColor(Qt::transparent);
                     new AuroraBackdrop(quickWindow, &m_look, m_notifier);
                     topLine(quickWindow);
+                    ringCharts(quickWindow);
                     if (!qEnvironmentVariableIsSet("BREEZE_NG_QUICK_NO_COVERS")) {
                         unfillCovers(quickWindow);
                     }
