@@ -45,13 +45,16 @@ INK, BG, HL = 'ColorScheme-Text', 'ColorScheme-Background', 'ColorScheme-Highlig
 HLT = 'ColorScheme-HighlightedText'  # (near white on light and dark schemes alike)
 
 
-def pieces(prefix, r, ox, oy, fill=None, edge=None, mask=False):
+def pieces(prefix, r, ox, oy, fill=None, edge=None, mask=False, pad=0):
     """The nine pieces of a rounded frame, drawn with fills only so that every bounding box is exact.
     fill and edge are (colour class, opacity) or None; fill can also be a list of them, laid one over the other.
     The edge is one pixel wide, inside the frame."""
     out = []
-    xs, ys = [ox, ox + r, ox + r + W], [oy, oy + r, oy + r + W]
-    ws = [r, W, r]
+    # (pad: a transparent band round the visible shape, the corners and the edges thicker by it: the frame drawn inset
+    # in its item, apart from its neighbours. The pieces' sizes are then not the content's margins: hints give those)
+    P = pad
+    xs, ys = [ox, ox + r + P, ox + r + P + W], [oy, oy + r + P, oy + r + P + W]
+    ws = [r + P, W, r + P]
     fills = fill if isinstance(fill, list) else ([fill] if fill else [])
     paints = [{'class': f[0], 'fill': 'currentColor', 'fill-opacity': str(f[1])} for f in fills]
     paint = {'fill': '#000000'} if mask else (paints[0] if paints else None)
@@ -59,9 +62,14 @@ def pieces(prefix, r, ox, oy, fill=None, edge=None, mask=False):
     pin = {'fill': '#000000', 'fill-opacity': '0.001'}  # keeps the piece's bounds when nothing else is painted
     for i, name in enumerate(NAMES):
         cx, cy = i % 3, i // 3
-        x, y, w, h = xs[cx], ys[cy], ws[cx], ws[cy]
+        bx, by, bw, bh = xs[cx], ys[cy], ws[cx], ws[cy]   # the piece's bounds, with the band
         g = E.Element(f'{{{NS}}}g', {'id': prefix + name})
-        E.SubElement(g, f'{{{NS}}}rect', {'x': str(x), 'y': str(y), 'width': str(w), 'height': str(h), **(paint if (paint and mask) else pin)})
+        E.SubElement(g, f'{{{NS}}}rect', {'x': str(bx), 'y': str(by), 'width': str(bw), 'height': str(bh), **(paint if (paint and mask and not P) else pin)})
+        # what is painted: the piece less the band on its outer sides
+        x = bx + (P if cx == 0 else 0)
+        y = by + (P if cy == 0 else 0)
+        w = bw - (P if cx != 1 else 0)
+        h = bh - (P if cy != 1 else 0)
         if cx != 1 and cy != 1:  # corner: a quarter disc around the inner corner of the piece
             px, py = (x + w if cx == 0 else x), (y + h if cy == 0 else y)   # centre of the arc
             ax, ay = (x if cx == 0 else x + w), (y if cy == 0 else y + h)   # outer corner
@@ -87,11 +95,16 @@ def pieces(prefix, r, ox, oy, fill=None, edge=None, mask=False):
     return out
 
 
+HINTS = ['hint-top-margin', 'hint-bottom-margin', 'hint-left-margin', 'hint-right-margin']
+
+
 def redraw(rel, frames, drop=()):
     """Replace the nine pieces of the given frames in one file of the default style.
-    frames: list of (prefix, radius, fill, edge[, mask]); drop: prefixes whose pieces are removed altogether."""
+    frames: list of (prefix, radius, fill, edge[, mask[, pad, margin]]); drop: prefixes whose pieces are removed
+    altogether. A frame with a pad (a transparent band round it) gets its content margins as hints (margin)."""
     root = E.fromstring(gzip.open(f'{SRC}/{rel}.svgz').read())
     ids = {f[0] + n for f in frames for n in NAMES} | {p + n for p in drop for n in NAMES}
+    ids |= {f[0] + h for f in frames if len(f) > 5 and f[5] for h in HINTS}
     for parent in list(root.iter()):
         for child in list(parent):
             if child.get('id') in ids:
@@ -100,9 +113,16 @@ def redraw(rel, frames, drop=()):
     for f in frames:
         prefix, r, fill, edge = f[:4]
         mask = len(f) > 4 and f[4]
-        for g in pieces(prefix, r, ox, 2000, fill, edge, mask):
+        pad = f[5] if len(f) > 5 else 0
+        for g in pieces(prefix, r, ox, 2000, fill, edge, mask, pad):
             root.append(g)
-        ox += 2 * r + W + 10
+        if pad:
+            margin = f[6]
+            for i, h in enumerate(HINTS):
+                horizontal = i < 2   # top and bottom: a bar as tall as the margin
+                E.SubElement(root, f'{{{NS}}}rect', {'id': prefix + h, 'x': str(ox + 40 * i), 'y': '1900', 'width': str(20 if horizontal else margin),
+                                                     'height': str(margin if horizontal else 20), 'fill': '#000000', 'fill-opacity': '0.001'})
+        ox += 2 * (r + pad) + W + 10
     os.makedirs(os.path.dirname(f'{DST}/{rel}'), exist_ok=True)
     with gzip.open(f'{DST}/{rel}.svgz', 'wb') as out:
         out.write(E.tostring(root, xml_declaration=True, encoding='utf-8'))
@@ -185,8 +205,22 @@ redraw('widgets/lineedit', [
 ])
 
 # tabs (the launcher's Applications / Places)
-# (Aurora: the active tab is a key, as the segments of the widget style's page tabs)
-redraw('widgets/tabbar', [(f'{side}-active-tab-', R_ITEM, KEY if AURORA else (INK, 0.12), KEY_EDGE if AURORA else rim) for side in ('north', 'south', 'east', 'west')])
+# (Aurora: the active tab is a key, as the segments of the widget style's page tabs, a little inside its tab: the system
+# tray's open applet is shown with it too, and filling the cell it reached into the icons beside)
+if AURORA:
+    redraw('widgets/tabbar', [(f'{side}-active-tab-', R_ITEM, KEY, KEY_EDGE, False, 3, R_ITEM) for side in ('north', 'south', 'east', 'west')])
+else:
+    redraw('widgets/tabbar', [(f'{side}-active-tab-', R_ITEM, (INK, 0.12), rim) for side in ('north', 'south', 'east', 'west')])
+
+# the task manager's buttons (Aurora): keys apart from each other, not blocks as tall as the panel that touch their
+# neighbours. A running application a breath of ink, the active one a key, hover a little more ink, minimised less;
+# attention and progress stay the default's
+if AURORA:
+    TASK_PAD, TASK_MARGIN = 4, 6
+    redraw('widgets/tasks', [(f'{loc}{state}-', R_BUTTON, fill, edge, False, TASK_PAD, TASK_MARGIN)
+                             for loc in ('', 'north-', 'east-', 'west-')
+                             for state, fill, edge in (('normal', (INK, 0.07), None), ('focus', KEY, KEY_EDGE),
+                                                      ('hover', (INK, 0.10), None), ('minimized', (INK, 0.04), None))])
 
 # the header and footer bands of the panel popups (the launcher's user and search row, its tabs and buttons): a
 # lighter band with a line under it. Aurora: nothing, the popup is one sheet of glass

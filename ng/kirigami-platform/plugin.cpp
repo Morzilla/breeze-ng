@@ -1270,6 +1270,9 @@ private:
         }
         if (!popup) {
             setHook(window, 8);
+            if (window->inherits("PanelView")) {
+                panelHighlights(window);
+            }
             return;
         }
         QQuickItem *background = nullptr;
@@ -1335,7 +1338,15 @@ private:
                 inLauncher = true;
             } else if (!inLauncher && name.startsWith("ScrollView") && node->width() > window->width() * 0.6 && node->height() > window->height() * 0.3) {
                 target = node; // the main list of a system tray page
-                reach = -6; // (inside the popup's edges: reaching them, the card read as the popup cut in two under its header)
+                // (inside the popup's edges, with room round it: reaching them, the card read as the popup cut in two
+                // under its header. The list's own padding grows with it, so that its rows stay inside the card)
+                reach = -12;
+                for (const char *side : {"leftPadding", "rightPadding"}) {
+                    node->setProperty(side, node->property(side).toReal() + 10);
+                }
+                for (const char *side : {"topPadding", "bottomPadding"}) {
+                    node->setProperty(side, node->property(side).toReal() + 6);
+                }
             }
         }
         if (!target || target->property("_breeze_ng_card").toBool()) {
@@ -1343,6 +1354,38 @@ private:
         }
         target->setProperty("_breeze_ng_card", true);
         new PlasmaCard(target, &m_look, m_notifier, reach);
+    }
+
+    // The highlight of an open applet in a panel (the system tray's icon, the launcher's button) is the Plasma
+    // style's active tab, which the panel lays a little larger than the applet's cell: in the system tray it reached
+    // into the icons beside. In a panel it is drawn smaller, round its centre (the same tab is the launcher's and the
+    // calendar's segment, at its full size). Looked for when the panel shows and again a little later (the tray makes
+    // its highlight when it is first needed)
+    static void panelHighlights(QQuickWindow *window)
+    {
+        QPointer<QQuickWindow> guard(window);
+        auto shrink = [guard] {
+            if (!guard) {
+                return;
+            }
+            std::function<void(QQuickItem *, int)> visit = [&](QQuickItem *node, int depth) {
+                if (node->property("imagePath").toString().endsWith(QLatin1String("widgets/tabbar")) && !node->property("_breeze_ng_shrunk").toBool()) {
+                    node->setProperty("_breeze_ng_shrunk", true);
+                    node->setTransformOrigin(QQuickItem::Center);
+                    node->setScale(0.78);
+                }
+                if (depth < 30) {
+                    const auto children = node->childItems();
+                    for (QQuickItem *child : children) {
+                        visit(child, depth + 1);
+                    }
+                }
+            };
+            visit(guard->contentItem(), 0);
+        };
+        QTimer::singleShot(1000, window, shrink);
+        QTimer::singleShot(5000, window, shrink);
+        QObject::connect(window, &QWindow::activeChanged, window, shrink); // (an applet opened from the panel)
     }
 
     // a heading of Plasma: the title's colour (or gradient) once it has its level and colour set. On Plasma's own
