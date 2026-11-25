@@ -353,7 +353,20 @@ static void ngAccentTitle(QLabel *label, const Helper &helper)
     if (label->parentWidget() && label->parentWidget()->inherits("KTitleWidget") && label->styleSheet().contains(QLatin1String("font-size"))) {
         const QString sheet = label->styleSheet();
         const int mode = helper.accentText(QApplication::palette());
-        if (mode == 0 || sheet.contains(marker)) {
+        // (the sheet as KTitleWidget wrote it: kept aside the first time ours replaces it. KTitleWidget writing it
+        // again drops the marker, and the new one is the original)
+        const bool ours = sheet.contains(marker);
+        const QString original = ours ? label->property("_breeze_ng_title_sheet").toString() : sheet;
+        QPointer<QLabel> guard(label);
+        if (mode == 0) {
+            if (ours) {
+                label->setProperty("_breeze_ng_title_sheet", QVariant());
+                QTimer::singleShot(0, label, [guard, original] {
+                    if (guard) {
+                        guard->setStyleSheet(original);
+                    }
+                });
+            }
             return;
         }
         QString colour = helper.accentTitleColor(QApplication::palette()).name();
@@ -363,16 +376,20 @@ static void ngAccentTitle(QLabel *label, const Helper &helper)
                          .arg(brush.gradient()->stops().constFirst().second.name(), brush.gradient()->stops().constLast().second.name());
         }
         static const QRegularExpression colourRule(QStringLiteral("(^|[;{\\s])color\\s*:[^;}]*"));
-        QString accented = sheet;
+        QString accented = original;
         if (accented.contains(colourRule)) {
             accented.replace(colourRule, QStringLiteral("\\1color: ") + colour);
         } else {
             accented += QStringLiteral(" QLabel { color: %1 }").arg(colour);
         }
-        QPointer<QLabel> guard(label);
+        accented += QLatin1Char(' ') + marker;
+        if (accented == sheet) {
+            return; // (already the sheet of this mode and these colours)
+        }
+        label->setProperty("_breeze_ng_title_sheet", original);
         QTimer::singleShot(0, label, [guard, accented] {
             if (guard) {
-                guard->setStyleSheet(accented + QLatin1Char(' ') + marker);
+                guard->setStyleSheet(accented);
             }
         });
         return;
@@ -1360,6 +1377,19 @@ void Style::unpolish(QWidget *widget)
     if (widget && widget->property("_breeze_ng_title").toBool()) {
         widget->setPalette(QPalette());
         widget->setProperty("_breeze_ng_title", QVariant());
+    }
+    if (auto label = qobject_cast<QLabel *>(widget); label && label->property("_breeze_ng_title_sheet").isValid()) {
+        // (KTitleWidget's own sheet, as it was before the accent)
+        label->setStyleSheet(label->property("_breeze_ng_title_sheet").toString());
+        label->setProperty("_breeze_ng_title_sheet", QVariant());
+    }
+    if (widget && widget->property("_breeze_ng_joined").isValid()) {
+        // a button still joined to its menu (or fading out of it): let go now, and the next round makes a pending
+        // fade's end do nothing
+        widget->setProperty("_breeze_ng_join_round", widget->property("_breeze_ng_join_round").toInt() + 1);
+        for (const char *name : {"_breeze_ng_joined", "_breeze_ng_joined_fade", "_breeze_ng_join_corner", "_breeze_ng_joined_bg", "_breeze_ng_joined_edge", "_breeze_ng_joined_item"}) {
+            widget->setProperty(name, QVariant());
+        }
     }
 
     // register widget to animations
@@ -3196,9 +3226,11 @@ bool Style::eventFilterNgPopup(QWidget *popup, QEvent *event)
                 const qreal factor = KSharedConfig::openConfig(QStringLiteral("kdeglobals"))->group(QStringLiteral("KDE")).readEntry("AnimationDurationFactor", 1.0);
                 const int fadeOut = StyleConfigData::animationsEnabled() ? qBound(0, qRound(600 * factor), 1500) : 0;
                 QPointer<QWidget> guard(button);
-                auto release = [this, guard, round] {
+                // (the fade runs on the button: the style may be gone, a change of style, before it ends)
+                QPointer<QObject> self(this);
+                auto release = [this, self, guard, round] {
                     QWidget *button = guard.data();
-                    if (!button || button->property("_breeze_ng_join_round").toInt() != round) {
+                    if (!self || !button || button->property("_breeze_ng_join_round").toInt() != round) {
                         return;
                     }
                     button->setProperty(joinedProperty, QVariant());
@@ -3698,9 +3730,14 @@ void Style::loadConfiguration()
     // Breeze NG: what is open shows the new settings at once (opacity, veils, lights, selections): the values were
     // read again above, but the windows kept what they had painted until something repainted them by chance. A
     // moment later, so that every window has had the change too.
-    QTimer::singleShot(0, this, [] {
+    // The titles (AccentText) are laid in when a label is polished: the labels already open take the option again
+    QTimer::singleShot(0, this, [this] {
         const auto widgets = QApplication::topLevelWidgets();
         for (QWidget *widget : widgets) {
+            const auto labels = widget->findChildren<QLabel *>();
+            for (QLabel *label : labels) {
+                ngAccentTitle(label, *_helper);
+            }
             if (widget->isVisible()) {
                 widget->update();
                 const auto children = widget->findChildren<QWidget *>();

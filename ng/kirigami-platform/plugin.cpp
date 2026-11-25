@@ -23,6 +23,7 @@
 #include <KWindowEffects>
 
 #include <QCoreApplication>
+#include <QDBusConnection>
 #include <QDir>
 #include <QEvent>
 #include <QFileInfo>
@@ -209,6 +210,30 @@ bool titleText(PlatformTheme *theme, int accentText, const QColor &secondLight, 
     return true;
 }
 
+// the gradient of a heading that is no longer a title (its level changed, the option is off, a grey accent)
+void dropGradient(PlatformTheme *theme)
+{
+    if (auto heading = qobject_cast<QQuickItem *>(theme->parent()); heading && heading->property("_breeze_ng_title_gradient").toBool()) {
+        titleGradient(heading, QColor(), QColor());
+    }
+}
+
+// a theme whose text is left as it is (AccentTint off): only the titles take AccentText
+void titleOnly(PlatformTheme *theme, int accentText, const QColor &secondLight)
+{
+    const QPalette palette = QGuiApplication::palette();
+    const QColor accent = palette.color(QPalette::Active, QPalette::Highlight);
+    const bool dark = palette.color(QPalette::Window).lightnessF() < 0.5;
+    if (accent.hslSaturationF() >= 0.15 && qEnvironmentVariable("BREEZE_NG_TINTED_TEXT") != QLatin1String("0") && titleText(theme, accentText, secondLight, dark)) {
+        return;
+    }
+    dropGradient(theme);
+    if (theme->property("_breeze_ng_tinted").toBool()) {
+        theme->setCustomTextColor();
+        theme->setProperty("_breeze_ng_tinted", QVariant());
+    }
+}
+
 void tintText(PlatformTheme *theme, int accentText, const QColor &secondLight)
 {
     // (an icon of a button that is on has its text colour set by checkedIcon: left to it)
@@ -218,6 +243,7 @@ void tintText(PlatformTheme *theme, int accentText, const QColor &secondLight)
     // the tinge set here before is dropped whenever the theme no longer takes it (its colour set changed to one that
     // is not tinged, as Complementary: the dark text of a light window stayed on its dark surface)
     auto release = [theme] {
+        dropGradient(theme);
         if (theme->property("_breeze_ng_tinted").toBool()) {
             theme->setCustomTextColor();
             theme->setProperty("_breeze_ng_tinted", QVariant());
@@ -233,6 +259,7 @@ void tintText(PlatformTheme *theme, int accentText, const QColor &secondLight)
     if (titleText(theme, accentText, secondLight, dark)) {
         return;
     }
+    dropGradient(theme);
     // (titles in Aurora's gradient: the rest of the text plain, as the widget style leaves its palette)
     if (accentText == 2) {
         release();
@@ -944,6 +971,16 @@ public:
 };
 }
 
+// told when Breeze NG's settings change (the titles' option): the themes already handed out lay their colours again
+class LookNotifier : public QObject
+{
+    Q_OBJECT
+public:
+    using QObject::QObject;
+Q_SIGNALS:
+    void changed();
+};
+
 class BreezeNgKirigamiFactory : public PlatformPluginFactory
 {
     Q_OBJECT
@@ -954,8 +991,29 @@ public:
     explicit BreezeNgKirigamiFactory(QObject *parent = nullptr)
         : PlatformPluginFactory(parent)
         , m_look(readLook())
+        , m_notifier(new LookNotifier(this))
     {
+        // the titles' option (AccentText, the second light, the text's tint) followed while the application runs:
+        // the settings' Apply reaches the windows already open, and Plasma. (The signal the widget style listens to;
+        // the settings are not written with KConfig's notification)
+        QDBusConnection::sessionBus().connect(QString(), QStringLiteral("/BreezeStyle"), QStringLiteral("org.kde.Breeze.Style"),
+                                              QStringLiteral("reparseConfiguration"), this, SLOT(reloadLook()));
     }
+
+public Q_SLOTS:
+    void reloadLook()
+    {
+        KSharedConfig::Ptr config = KSharedConfig::openConfig(QStringLiteral("breezengrc"));
+        config->reparseConfiguration();
+        const KConfigGroup common = config->group(QStringLiteral("Common"));
+        m_look.accentTint = common.readEntry("AccentTint", true);
+        m_look.accentText = qBound(0, common.readEntry("AccentText", 0), 2);
+        const QString secondAccent = common.readEntry("AuroraSecondAccent", QString());
+        m_look.second = secondAccent.isEmpty() ? QColor() : QColor(secondAccent);
+        Q_EMIT m_notifier->changed();
+    }
+
+public:
 
     PlatformTheme *createPlatformTheme(QObject *parent) override
     {
@@ -964,8 +1022,8 @@ public:
 #ifdef BREEZE_NG_PLASMA_STYLE
         // in Plasma (the shell's panels and popups) only the titles, as the windows have them: the glass and the
         // rest of the colours are the Plasma style's own
-        if (theme && m_look.aurora && m_look.accentText > 0) {
-            plasmaTitle(theme);
+        if (theme && m_look.aurora && parent && QByteArray(parent->metaObject()->className()).startsWith("Heading")) {
+            plasmaTitle(theme); // (with the option off too: it can be turned on while Plasma runs)
         }
 #else
         if (theme && m_look.aurora) {
@@ -1022,9 +1080,9 @@ private:
     void plasmaTitle(PlatformTheme *theme)
     {
         QPointer<PlatformTheme> guard(theme);
-        const int accentText = m_look.accentText;
-        const QColor second = m_look.second;
-        auto apply = [guard, accentText, second] {
+        auto apply = [guard, this] {
+            const int accentText = m_look.accentText;
+            const QColor second = m_look.second;
             if (!guard || !guard->parent() || !QByteArray(guard->parent()->metaObject()->className()).startsWith("Heading")) {
                 return;
             }
@@ -1033,16 +1091,17 @@ private:
             // (the background read before the title's colour was set: the theme's own)
             const QColor background = (tinted && ground.isValid()) ? ground : guard->backgroundColor();
             guard->setProperty("_breeze_ng_ground", background);
-            if (!titleText(guard, accentText, second, background.lightnessF() < 0.5) && tinted) {
-                guard->setCustomTextColor();
-                guard->setProperty("_breeze_ng_tinted", QVariant());
-                if (auto heading = qobject_cast<QQuickItem *>(guard->parent())) {
-                    titleGradient(heading, QColor(), QColor());
+            if (!titleText(guard, accentText, second, background.lightnessF() < 0.5)) {
+                dropGradient(guard);
+                if (tinted) {
+                    guard->setCustomTextColor();
+                    guard->setProperty("_breeze_ng_tinted", QVariant());
                 }
             }
         };
         QObject::connect(theme, &PlatformTheme::colorSetChanged, theme, apply);
         QObject::connect(theme, &PlatformTheme::inheritChanged, theme, apply);
+        QObject::connect(m_notifier, &LookNotifier::changed, theme, apply);
         QTimer::singleShot(0, theme, apply);
         QTimer::singleShot(500, theme, apply);
     }
@@ -1096,8 +1155,12 @@ private:
                 }
             }
             sideRowAir(owner);
+            // (before checkedIcon: a button that is on has its own text colour. The titles take AccentText with
+            // the text's tint off too)
             if (look.accentTint) {
-                tintText(guard, look.accentText, look.second); // (before checkedIcon: a button that is on has its own text colour)
+                tintText(guard, look.accentText, look.second);
+            } else {
+                titleOnly(guard, look.accentText, look.second);
             }
             {
                 Look forIcon = m_look;
@@ -1211,6 +1274,7 @@ private:
         apply();
         QObject::connect(theme, &PlatformTheme::colorSetChanged, theme, apply);
         QObject::connect(theme, &PlatformTheme::inheritChanged, theme, apply);
+        QObject::connect(m_notifier, &LookNotifier::changed, theme, apply);
         // the item is given its parent, and a popup its content, a moment after the theme is asked for; the widget
         // style finds out which view is a sidebar a little later still
         QTimer::singleShot(0, theme, apply);
@@ -1271,6 +1335,7 @@ private:
     }
 
     Look m_look;
+    LookNotifier *m_notifier = nullptr;
     PlatformPluginFactory *m_real = nullptr;
     bool m_searched = false;
 };

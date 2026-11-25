@@ -125,6 +125,7 @@ static int g_sDecoCount = 0;
 static int g_shadowSizeEnum = InternalSettings::ShadowLarge;
 static int g_shadowStrength = 255;
 static QColor g_shadowColor = Qt::black;
+static bool g_shadowTucked = true; // (the shadow pushed under the window: see ngShadowTucked)
 static std::shared_ptr<KDecoration3::DecorationShadow> g_sShadow;
 static std::shared_ptr<KDecoration3::DecorationShadow> g_sShadowInactive;
 
@@ -1001,12 +1002,13 @@ void Decoration::updateShadow()
     }
 
     if (g_shadowSizeEnum != m_internalSettings->shadowSize() || g_shadowStrength != m_internalSettings->shadowStrength()
-        || g_shadowColor != ngShadowColor()) {
+        || g_shadowColor != ngShadowColor() || g_shadowTucked != ngShadowTucked()) {
         g_sShadow.reset();
         g_sShadowInactive.reset();
         g_shadowSizeEnum = m_internalSettings->shadowSize();
         g_shadowStrength = m_internalSettings->shadowStrength();
         g_shadowColor = ngShadowColor();
+        g_shadowTucked = ngShadowTucked();
     }
 
     auto &shadow = (window()->isActive()) ? g_sShadow : g_sShadowInactive;
@@ -1015,6 +1017,15 @@ void Decoration::updateShadow()
         g_sShadowInactive = createShadowObject(0.5);
     }
     setShadow(shadow);
+}
+
+//________________________________________________________________
+bool Decoration::ngShadowTucked() const
+{
+    // Breeze NG glass: the shadow is pushed two pixels under the window only at a fractional scale. Under a
+    // see-through window those pixels showed through the glass, a grey frame around every window
+    const qreal scale = window()->nextScale();
+    return !m_ngGlass || std::abs(scale - std::round(scale)) > 0.01;
 }
 
 //________________________________________________________________
@@ -1081,8 +1092,7 @@ std::shared_ptr<KDecoration3::DecorationShadow> Decoration::createShadowObject(c
     // TODO fix this more properly
     // (Breeze NG glass: not at a whole scale. Under a see-through window those two pixels of shadow showed through the
     // glass, a grey frame around every window, the stronger towards the bottom where the shadow falls)
-    const qreal scale = window()->nextScale();
-    if (!m_ngGlass || std::abs(scale - std::round(scale)) > 0.01) {
+    if (ngShadowTucked()) {
         innerRect.adjust(2, 2, -2, -2);
     }
 
@@ -1112,6 +1122,7 @@ void Decoration::updateScale()
 {
     setScaledCornerRadius();
     recalculateBorders();
+    updateShadow(); // (the shadow's mask depends on the scale: ngShadowTucked)
 }
 } // namespace
 

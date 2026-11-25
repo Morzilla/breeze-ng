@@ -127,6 +127,7 @@ private:
     void ngPaintAuroraLights(QPainter *painter, const QRectF &area, const QRectF &body, bool bottom) const;
     // Breeze NG: the colour of the window's shadow: the accent, deep (the user's own colour if one was chosen)
     QColor ngShadowColor() const;
+    bool ngShadowTucked() const;
     void updateShadow();
     std::shared_ptr<KDecoration3::DecorationShadow> createShadowObject(const float strengthScale);
     void setScaledCornerRadius();

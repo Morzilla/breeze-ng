@@ -21,6 +21,7 @@ colour scheme's (ColorScheme-Text as "ink", ColorScheme-Highlight), so both styl
 import gzip
 import json
 import os
+import re
 import shutil
 import sys
 import xml.etree.ElementTree as E
@@ -189,6 +190,7 @@ if os.path.exists(f'{SRC}/plasmarc'):
     if GLASS:
         # the blur behind the popups at its own colours: the default saturation (1.5) turned a blue wallpaper into a
         # strong blue under the text
-        rc = rc.replace('saturation=1.5', 'saturation=1.0')
+        # (whatever the default's value: only the key of the ContrastEffect group carries this name)
+        rc = re.sub(r'(?m)^saturation=.*$', 'saturation=1.0', rc)
     open(f'{DST}/plasmarc', 'w').write(rc)
 print('written', DST)

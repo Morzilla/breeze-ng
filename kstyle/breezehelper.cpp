@@ -750,8 +750,10 @@ QColor Helper::inputBackground(const QPalette &palette) const
     if (_aurora) {
         if (isDark(palette)) {
             // (variant B of the 2026-11-24 dark contrast mockup: a field is a dark slot in the glass, set apart from the
-            // light keys: where one types, not what one presses)
-            return QColor(8, 10, 20, 97);
+            // light keys: where one types, not what one presses). The buttons' veil setting scales it: 7 %, the
+            // default, gives the mockup's 97)
+            const qreal scale = qBound(0, StyleConfigData::auroraButtonVeil(), 40) / 7.0;
+            return QColor(8, 10, 20, qBound(0, qRound(97 * scale), 230));
         }
         // (variant A of 2026-11-24: white with 2 % of the accent)
         const QColor accent = auroraFill(palette);
@@ -1499,7 +1501,9 @@ void Helper::renderNgButtonFrame(QPainter *painter,
         const qreal press = (bgAnimation != AnimationData::OpacityInvalid ? bgAnimation : down ? 1.0 : 0.0);
         if (dark) {
             // (variant B of the 2026-11-24 dark contrast mockup: a clearly lighter key on the dark glass)
-            bg = QColor::fromRgbF(1, 1, 1, 0.22 + 0.05 * lift + 0.08 * press);
+            // (scaled by the buttons' veil setting: 0.22 at its default of 7 %)
+            const qreal rest = 0.22 * qBound(0, StyleConfigData::auroraButtonVeil(), 40) / 7.0;
+            bg = QColor::fromRgbF(1, 1, 1, qMin(0.9, rest + 0.05 * lift + 0.08 * press));
         } else {
             // (light scheme, variant A of 2026-11-24: nearly white with 4 % of the accent)
             const QColor accent = auroraFill(palette);
