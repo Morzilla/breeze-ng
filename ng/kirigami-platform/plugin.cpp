@@ -1460,7 +1460,7 @@ private:
                 if (qEnvironmentVariableIsSet("BREEZE_NG_DEBUG_QUICK")) {
                     qWarning("breeze-ng plasma: panel frame %s %.0fx%.0f", frame ? qPrintable(frame->property("imagePath").toString()) : "-", frame ? frame->width() : 0.0, frame ? frame->height() : 0.0);
                 }
-                if (frame && frame->width() > 100) {
+                if (frame && qMax(frame->width(), frame->height()) > 100 && qMin(frame->width(), frame->height()) > 8) {
                     inject(new PlasmaLights(frame, &m_look, m_notifier, 0, false));
                 } else {
                     windowHooks()[window] &= ~8; // (not laid out yet: the next item asks again)
@@ -1562,7 +1562,9 @@ private:
                 return;
             }
             std::function<void(QQuickItem *, int)> visit = [&](QQuickItem *node, int depth) {
-                if (node->property("imagePath").toString().endsWith(QLatin1String("widgets/tabbar")) && !node->property("_breeze_ng_shrunk").toBool()) {
+                // (inside an applet only: the same asset, laid by the panel itself near the root, is its keyboard focus
+                // indicator, which keeps its size)
+                if (depth > 3 && node->property("imagePath").toString().endsWith(QLatin1String("widgets/tabbar")) && !node->property("_breeze_ng_shrunk").toBool()) {
                     node->setProperty("_breeze_ng_shrunk", true);
                     node->setTransformOrigin(QQuickItem::Center);
                     node->setScale(0.78);
@@ -1843,7 +1845,7 @@ private:
                 const auto laid = background->childItems();
                 for (QQuickItem *child : laid) {
                     if (child->objectName() == QLatin1String("breeze-ng-message-sheet")) {
-                        sheet = static_cast<MessageSheet *>(child);
+                        sheet = dynamic_cast<MessageSheet *>(child);
                     }
                 }
                 if (!sheet) {
@@ -1866,9 +1868,13 @@ private:
                             if (!now.isValid() || now.alpha() == 0) {
                                 return;
                             }
-                            QColor kind = now;
-                            kind.setAlpha(255);
-                            sheetGuard->setKind(kind, item->property("radius").toReal());
+                            // (the message's colour is the background's own; its children, the fill in the theme's
+                            // colour and the veil, are only emptied)
+                            if (item->parentItem() && sheetGuard->parentItem() == item) {
+                                QColor kind = now;
+                                kind.setAlpha(255);
+                                sheetGuard->setKind(kind, item->property("radius").toReal());
+                            }
                             QColor none = now;
                             none.setAlpha(0);
                             item->setProperty("color", none);
@@ -1927,7 +1933,24 @@ private:
                         if (auto content = qobject_cast<QQuickItem *>(message->property("contentItem").value<QObject *>())) {
                             find(content, 0);
                         }
+                        // (an icon the application chose stays: only Kirigami's default emblem gives way to the badge)
+                        const QObject *chosen = message->property("icon").value<QObject *>();
+                        if (chosen && (!chosen->property("name").toString().isEmpty() || chosen->property("source").isValid() && !chosen->property("source").toString().isEmpty())) {
+                            return;
+                        }
                         sheetGuard->setBadge(icon, message->property("type").toInt());
+                        // (the badge follows the message's type: a message used again for another kind)
+                        const int typeIndex = message->metaObject()->indexOfProperty("type");
+                        const QMetaMethod typeChanged = typeIndex >= 0 ? message->metaObject()->property(typeIndex).notifySignal() : QMetaMethod();
+                        if (typeChanged.isValid()) {
+                            QPointer<QQuickItem> iconGuard(icon);
+                            auto relay = new Relay(message, [message, sheetGuard, iconGuard] {
+                                if (message && sheetGuard) {
+                                    sheetGuard->setBadge(iconGuard, message->property("type").toInt());
+                                }
+                            });
+                            QObject::connect(message, typeChanged, relay, relay->metaObject()->method(relay->metaObject()->indexOfSlot("fire()")));
+                        }
                     });
                 }
                 background->setOpacity(1.0);

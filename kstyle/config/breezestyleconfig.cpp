@@ -816,8 +816,8 @@ QWidget *StyleConfig::pageAurora()
         aurora->addRow(ngText("Grain", "Grana"), sliderRow(m_auroraGrain, m_auroraGrainValue, m_auroraGroup));
         m_auroraPlasmaPanel = slider(0, 100, m_auroraGroup);
         m_auroraPlasmaPanelValue = new QLabel(m_auroraGroup);
-        m_auroraPlasmaPanel->setToolTip(ngText("How dense Plasma's panel is: lower, more of the desktop shows through it, blurred. Applied at once.",
-                                               "Quanto è denso il pannello di Plasma: più basso, più si vede il desktop attraverso, sfocato. Si applica subito."));
+        m_auroraPlasmaPanel->setToolTip(ngText("How dense Plasma's panel is: lower, more of the desktop shows through it, blurred. Plasma follows as soon as the settings are applied.",
+                                               "Quanto è denso il pannello di Plasma: più basso, più si vede il desktop attraverso, sfocato. Plasma lo segue appena si applicano le impostazioni."));
         aurora->addRow(ngText("Plasma panel", "Pannello di Plasma"), sliderRow(m_auroraPlasmaPanel, m_auroraPlasmaPanelValue, m_auroraGroup));
         group->addLayout(aurora);
         auto *auroraNote = new QLabel(ngText("The two veils are equal by default, so that sidebar, cards, buttons and fields have one intensity. The grain hides the bands that faint gradients show on some screens.",

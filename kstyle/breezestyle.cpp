@@ -364,8 +364,9 @@ static void ngAccentTitle(QLabel *label, const Helper &helper)
             if (ours) {
                 // (the original stays saved until it is given back: an unpolish meanwhile restores it from there)
                 label->setProperty("_breeze_ng_title_seq", seq);
-                QTimer::singleShot(0, label, [guard, original, seq] {
-                    if (guard && guard->property("_breeze_ng_title_seq").toInt() == seq) {
+                QTimer::singleShot(0, label, [guard, original, seq, sheet] {
+                    // (not over a sheet KTitleWidget wrote meanwhile)
+                    if (guard && guard->property("_breeze_ng_title_seq").toInt() == seq && guard->styleSheet() == sheet) {
                         guard->setStyleSheet(original);
                         guard->setProperty("_breeze_ng_title_sheet", QVariant());
                     }
@@ -376,8 +377,8 @@ static void ngAccentTitle(QLabel *label, const Helper &helper)
         QString colour = helper.accentTitleColor(QApplication::palette()).name();
         const QBrush brush = helper.accentTitleBrush(QApplication::palette());
         // (rich text is laid out by a text document, which draws a gradient as black: the plain colour there)
-        // (a label that wraps its words, or whose text can be selected or has links, is laid out by a text document too)
-        const bool richTitle = label->wordWrap() || label->textInteractionFlags() != Qt::NoTextInteraction || label->textFormat() == Qt::RichText || (label->textFormat() == Qt::AutoText && Qt::mightBeRichText(label->text()));
+        // (a label that wraps its words, or whose text can be selected, is laid out by a text document too)
+        const bool richTitle = label->wordWrap() || (label->textInteractionFlags() & (Qt::TextSelectableByMouse | Qt::TextSelectableByKeyboard)) || label->textFormat() == Qt::RichText || (label->textFormat() == Qt::AutoText && Qt::mightBeRichText(label->text()));
         if (!richTitle && brush.gradient() && brush.gradient()->stops().size() >= 2) {
             colour = QStringLiteral("qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 %1, stop:1 %2)")
                          .arg(brush.gradient()->stops().constFirst().second.name(), brush.gradient()->stops().constLast().second.name());
@@ -398,8 +399,8 @@ static void ngAccentTitle(QLabel *label, const Helper &helper)
         }
         label->setProperty("_breeze_ng_title_sheet", original);
         label->setProperty("_breeze_ng_title_seq", seq);
-        QTimer::singleShot(0, label, [guard, accented, seq] {
-            if (guard && guard->property("_breeze_ng_title_seq").toInt() == seq) {
+        QTimer::singleShot(0, label, [guard, accented, seq, sheet] {
+            if (guard && guard->property("_breeze_ng_title_seq").toInt() == seq && guard->styleSheet() == sheet) {
                 guard->setStyleSheet(accented);
             }
         });
@@ -418,7 +419,7 @@ static void ngAccentTitle(QLabel *label, const Helper &helper)
     }
     QPalette palette = label->palette();
     // (rich text is laid out by a text document, which takes a plain colour: the gradient's first colour there)
-    const bool rich = label->wordWrap() || label->textInteractionFlags() != Qt::NoTextInteraction || label->textFormat() == Qt::RichText || (label->textFormat() == Qt::AutoText && Qt::mightBeRichText(label->text()));
+    const bool rich = label->wordWrap() || (label->textInteractionFlags() & (Qt::TextSelectableByMouse | Qt::TextSelectableByKeyboard)) || label->textFormat() == Qt::RichText || (label->textFormat() == Qt::AutoText && Qt::mightBeRichText(label->text()));
     const QBrush brush = rich ? QBrush(helper.accentTitleColor(palette)) : helper.accentTitleBrush(palette);
     for (QPalette::ColorGroup group : {QPalette::Active, QPalette::Inactive}) {
         palette.setBrush(group, QPalette::WindowText, brush);
@@ -858,7 +859,7 @@ void Style::polish(QPalette &palette)
             for (QPalette::ColorRole role : {QPalette::WindowText, QPalette::Text, QPalette::ButtonText}) {
                 const QColor text = palette.color(group, role);
                 if (text.alpha() == 255 && text.lightnessF() > 0.16 && text.lightnessF() < 0.5) {
-                    palette.setColor(group, role, QColor::fromHslF(qMax(0.0f, text.hslHueF()), text.hslSaturationF(), text.lightnessF() * 0.62));
+                    palette.setColor(group, role, QColor::fromHslF(qMax<qreal>(0.0, text.hslHueF()), text.hslSaturationF(), text.lightnessF() * 0.62));
                 }
             }
         }
@@ -9625,7 +9626,8 @@ bool Style::drawDockWidgetTitleControl(const QStyleOption *option, QPainter *pai
         if (_helper->accentText(palette) == 3 && enabled) {
             painter->setPen(QPen(_helper->accentTitleBrush(palette), 1)); // (AccentText 3: the secondary titles' gradient)
         }
-        const QRect text = reverseLayout ? rect.adjusted(0, 0, -12, 0) : rect.adjusted(12, 0, 0, 0);
+        // (the float and close buttons stand 14 px in from the card's edge: eventFilterDockWidget moves them)
+        const QRect text = reverseLayout ? rect.adjusted(14, 0, -12, 0) : rect.adjusted(12, 0, -14, 0);
         const QString shown = QFontMetrics(small).elidedText(dockWidgetOption->title, Qt::ElideRight, text.width(), Qt::TextHideMnemonic);
         painter->drawText(text, Qt::AlignLeft | Qt::AlignVCenter | Qt::TextHideMnemonic, shown);
         painter->restore();
