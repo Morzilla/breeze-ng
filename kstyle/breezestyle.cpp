@@ -3049,6 +3049,11 @@ bool Style::eventFilterNgPopup(QWidget *popup, QEvent *event)
             }
             return false;
         }
+        // (a menu narrower than its button: as wide as the button, so that the two are one shape; the button's
+        // corner past the menu's edge stood out square)
+        if (popup->width() < buttonRect.width()) {
+            popup->resize(buttonRect.width(), popup->height());
+        }
         popup->setProperty("_breeze_ng_joins", QVariant::fromValue(QPointer<QWidget>(button)));
         popup->setProperty("_breeze_ng_join_button", buttonRect);
         popup->setProperty("_breeze_ng_join_top", menuEdge == Qt::TopEdge);
@@ -3061,6 +3066,11 @@ bool Style::eventFilterNgPopup(QWidget *popup, QEvent *event)
         button->setProperty("_breeze_ng_join_round", button->property("_breeze_ng_join_round").toInt() + 1);
         button->setProperty("_breeze_ng_joined_fade", QVariant());
         button->setProperty("_breeze_ng_joined_bg", sheet);
+        // (on Aurora's light frost the menu's edge is a white hairline, which a joined button on the frost did not
+        // show: the button's open side read as no edge at all. There a faint edge of ink, as the menu's shadow draws it)
+        if (_helper->isAurora() && !_helper->isDark(popup->palette())) {
+            outline = _helper->alphaColor(_helper->ink(popup->palette()), 0.27); // (as dark as the menu's edge with its shadow)
+        }
         button->setProperty("_breeze_ng_joined_edge", outline);
         button->update();
         _shadowHelper->updateShadows(popup); // no shadow on the joined side
