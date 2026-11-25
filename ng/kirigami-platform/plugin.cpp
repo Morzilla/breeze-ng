@@ -600,8 +600,13 @@ public:
         QLinearGradient fill(rect.topLeft(), rect.bottomLeft());
         QColor edge;
         if (m_look.dark) {
-            fill.setColorAt(0.0, QColor(30, 34, 52, 140));
-            fill.setColorAt(1.0, QColor(4, 5, 12, 107));
+            // (from the scheme's window colour, darker towards the bottom: a neutral or warm scheme keeps its tone)
+            QColor top = QGuiApplication::palette().color(QPalette::Active, QPalette::Window).darker(130);
+            QColor bottom = top.darker(600);
+            top.setAlpha(140);
+            bottom.setAlpha(107);
+            fill.setColorAt(0.0, top);
+            fill.setColorAt(1.0, bottom);
             edge = QColor(255, 255, 255, 22);
         } else {
             fill.setColorAt(0.0, QColor(255, 255, 255, 168));

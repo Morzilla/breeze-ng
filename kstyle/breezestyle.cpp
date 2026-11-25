@@ -362,11 +362,12 @@ static void ngAccentTitle(QLabel *label, const Helper &helper)
         const int seq = label->property("_breeze_ng_title_seq").toInt() + 1;
         if (mode == 0) {
             if (ours) {
-                label->setProperty("_breeze_ng_title_sheet", QVariant());
+                // (the original stays saved until it is given back: an unpolish meanwhile restores it from there)
                 label->setProperty("_breeze_ng_title_seq", seq);
                 QTimer::singleShot(0, label, [guard, original, seq] {
                     if (guard && guard->property("_breeze_ng_title_seq").toInt() == seq) {
                         guard->setStyleSheet(original);
+                        guard->setProperty("_breeze_ng_title_sheet", QVariant());
                     }
                 });
             }
