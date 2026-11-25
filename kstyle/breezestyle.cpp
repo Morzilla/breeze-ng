@@ -358,11 +358,14 @@ static void ngAccentTitle(QLabel *label, const Helper &helper)
         const bool ours = sheet.contains(marker);
         const QString original = ours ? label->property("_breeze_ng_title_sheet").toString() : sheet;
         QPointer<QLabel> guard(label);
+        // (a sheet queued here is dropped if the label is unpolished, or a newer one is queued, before it lands)
+        const int seq = label->property("_breeze_ng_title_seq").toInt() + 1;
         if (mode == 0) {
             if (ours) {
                 label->setProperty("_breeze_ng_title_sheet", QVariant());
-                QTimer::singleShot(0, label, [guard, original] {
-                    if (guard) {
+                label->setProperty("_breeze_ng_title_seq", seq);
+                QTimer::singleShot(0, label, [guard, original, seq] {
+                    if (guard && guard->property("_breeze_ng_title_seq").toInt() == seq) {
                         guard->setStyleSheet(original);
                     }
                 });
@@ -387,8 +390,9 @@ static void ngAccentTitle(QLabel *label, const Helper &helper)
             return; // (already the sheet of this mode and these colours)
         }
         label->setProperty("_breeze_ng_title_sheet", original);
-        QTimer::singleShot(0, label, [guard, accented] {
-            if (guard) {
+        label->setProperty("_breeze_ng_title_seq", seq);
+        QTimer::singleShot(0, label, [guard, accented, seq] {
+            if (guard && guard->property("_breeze_ng_title_seq").toInt() == seq) {
                 guard->setStyleSheet(accented);
             }
         });
@@ -817,7 +821,7 @@ void Style::polish(QPalette &palette)
     // A dark scheme is left as it is, its white text and its dimmed text alike: a tinged dimmed text in the palette came
     // out as near white secondary text in Kirigami (disabledTextColor, placeholders)
     const bool darkScheme = palette.color(QPalette::Active, QPalette::Window).lightnessF() < 0.5;
-    if (StyleConfigData::accentTint() && !darkScheme && _helper->accentText(palette) != 2 && qEnvironmentVariable("BREEZE_NG_TINTED_TEXT") != QLatin1String("0")) {
+    if (StyleConfigData::accentTint() && !darkScheme && _helper->accentText(palette) < 2 && qEnvironmentVariable("BREEZE_NG_TINTED_TEXT") != QLatin1String("0")) {
         const QColor accent = palette.color(QPalette::Active, QPalette::Highlight);
         if (accent.hslSaturationF() >= 0.15) {
             const qreal hue = accent.hslHueF();
@@ -1377,6 +1381,9 @@ void Style::unpolish(QWidget *widget)
     if (widget && widget->property("_breeze_ng_title").toBool()) {
         widget->setPalette(QPalette());
         widget->setProperty("_breeze_ng_title", QVariant());
+    }
+    if (auto label = qobject_cast<QLabel *>(widget)) {
+        label->setProperty("_breeze_ng_title_seq", label->property("_breeze_ng_title_seq").toInt() + 1); // (a queued sheet is dropped)
     }
     if (auto label = qobject_cast<QLabel *>(widget); label && label->property("_breeze_ng_title_sheet").isValid()) {
         // (KTitleWidget's own sheet, as it was before the accent)
@@ -9671,6 +9678,10 @@ bool Style::drawGroupBoxComplexControl(const QStyleOptionComplex *option, QPaint
             QColor faint = groupBoxOption->palette.color(QPalette::WindowText);
             faint.setAlphaF(0.55);
             painter->setPen(faint);
+            // (AccentText 3: the secondary titles take the titles' gradient too)
+            if (_helper->accentText(groupBoxOption->palette) == 3 && (groupBoxOption->state & State_Enabled)) {
+                painter->setPen(QPen(_helper->accentTitleBrush(groupBoxOption->palette), 1));
+            }
             const QRect left(groupBoxOption->rect.left() + 14, textRect.top(), groupBoxOption->rect.width() - 28, textRect.height());
             painter->drawText(left, Qt::AlignLeft | Qt::AlignVCenter | Qt::TextHideMnemonic, groupBoxOption->text);
             return true;

@@ -165,7 +165,8 @@ public:
     //* the colour of text and marks on auroraSelection()
     QColor auroraSelectionText(const QPalette &palette) const;
 
-    // Breeze NG AccentText: 0 off, 1 the titles of pages in the accent, 2 in a gradient (0 with a grey accent)
+    // Breeze NG AccentText: 0 off, 1 the titles of pages in the accent, 2 in a gradient, 3 the gradient on the secondary
+    // titles too (the sections' titles) (0 with a grey accent)
     int accentText(const QPalette &palette) const;
     // the colour of a title: a deep accent (AccentText 2: the gradient's first stop)
     QColor accentTitleColor(const QPalette &palette) const;

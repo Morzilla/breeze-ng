@@ -793,8 +793,9 @@ QWidget *StyleConfig::pageAurora()
             m_accentText->addItem(ngText("As the text", "Come il testo"));
             m_accentText->addItem(ngText("In the accent", "Nel colore d'accento"));
             m_accentText->addItem(ngText("In an Aurora gradient", "Sfumati Aurora"));
-            m_accentText->setToolTip(ngText("The titles of pages (the large ones at the top) in the accent, or in a gradient from the accent to Aurora's second light. The rest of the text stays as it is.",
-                                            "I titoli delle pagine (quelli grandi in alto) nel colore d'accento, oppure sfumati dall'accento alla seconda luce di Aurora. Il resto del testo resta com'è."));
+            m_accentText->addItem(ngText("Aurora gradient, secondary titles too", "Sfumati anche i secondari"));
+            m_accentText->setToolTip(ngText("The titles of pages (the large ones at the top) in the accent, or in a gradient from the accent to Aurora's second light. The last choice gives the gradient to the secondary titles too (sections, list headers, notifications' titles). The rest of the text stays as it is.",
+                                            "I titoli delle pagine (quelli grandi in alto) nel colore d'accento, oppure sfumati dall'accento alla seconda luce di Aurora. L'ultima scelta dà la sfumatura anche ai titoli secondari (sezioni, intestazioni delle liste, titoli delle notifiche). Il resto del testo resta com'è."));
             row->addWidget(m_accentText);
             row->addStretch(1);
             group->addLayout(row);
@@ -1254,7 +1255,7 @@ void StyleConfig::load()
     m_auroraFull->setChecked(StyleConfigData::auroraFullSelection());
     m_auroraCorners->setChecked(StyleConfigData::auroraCornerLights());
     m_accentTint->setChecked(StyleConfigData::accentTint());
-    m_accentText->setCurrentIndex(qBound(0, StyleConfigData::accentText(), 2));
+    m_accentText->setCurrentIndex(qBound(0, StyleConfigData::accentText(), 3));
     m_sidebarCompact->setChecked(StyleConfigData::sidebarCompact());
     for (QAbstractButton *b : std::as_const(m_auroraSecondButtons)) {
         b->setChecked(b->property("colour").toString() == m_auroraSecond);

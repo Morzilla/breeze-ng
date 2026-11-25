@@ -46,6 +46,7 @@
 #include <QWindow>
 #include <QImage>
 #include <QPainter>
+#include <QPainterPath>
 #include <QPixmap>
 #include <QQuickItem>
 #include <QQuickPaintedItem>
@@ -76,7 +77,7 @@ struct Look {
     bool accentRight = false; // the accent's light from the top right, the second light from the top left
     bool fullSelection = false; // selections in the full accent with white text
     bool accentTint = true; // the text tinged by the accent, as the widget style's palette (Breeze NG's AccentTint)
-    int accentText = 0; // titles and labels in the accent (Breeze NG's AccentText: 1 accent, 2 gradient titles)
+    int accentText = 0; // titles in the accent (Breeze NG's AccentText: 1 accent, 2 gradient titles, 3 secondary titles too)
     QColor onSelection; // text on a selection, where it is not the scheme's own
     QColor listSheet; // a selected row of a list: the light sheet of the accent (dark schemes: the accent, see-through)
 };
@@ -186,16 +187,18 @@ bool titleText(PlatformTheme *theme, int accentText, const QColor &secondLight, 
 {
     const QObject *owner = theme->parent();
     const int headingLevel = (owner && owner->property("level").isValid()) ? owner->property("level").toInt() : 1;
-    if (accentText <= 0 || !owner || headingLevel > 1 || !QByteArray(owner->metaObject()->className()).startsWith("Heading")
+    // (AccentText 3: the secondary titles too, headings down to level 4: a section's title, a list's header, the name
+    // in the launcher, a notification's title. Level 5 stays text: FormLayout's labels)
+    if (accentText <= 0 || !owner || headingLevel > (accentText == 3 ? 4 : 1) || !QByteArray(owner->metaObject()->className()).startsWith("Heading")
         || !(theme->colorSet() == PlatformTheme::Window || theme->colorSet() == PlatformTheme::View || theme->colorSet() == PlatformTheme::Header)) {
         return false;
     }
     const QColor accent = QGuiApplication::palette().color(QPalette::Active, QPalette::Highlight);
     const qreal hue = accent.hslHueF() < 0 ? 0.58 : accent.hslHueF();
-    const QColor colour = accentText == 2 ? (dark ? QColor::fromHslF(hue, 0.90, 0.78) : QColor::fromHslF(hue, 0.70, 0.38))
+    const QColor colour = accentText >= 2 ? (dark ? QColor::fromHslF(hue, 0.90, 0.78) : QColor::fromHslF(hue, 0.70, 0.38))
                                           : (dark ? QColor::fromHslF(hue, 0.80, 0.90) : QColor::fromHslF(hue, 0.62, 0.31));
     if (auto heading = qobject_cast<QQuickItem *>(const_cast<QObject *>(owner))) {
-        if (accentText == 2) {
+        if (accentText >= 2) {
             // (the second light: the user's colour, or the hue next to the accent's, as Helper::accentTitleBrush)
             const qreal hue2 = (secondLight.isValid() && secondLight.hslHueF() >= 0) ? secondLight.hslHueF() : std::fmod(hue + 0.17, 1.0);
             titleGradient(heading, colour, dark ? QColor::fromHslF(hue2, 0.85, 0.80) : QColor::fromHslF(hue2, 0.62, 0.45));
@@ -261,7 +264,7 @@ void tintText(PlatformTheme *theme, int accentText, const QColor &secondLight)
     }
     dropGradient(theme);
     // (titles in Aurora's gradient: the rest of the text plain, as the widget style leaves its palette)
-    if (accentText == 2) {
+    if (accentText >= 2) {
         release();
         return;
     }
@@ -361,7 +364,7 @@ Look readLook()
     look.dim = common.readEntry("AuroraDimInactive", true);
     look.fullSelection = common.readEntry("AuroraFullSelection", false);
     look.accentTint = common.readEntry("AccentTint", true);
-    look.accentText = qBound(0, common.readEntry("AccentText", 0), 2);
+    look.accentText = qBound(0, common.readEntry("AccentText", 0), 3);
     const QString secondAccent = common.readEntry("AuroraSecondAccent", QString());
     look.second = secondAccent.isEmpty() ? QColor() : QColor(secondAccent);
     look.accentRight = common.readEntry("AuroraAccentRight", false);
@@ -405,6 +408,79 @@ bool onVeil(const QObject *owner)
     return false;
 }
 
+// the grain of Aurora: a tile of faint light and dark specks
+const QPixmap &auroraGrainTile(int grain)
+{
+    static QPixmap tile;
+    static int tileGrain = -1;
+    if (tile.isNull() || tileGrain != grain) {
+        tileGrain = grain;
+        const int reach = 2 + grain / 10;
+        QImage image(128, 128, QImage::Format_ARGB32_Premultiplied);
+        quint32 seed = 0x9e3779b9u;
+        for (int y = 0; y < image.height(); ++y) {
+            QRgb *line = reinterpret_cast<QRgb *>(image.scanLine(y));
+            for (int x = 0; x < image.width(); ++x) {
+                seed ^= seed << 13;
+                seed ^= seed >> 17;
+                seed ^= seed << 5;
+                const int value = int(seed % quint32(2 * reach + 1)) - reach;
+                line[x] = value >= 0 ? qPremultiply(qRgba(255, 255, 255, value)) : qPremultiply(qRgba(0, 0, 0, -value));
+            }
+        }
+        tile = QPixmap::fromImage(image);
+    }
+    return tile;
+}
+
+// The lights of Aurora (and the window's sheet, when asked) over a rectangle: AuroraBackdrop behind a Qt Quick
+// window, PlasmaLights over the sheet of a Plasma popup
+void paintAuroraLights(QPainter *painter, const QRectF &rect, Look &m_look, bool active, bool sheet)
+{
+    colours(m_look); // (with the palette of now)
+    if (sheet) {
+        painter->fillRect(rect, m_look.sheet); // the window's glass
+    }
+    const qreal strength = (m_look.dark ? 1.0 : 0.95) * ((active || !m_look.dim) ? 1.0 : 0.6) * m_look.lights;
+    if (strength > 0.0) {
+        const QColor highlight = QGuiApplication::palette().color(QPalette::Active, QPalette::Highlight);
+        const qreal hue = highlight.hslHueF() < 0 ? 0.58 : highlight.hslHueF();
+        const qreal saturation = (highlight.hslSaturationF() < 0.15 ? highlight.hslSaturationF() : qBound(0.60, highlight.hslSaturationF() * 1.4, 0.95));
+        // (as Helper::renderAuroraLights: 0.76 / 0.78 on light schemes. This copy had stayed at 0.90, nearly white
+        // lights, and a Qt Quick window came out lighter and plainer than its own title bar)
+        const QColor accent = QColor::fromHslF(hue, saturation, (m_look.dark) ? 0.62 : 0.76);
+        QColor second = QColor::fromHslF(std::fmod(hue + 0.17, 1.0), saturation, (m_look.dark) ? 0.64 : 0.78);
+        if (m_look.second.isValid()) {
+            second = QColor::fromHslF(m_look.second.hslHueF() < 0 ? hue : m_look.second.hslHueF(), (m_look.second.hslSaturationF() < 0.15 ? m_look.second.hslSaturationF() : qBound(0.60, m_look.second.hslSaturationF() * 1.4, 0.95)), (m_look.dark) ? 0.64 : 0.78);
+        }
+        const qreal radius = qBound(260.0, rect.width() * 0.55, 620.0);
+        auto light = [&](const QPointF &centre, qreal r, QColor colour, qreal alpha) {
+            QRadialGradient gradient(centre, r);
+            colour.setAlphaF(qMin(1.0, alpha * strength));
+            gradient.setColorAt(0.0, colour);
+            colour.setAlphaF(qMin(1.0, alpha * strength * 0.46));
+            gradient.setColorAt(0.45, colour);
+            colour.setAlphaF(0.0);
+            gradient.setColorAt(1.0, colour);
+            painter->fillRect(rect, gradient);
+        };
+        if (!m_look.dark) { // (as Helper::renderAuroraLights: the wash of the accent on light schemes)
+            painter->fillRect(rect, QColor(255, 255, 255, 120));
+            QColor wash = accent;
+            wash.setAlphaF(qMin(1.0, 0.10 * strength));
+            painter->fillRect(rect, wash);
+        }
+        if (m_look.cornerLights) { // (the corners' lights off: the sheet, the wash and the grain only)
+            light(m_look.accentRight ? rect.topRight() : rect.topLeft(), radius, accent, 0.52); // (as the widget style)
+            light(m_look.accentRight ? rect.topLeft() : rect.topRight(), radius * 0.8, second, 0.36);
+            light(m_look.accentRight ? rect.bottomLeft() : rect.bottomRight(), radius * 0.9, accent, 0.32);
+        }
+    }
+    if (m_look.grain > 0) {
+        painter->drawTiledPixmap(rect, auroraGrainTile(m_look.grain));
+    }
+}
+
 // The lights and the grain of Aurora behind the content of a Qt Quick window, as the widget style paints them in its
 // windows (Helper::renderAuroraLights) and the window decoration in the title bar: the same centres, so that the
 // title bar and the window are one sheet.
@@ -432,76 +508,55 @@ public:
 
     void paint(QPainter *painter) override
     {
-        const QRectF rect(0, 0, width(), height());
-        colours(m_look); // (with the palette of now)
-        painter->fillRect(rect, m_look.sheet); // the window's glass
-        const qreal strength = (m_look.dark ? 1.0 : 0.95) * ((m_window->isActive() || !m_look.dim) ? 1.0 : 0.6) * m_look.lights;
-        if (strength > 0.0) {
-            const QColor highlight = QGuiApplication::palette().color(QPalette::Active, QPalette::Highlight);
-            const qreal hue = highlight.hslHueF() < 0 ? 0.58 : highlight.hslHueF();
-            const qreal saturation = (highlight.hslSaturationF() < 0.15 ? highlight.hslSaturationF() : qBound(0.60, highlight.hslSaturationF() * 1.4, 0.95));
-            // (as Helper::renderAuroraLights: 0.76 / 0.78 on light schemes. This copy had stayed at 0.90, nearly white
-            // lights, and a Qt Quick window came out lighter and plainer than its own title bar)
-            const QColor accent = QColor::fromHslF(hue, saturation, (m_look.dark) ? 0.62 : 0.76);
-            QColor second = QColor::fromHslF(std::fmod(hue + 0.17, 1.0), saturation, (m_look.dark) ? 0.64 : 0.78);
-            if (m_look.second.isValid()) {
-                second = QColor::fromHslF(m_look.second.hslHueF() < 0 ? hue : m_look.second.hslHueF(), (m_look.second.hslSaturationF() < 0.15 ? m_look.second.hslSaturationF() : qBound(0.60, m_look.second.hslSaturationF() * 1.4, 0.95)), (m_look.dark) ? 0.64 : 0.78);
-            }
-            const qreal radius = qBound(260.0, rect.width() * 0.55, 620.0);
-            auto light = [&](const QPointF &centre, qreal r, QColor colour, qreal alpha) {
-                QRadialGradient gradient(centre, r);
-                colour.setAlphaF(qMin(1.0, alpha * strength));
-                gradient.setColorAt(0.0, colour);
-                colour.setAlphaF(qMin(1.0, alpha * strength * 0.46));
-                gradient.setColorAt(0.45, colour);
-                colour.setAlphaF(0.0);
-                gradient.setColorAt(1.0, colour);
-                painter->fillRect(rect, gradient);
-            };
-            if (!m_look.dark) { // (as Helper::renderAuroraLights: the wash of the accent on light schemes)
-                painter->fillRect(rect, QColor(255, 255, 255, 120));
-                QColor wash = accent;
-                wash.setAlphaF(qMin(1.0, 0.10 * strength));
-                painter->fillRect(rect, wash);
-            }
-            if (m_look.cornerLights) { // (the corners' lights off: the sheet, the wash and the grain only)
-                light(m_look.accentRight ? rect.topRight() : rect.topLeft(), radius, accent, 0.52); // (as the widget style)
-                light(m_look.accentRight ? rect.topLeft() : rect.topRight(), radius * 0.8, second, 0.36);
-                light(m_look.accentRight ? rect.bottomLeft() : rect.bottomRight(), radius * 0.9, accent, 0.32);
-            }
-        }
-        if (m_look.grain > 0) {
-            painter->drawTiledPixmap(rect, grainTile(m_look.grain));
-        }
+        paintAuroraLights(painter, QRectF(0, 0, width(), height()), m_look, m_window->isActive(), true);
     }
 
 private:
-    static const QPixmap &grainTile(int grain)
-    {
-        static QPixmap tile;
-        static int tileGrain = -1;
-        if (tile.isNull() || tileGrain != grain) {
-            tileGrain = grain;
-            const int reach = 2 + grain / 10;
-            QImage image(128, 128, QImage::Format_ARGB32_Premultiplied);
-            quint32 seed = 0x9e3779b9u;
-            for (int y = 0; y < image.height(); ++y) {
-                QRgb *line = reinterpret_cast<QRgb *>(image.scanLine(y));
-                for (int x = 0; x < image.width(); ++x) {
-                    seed ^= seed << 13;
-                    seed ^= seed >> 17;
-                    seed ^= seed << 5;
-                    const int value = int(seed % quint32(2 * reach + 1)) - reach;
-                    line[x] = value >= 0 ? qPremultiply(qRgba(255, 255, 255, value)) : qPremultiply(qRgba(0, 0, 0, -value));
-                }
-            }
-            tile = QPixmap::fromImage(image);
-        }
-        return tile;
-    }
-
     QQuickWindow *m_window;
     Look m_look;
+};
+
+// The lights of Aurora in a popup of Plasma (the launcher, the system tray, the calendar, a notification), as in the
+// windows: laid on the popup's own background (the Plasma style's sheet), under its content, inside its rounded
+// corners. The sheet itself stays the Plasma style's.
+class PlasmaLights : public QQuickPaintedItem
+{
+public:
+    PlasmaLights(QQuickItem *background, const Look &look, qreal radius)
+        : QQuickPaintedItem(background)
+        , m_look(look)
+        , m_radius(radius)
+    {
+        setAntialiasing(true);
+        setObjectName(QStringLiteral("breeze-ng-plasma-lights"));
+        auto fit = [this, background] {
+            setSize(QSizeF(background->width(), background->height()));
+            update();
+        };
+        connect(background, &QQuickItem::widthChanged, this, fit);
+        connect(background, &QQuickItem::heightChanged, this, fit);
+        fit();
+    }
+
+    void setLook(const Look &look)
+    {
+        m_look = look;
+        update();
+    }
+
+    void paint(QPainter *painter) override
+    {
+        const QRectF rect(0, 0, width(), height());
+        QPainterPath shape;
+        shape.addRoundedRect(rect.adjusted(1, 1, -1, -1), m_radius - 1, m_radius - 1);
+        painter->setRenderHint(QPainter::Antialiasing, true);
+        painter->setClipPath(shape);
+        paintAuroraLights(painter, rect, m_look, true, false);
+    }
+
+private:
+    Look m_look;
+    qreal m_radius;
 };
 
 // debugging: BREEZE_NG_DEBUG_QUICK=1 lists the large coloured items of each window a few seconds after it opens
@@ -1007,7 +1062,7 @@ public Q_SLOTS:
         config->reparseConfiguration();
         const KConfigGroup common = config->group(QStringLiteral("Common"));
         m_look.accentTint = common.readEntry("AccentTint", true);
-        m_look.accentText = qBound(0, common.readEntry("AccentText", 0), 2);
+        m_look.accentText = qBound(0, common.readEntry("AccentText", 0), 3);
         const QString secondAccent = common.readEntry("AuroraSecondAccent", QString());
         m_look.second = secondAccent.isEmpty() ? QColor() : QColor(secondAccent);
         Q_EMIT m_notifier->changed();
@@ -1024,6 +1079,21 @@ public:
         // rest of the colours are the Plasma style's own
         if (theme && m_look.aurora && parent && QByteArray(parent->metaObject()->className()).startsWith("Heading")) {
             plasmaTitle(theme); // (with the option off too: it can be turned on while Plasma runs)
+        }
+        if (theme && m_look.aurora && !qEnvironmentVariableIsSet("BREEZE_NG_PLASMA_NO_LIGHTS")) {
+            if (auto item = qobject_cast<QQuickItem *>(parent)) {
+                // (the item has no window yet when its theme is asked for)
+                QPointer<QQuickItem> guard(item);
+                QTimer::singleShot(0, item, [this, guard] {
+                    popupLights(guard);
+                });
+                // (a popup's content is made when Plasma starts, its window when it first opens)
+                QObject::connect(item, &QQuickItem::windowChanged, item, [this, guard](QQuickWindow *window) {
+                    if (window) {
+                        popupLights(guard);
+                    }
+                });
+            }
         }
 #else
         if (theme && m_look.aurora) {
@@ -1074,6 +1144,56 @@ private:
         return m_real;
     }
 
+    // the lights of Aurora in the Plasma popup this item is shown in (PlasmaLights), once per popup: on the popup's
+    // background, the Plasma style's frame, which every popup of Plasma 6 lays first in its window. Not in tooltips
+    void popupLights(QQuickItem *item)
+    {
+        QQuickWindow *window = item ? item->window() : nullptr;
+        if (!window || hasHook(window, 8)) {
+            return;
+        }
+        const bool popup = (window->inherits("PlasmaQuick::PlasmaWindow") || window->inherits("PlasmaQuick::Dialog")) && !window->inherits("ToolTipDialog")
+            && !QByteArray(window->metaObject()->className()).contains("ToolTip");
+        if (!popup) {
+            setHook(window, 8);
+            return;
+        }
+        QQuickItem *background = nullptr;
+        qreal area = 0;
+        std::function<void(QQuickItem *, int)> find = [&](QQuickItem *node, int depth) {
+            const QByteArray name = node->metaObject()->className();
+            if ((name.contains("FrameSvgItem") || name.contains("DialogBackground")) && node->width() * node->height() > area) {
+                background = node;
+                area = node->width() * node->height();
+            }
+            if (depth < 2) {
+                const auto children = node->childItems();
+                for (QQuickItem *child : children) {
+                    find(child, depth + 1);
+                }
+            }
+        };
+        find(window->contentItem(), 0);
+        if (qEnvironmentVariableIsSet("BREEZE_NG_DEBUG_QUICK")) {
+            qWarning("breeze-ng plasma: popup %s, background %s %.0fx%.0f", window->metaObject()->className(),
+                     background ? background->metaObject()->className() : "-", background ? background->width() : 0.0, background ? background->height() : 0.0);
+        }
+        if (!background || area < 400) {
+            // (not laid out yet: asked again a little later, a few times)
+            const int tries = window->property("_breeze_ng_light_tries").toInt();
+            if (tries < 20) {
+                window->setProperty("_breeze_ng_light_tries", tries + 1);
+                QPointer<QQuickItem> guard(item);
+                QTimer::singleShot(250, item, [this, guard] {
+                    popupLights(guard);
+                });
+            }
+            return;
+        }
+        setHook(window, 8);
+        new PlasmaLights(background, m_look, 14); // (the radius of the Plasma style's popups, make-plasma-style.py R_POPUP)
+    }
+
     // a heading of Plasma: the title's colour (or gradient) once it has its level and colour set. On Plasma's own
     // surfaces: dark or light from the theme's background, not from the application's palette (a Plasma style can
     // have colours of its own)
@@ -1091,7 +1211,10 @@ private:
             // (the background read before the title's colour was set: the theme's own)
             const QColor background = (tinted && ground.isValid()) ? ground : guard->backgroundColor();
             guard->setProperty("_breeze_ng_ground", background);
-            if (!titleText(guard, accentText, second, background.lightnessF() < 0.5)) {
+            // (as tintText and titleOnly: a grey accent, or the tint switched off for the application, leaves titles plain)
+            const QColor accent = QGuiApplication::palette().color(QPalette::Active, QPalette::Highlight);
+            const bool allowed = accent.hslSaturationF() >= 0.15 && qEnvironmentVariable("BREEZE_NG_TINTED_TEXT") != QLatin1String("0");
+            if (!allowed || !titleText(guard, accentText, second, background.lightnessF() < 0.5)) {
                 dropGradient(guard);
                 if (tinted) {
                     guard->setCustomTextColor();

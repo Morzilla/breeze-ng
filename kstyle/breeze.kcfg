@@ -108,11 +108,12 @@
     </entry>
     <!-- Breeze NG: the titles of pages in the accent (only those: the rest of the text stays the ink). 0: as the rest of
          the text. 1: a deep accent (a luminous one on dark schemes). 2: a gradient from the accent to Aurora's second
-         light -->
+         light. 3: that gradient on the secondary titles too (group boxes' titles; Kirigami and Plasma headings of
+         level 2 to 4) -->
     <entry name="AccentText" type="Int">
       <default>0</default>
       <min>0</min>
-      <max>2</max>
+      <max>3</max>
     </entry>
     <!-- Breeze NG: the rows of every application's sidebar compact, one line with a small icon, as Dolphin NG's
          sidebar (the lists of pages of settings dialogs, views in side panels, Kirigami sidebars) -->

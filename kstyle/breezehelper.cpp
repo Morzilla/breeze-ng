@@ -385,7 +385,7 @@ int Helper::accentText(const QPalette &palette) const
     if (accent.hslSaturationF() < 0.15 || qEnvironmentVariable("BREEZE_NG_TINTED_TEXT") == QLatin1String("0")) {
         return 0;
     }
-    return qBound(0, StyleConfigData::accentText(), 2);
+    return qBound(0, StyleConfigData::accentText(), 3);
 }
 
 // (the tones of the mockup "Testi verso l'accento", variants C and D, 2026-11-25)
@@ -400,7 +400,7 @@ QColor Helper::accentTitleColor(const QPalette &palette) const
     const qreal hue = ngAccentHue(palette);
     // (dark schemes: nearly white with a light touch of the accent; a luminous accent read as a blue block of text)
     // (the gradient's first light: the colour of Aurora's lights, lifted to read on the glass; nearly white it did not show)
-    if (accentText(palette) == 2) {
+    if (accentText(palette) >= 2) {
         return isDark(palette) ? QColor::fromHslF(hue, 0.90, 0.78) : QColor::fromHslF(hue, 0.70, 0.38);
     }
     return isDark(palette) ? QColor::fromHslF(hue, 0.80, 0.90) : QColor::fromHslF(hue, 0.62, 0.31);
@@ -409,7 +409,7 @@ QColor Helper::accentTitleColor(const QPalette &palette) const
 QBrush Helper::accentTitleBrush(const QPalette &palette) const
 {
     const QColor first = accentTitleColor(palette);
-    if (accentText(palette) != 2) {
+    if (accentText(palette) < 2) {
         return first;
     }
     // the second light of Aurora: the user's colour, or the hue next to the accent's

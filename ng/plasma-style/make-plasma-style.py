@@ -42,15 +42,19 @@ for p, u in (('sodipodi', 'http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd'),
 NAMES = ['topleft', 'top', 'topright', 'left', 'center', 'right', 'bottomleft', 'bottom', 'bottomright']
 W = 20  # length of the stretched pieces
 INK, BG, HL = 'ColorScheme-Text', 'ColorScheme-Background', 'ColorScheme-Highlight'
+HLT = 'ColorScheme-HighlightedText'  # (near white on light and dark schemes alike)
 
 
 def pieces(prefix, r, ox, oy, fill=None, edge=None, mask=False):
     """The nine pieces of a rounded frame, drawn with fills only so that every bounding box is exact.
-    fill and edge are (colour class, opacity) or None; the edge is one pixel wide, inside the frame."""
+    fill and edge are (colour class, opacity) or None; fill can also be a list of them, laid one over the other.
+    The edge is one pixel wide, inside the frame."""
     out = []
     xs, ys = [ox, ox + r, ox + r + W], [oy, oy + r, oy + r + W]
     ws = [r, W, r]
-    paint = {'fill': '#000000'} if mask else ({'class': fill[0], 'fill': 'currentColor', 'fill-opacity': str(fill[1])} if fill else None)
+    fills = fill if isinstance(fill, list) else ([fill] if fill else [])
+    paints = [{'class': f[0], 'fill': 'currentColor', 'fill-opacity': str(f[1])} for f in fills]
+    paint = {'fill': '#000000'} if mask else (paints[0] if paints else None)
     line = {'class': edge[0], 'fill': 'currentColor', 'fill-opacity': str(edge[1])} if (edge and not mask) else None
     pin = {'fill': '#000000', 'fill-opacity': '0.001'}  # keeps the piece's bounds when nothing else is painted
     for i, name in enumerate(NAMES):
@@ -64,16 +68,16 @@ def pieces(prefix, r, ox, oy, fill=None, edge=None, mask=False):
             sweep = 1 if (cx == 0) == (cy == 0) else 0
             if mask:
                 g.remove(g[0])
-            if paint:
-                E.SubElement(g, f'{{{NS}}}path', {'d': f'M {ax},{py} A {r},{r} 0 0 {sweep} {px},{ay} L {px},{py} Z', **paint})
+            for one in ([paint] if mask else paints):
+                E.SubElement(g, f'{{{NS}}}path', {'d': f'M {ax},{py} A {r},{r} 0 0 {sweep} {px},{ay} L {px},{py} Z', **one})
             if line:
                 ix, iy = (ax + 1 if cx == 0 else ax - 1), (ay + 1 if cy == 0 else ay - 1)
                 d = (f'M {ax},{py} A {r},{r} 0 0 {sweep} {px},{ay} L {px},{iy} '
                      f'A {r - 1},{r - 1} 0 0 {1 - sweep} {ix},{py} Z')
                 E.SubElement(g, f'{{{NS}}}path', {'d': d, **line})
         else:
-            if paint and not mask:
-                E.SubElement(g, f'{{{NS}}}rect', {'x': str(x), 'y': str(y), 'width': str(w), 'height': str(h), **paint})
+            for one in ([] if mask else paints):
+                E.SubElement(g, f'{{{NS}}}rect', {'x': str(x), 'y': str(y), 'width': str(w), 'height': str(h), **one})
             if line and (cx, cy) != (1, 1):
                 if cy == 1:
                     E.SubElement(g, f'{{{NS}}}rect', {'x': str(x if cx == 0 else x + w - 1), 'y': str(y), 'width': '1', 'height': str(h), **line})
@@ -116,6 +120,13 @@ popup_rim = 0.22 if AURORA else 0.16 if GLASS else 0.10
 # hard to read. The launcher and the panel popups hold as much sheet as the applications' menus)
 glass_popup = 0.80 if AURORA else 0.62
 
+# Aurora: the controls of the widget style's Aurora (the 2026-11-24 mockups), one SVG for light and dark schemes:
+#   a key is the background colour with a veil of near white over it: white on a light scheme, a lighter grey key
+#   on a dark one; a field is the background colour, dense: white, or a dark slot in the glass; a selection a sheet
+#   of the accent; no rims but the keys' faint edge, no separator lines, no header and footer bands in the popups
+KEY = [(BG, 0.70), (HLT, 0.22)]
+KEY_EDGE = (INK, 0.12)
+
 # popups (the panel's, the launcher) and tooltips
 redraw('dialogs/background', [('', R_POPUP, (BG, 1 if not GLASS else glass_popup), (INK, popup_rim)), ('mask-', R_POPUP, None, None, True)])
 redraw('translucent/dialogs/background', [('', R_POPUP, (BG, glass_popup if GLASS else 0.86), (INK, popup_rim)), ('mask-', R_POPUP, None, None, True)])
@@ -123,7 +134,19 @@ redraw('widgets/tooltip', [('', R_TIP, (BG, 1), (INK, popup_rim)), ('mask-', R_T
 redraw('translucent/widgets/tooltip', [('', R_TIP, (BG, 0.72 if GLASS else 0.9), (INK, popup_rim)), ('mask-', R_TIP, None, None, True)])
 
 # buttons: raised ones (normal, pressed, with hover and focus drawn over them) and flat ones (toolbutton-*)
-redraw('widgets/button', [
+if AURORA:
+    redraw('widgets/button', [
+        ('normal-', R_BUTTON, KEY, KEY_EDGE),
+        ('pressed-', R_BUTTON, [(BG, 0.70), (INK, 0.10)], KEY_EDGE),
+        ('hover-', R_BUTTON, (HLT, 0.12), None),
+        ('focus-', R_BUTTON, None, focus),
+        ('mask-normal-', R_BUTTON, None, None, True),
+        ('toolbutton-hover-', R_BUTTON, (INK, 0.06), None),
+        ('toolbutton-pressed-', R_BUTTON, KEY, KEY_EDGE),
+        ('toolbutton-focus-', R_BUTTON, None, focus),
+    ], drop=('shadow-',))
+else:
+  redraw('widgets/button', [
     ('normal-', R_BUTTON, (INK, sheet), rim),
     ('pressed-', R_BUTTON, (INK, pressed), (INK, 0.26) if GLASS else None),
     ('hover-', R_BUTTON, (INK, hover), (INK, 0.22) if GLASS else None),
@@ -132,14 +155,14 @@ redraw('widgets/button', [
     ('toolbutton-hover-', R_BUTTON, (INK, sheet), rim),
     ('toolbutton-pressed-', R_BUTTON, (INK, pressed), (INK, 0.22) if GLASS else None),
     ('toolbutton-focus-', R_BUTTON, None, focus),
-], drop=('shadow-',))
+  ], drop=('shadow-',))
 
 # list items (the launcher's applications and categories, the panel popups' lists)
 redraw('widgets/viewitem', [
     ('normal-', R_ITEM, None, None),
-    ('hover-', R_ITEM, (INK, sheet), rim),
-    ('selected-', R_ITEM, (HL, 0.30), (HL, 0.45) if GLASS else None),
-    ('selected+hover-', R_ITEM, (HL, 0.38), (HL, 0.55) if GLASS else None),
+    ('hover-', R_ITEM, (INK, 0.05 if AURORA else sheet), None if AURORA else rim),
+    ('selected-', R_ITEM, (HL, 0.26 if AURORA else 0.30), None if AURORA else (HL, 0.45) if GLASS else None),
+    ('selected+hover-', R_ITEM, (HL, 0.34 if AURORA else 0.38), None if AURORA else (HL, 0.55) if GLASS else None),
 ])
 
 # menu bar items (application menus in the panel)
@@ -151,14 +174,20 @@ redraw('widgets/menubaritem', [
 
 # fields (the launcher's search)
 redraw('widgets/lineedit', [
-    ('base-', R_BUTTON, (INK, 0.06), rim),
+    ('base-', R_BUTTON, (BG, 0.85) if AURORA else (INK, 0.06), (INK, 0.08) if AURORA else rim),
     ('hover-', R_BUTTON, None, (INK, 0.24)),
     ('focus-', R_BUTTON, None, focus),
     ('focusframe-', R_BUTTON, None, focus),
 ])
 
 # tabs (the launcher's Applications / Places)
-redraw('widgets/tabbar', [(f'{side}-active-tab-', R_ITEM, (INK, 0.12), rim) for side in ('north', 'south', 'east', 'west')])
+# (Aurora: the active tab is a key, as the segments of the widget style's page tabs)
+redraw('widgets/tabbar', [(f'{side}-active-tab-', R_ITEM, KEY if AURORA else (INK, 0.12), KEY_EDGE if AURORA else rim) for side in ('north', 'south', 'east', 'west')])
+
+# the header and footer bands of the panel popups (the launcher's user and search row, its tabs and buttons): a
+# lighter band with a line under it. Aurora: nothing, the popup is one sheet of glass
+if AURORA:
+    redraw('widgets/plasmoidheading', [('header-', 6, None, None), ('footer-', 6, None, None)])
 
 # scroll bars (the launcher's lists, the panel popups'): the default slider is a solid grey bar with a white rim, a
 # bright line on the glass. A pill of ink with no rim, a little more ink under the pointer, and no groove
@@ -171,9 +200,10 @@ redraw('widgets/scrollbar', [
 ])
 
 # separator lines (the launcher's, the panel popups'): the default draws them in the scheme's frame colour, black
-# lines on a dark glass. Breeze NG has no separator lines: a breath of ink, enough to tell two areas apart
+# lines on a dark glass. Breeze NG has no separator lines: a breath of ink, enough to tell two areas apart (Aurora: none,
+# the areas are told apart by their tone)
 line = gzip.open(f'{SRC}/widgets/line.svgz').read().decode()
-line = line.replace('class="ColorScheme-Frame"\n       style="fill:currentColor"', f'class="{INK}"\n       style="fill:currentColor;fill-opacity:{0.05 if AURORA else 0.07}"')
+line = line.replace('class="ColorScheme-Frame"\n       style="fill:currentColor"', f'class="{INK}"\n       style="fill:currentColor;fill-opacity:{0 if AURORA else 0.07}"')
 if 'fill-opacity' in line:
     with gzip.open(f'{DST}/widgets/line.svgz', 'wb') as out:
         out.write(line.encode())
