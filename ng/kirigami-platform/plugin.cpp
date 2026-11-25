@@ -123,24 +123,17 @@ void tintText(PlatformTheme *theme, int accentText)
     }
     // the surfaces of the window's own colours only: not the dark ones of a light scheme (Complementary), not the text
     // of a selection or a tooltip
-    // AccentText (as the widget style, Helper::accentTitleColor / accentLabelColor): a Kirigami.Heading of level 1 or 2
-    // is a title, in a deep accent (the gradient of the widget style's titles has no plain way into a Text item: its
-    // first colour); level 3 labels a section, in the accent. Levels 4 and 5 are text: FormLayout's labels ("General:")
-    // are headings of level 5, and a whole form came out in the accent
+    // AccentText (as the widget style, Helper::accentTitleColor): only a Kirigami.Heading of level 1, the title of a page,
+    // takes the accent (the gradient of the widget style's titles has no plain way into a Text item: its first colour).
+    // Every other heading is text: FormLayout's labels ("General:") are headings of level 5
     const QObject *owner = theme->parent();
     const int headingLevel = (owner && owner->property("level").isValid()) ? owner->property("level").toInt() : 1;
-    if (accentText > 0 && owner && headingLevel <= 3 && QByteArray(owner->metaObject()->className()).startsWith("Heading")
+    if (accentText > 0 && owner && headingLevel <= 1 && QByteArray(owner->metaObject()->className()).startsWith("Heading")
         && (theme->colorSet() == PlatformTheme::Window || theme->colorSet() == PlatformTheme::View || theme->colorSet() == PlatformTheme::Header)) {
         const bool dark = palette.color(QPalette::Window).lightnessF() < 0.5;
         const qreal hue = accent.hslHueF();
-        const int level = headingLevel;
-        QColor colour;
-        if (level <= 2) {
-            colour = accentText == 2 ? (dark ? QColor::fromHslF(hue, 0.90, 0.76) : QColor::fromHslF(hue, 0.66, 0.33))
-                                     : (dark ? QColor::fromHslF(hue, 0.92, 0.78) : QColor::fromHslF(hue, 0.62, 0.31));
-        } else {
-            colour = dark ? QColor::fromHslF(hue, 0.78, 0.70) : QColor::fromHslF(hue, 0.56, 0.44);
-        }
+        const QColor colour = accentText == 2 ? (dark ? QColor::fromHslF(hue, 0.80, 0.89) : QColor::fromHslF(hue, 0.66, 0.33))
+                                              : (dark ? QColor::fromHslF(hue, 0.80, 0.90) : QColor::fromHslF(hue, 0.62, 0.31));
         if (theme->textColor() != colour) {
             theme->setCustomTextColor(colour);
         }
@@ -166,15 +159,11 @@ void tintText(PlatformTheme *theme, int accentText)
     // (from the palette, not from the theme's own colour: read back right after a change it was not there yet, and the
     // text came out empty. In an application of widgets the palette is the style's, already tinged: tinging is the same)
     const QColor text = palette.color(QPalette::Active, role);
-    // (with AccentText the widget style's palette is already a pastel of the accent: that one is taken, not left)
-    const bool accentInk = accentText > 0 && text.isValid() && qAbs(text.hslHueF() - accent.hslHueF()) < 0.03;
-    if (!text.isValid() || text.alpha() < 128 || (text.hslSaturationF() > 0.35 && !accentInk)) {
+    if (!text.isValid() || text.alpha() < 128 || text.hslSaturationF() > 0.35) {
         release(); // (coloured text is left as it is)
         return;
     }
-    // (AccentText: a darker ink of the accent's hue, a tinged white on dark schemes, as Helper::accentInk)
-    QColor tinted = accentText > 0 ? (text.lightnessF() < 0.5 ? QColor::fromHslF(accent.hslHueF(), 0.26, 0.21) : QColor::fromHslF(accent.hslHueF(), 0.62, 0.88))
-                                   : QColor::fromHslF(accent.hslHueF(), text.lightnessF() < 0.5 ? 0.24 : 0.10, text.lightnessF());
+    QColor tinted = QColor::fromHslF(accent.hslHueF(), text.lightnessF() < 0.5 ? 0.24 : 0.10, text.lightnessF());
     tinted.setAlphaF(text.alphaF());
     if (theme->textColor() != tinted) {
         theme->setCustomTextColor(tinted);

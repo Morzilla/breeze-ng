@@ -816,26 +816,6 @@ void Style::polish(QPalette &palette)
             }
         }
     }
-    // AccentText: the running text a darker ink of the accent's hue (a tinged white on dark schemes), under titles and
-    // labels in the accent
-    if (_helper->accentText(palette) > 0) {
-        for (QPalette::ColorGroup group : {QPalette::Active, QPalette::Inactive, QPalette::Disabled}) {
-            for (QPalette::ColorRole role : {QPalette::WindowText, QPalette::Text, QPalette::ButtonText}) {
-                const QColor text = palette.color(group, role);
-                if (text.hslSaturationF() <= 0.35) {
-                    palette.setColor(group, role, _helper->accentInk(palette, text));
-                }
-            }
-            // the secondary text (hints, notes, placeholders) on a dark scheme: the accent at mid tone, solid, as the
-            // mockup's "secondario" (a faded white over the glass read grey)
-            if (_helper->isDark(palette)) {
-                const QColor accent = palette.color(QPalette::Active, QPalette::Highlight);
-                QColor secondary = QColor::fromHslF(accent.hslHueF() < 0 ? 0.58 : accent.hslHueF(), 0.48, 0.72);
-                secondary.setAlphaF(palette.color(group, QPalette::PlaceholderText).alphaF());
-                palette.setColor(group, QPalette::PlaceholderText, secondary);
-            }
-        }
-    }
     if (_helper->isGlass()) {
         // the selection is translucent: selected text keeps the normal text colour
         // (Aurora with the full accent for selections: white on it)
@@ -9646,8 +9626,7 @@ bool Style::drawGroupBoxComplexControl(const QStyleOptionComplex *option, QPaint
             painter->setFont(small);
             QColor faint = groupBoxOption->palette.color(QPalette::WindowText);
             faint.setAlphaF(0.55);
-            // (AccentText: the label of the group in the accent)
-            painter->setPen(_helper->accentText(groupBoxOption->palette) > 0 ? _helper->accentLabelColor(groupBoxOption->palette) : faint);
+            painter->setPen(faint);
             const QRect left(groupBoxOption->rect.left() + 14, textRect.top(), groupBoxOption->rect.width() - 28, textRect.height());
             painter->drawText(left, Qt::AlignLeft | Qt::AlignVCenter | Qt::TextHideMnemonic, groupBoxOption->text);
             return true;

@@ -395,23 +395,14 @@ static qreal ngAccentHue(const QPalette &palette)
     return hue < 0 ? 0.58 : hue;
 }
 
-QColor Helper::accentInk(const QPalette &palette, const QColor &text) const
-{
-    const qreal hue = ngAccentHue(palette);
-    // (dark schemes, mockup "Testi scuri verso l'accento" C/D: a light pastel of the accent; a white tinged at 24 % stayed
-    // white and the accent was lost)
-    QColor ink = text.lightnessF() < 0.5 ? QColor::fromHslF(hue, 0.26, 0.21) : QColor::fromHslF(hue, 0.62, 0.88);
-    ink.setAlphaF(text.alphaF());
-    return ink;
-}
-
 QColor Helper::accentTitleColor(const QPalette &palette) const
 {
     const qreal hue = ngAccentHue(palette);
+    // (dark schemes: nearly white with a light touch of the accent; a luminous accent read as a blue block of text)
     if (accentText(palette) == 2) {
-        return isDark(palette) ? QColor::fromHslF(hue, 0.90, 0.76) : QColor::fromHslF(hue, 0.66, 0.33);
+        return isDark(palette) ? QColor::fromHslF(hue, 0.80, 0.89) : QColor::fromHslF(hue, 0.66, 0.33);
     }
-    return isDark(palette) ? QColor::fromHslF(hue, 0.92, 0.78) : QColor::fromHslF(hue, 0.62, 0.31);
+    return isDark(palette) ? QColor::fromHslF(hue, 0.80, 0.90) : QColor::fromHslF(hue, 0.62, 0.31);
 }
 
 QBrush Helper::accentTitleBrush(const QPalette &palette) const
@@ -425,19 +416,13 @@ QBrush Helper::accentTitleBrush(const QPalette &palette) const
     if (const QColor chosen(StyleConfigData::auroraSecondAccent()); chosen.isValid() && !StyleConfigData::auroraSecondAccent().isEmpty() && chosen.hslHueF() >= 0) {
         hue = chosen.hslHueF();
     }
-    const QColor second = isDark(palette) ? QColor::fromHslF(hue, 0.80, 0.80) : QColor::fromHslF(hue, 0.58, 0.40);
+    const QColor second = isDark(palette) ? QColor::fromHslF(hue, 0.75, 0.88) : QColor::fromHslF(hue, 0.58, 0.40);
     // across the text itself (object bounding mode: the painter takes the text's own box)
     QLinearGradient gradient(0, 0, 1, 0);
     gradient.setCoordinateMode(QGradient::ObjectBoundingMode);
     gradient.setColorAt(0.0, first);
     gradient.setColorAt(1.0, second);
     return QBrush(gradient);
-}
-
-QColor Helper::accentLabelColor(const QPalette &palette) const
-{
-    const qreal hue = ngAccentHue(palette);
-    return isDark(palette) ? QColor::fromHslF(hue, 0.78, 0.70) : QColor::fromHslF(hue, 0.56, 0.44);
 }
 
 QColor Helper::auroraSelectionText(const QPalette &palette) const

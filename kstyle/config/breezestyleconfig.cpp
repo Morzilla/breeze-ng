@@ -788,13 +788,13 @@ QWidget *StyleConfig::pageAurora()
         connect(m_accentTint, &QCheckBox::toggled, this, &StyleConfig::updateChanged);
         {
             auto *row = new QHBoxLayout();
-            row->addWidget(new QLabel(ngText("Titles and labels:", "Titoli ed etichette:"), m_auroraGroup));
+            row->addWidget(new QLabel(ngText("Page titles:", "Titoli delle pagine:"), m_auroraGroup));
             m_accentText = new QComboBox(m_auroraGroup);
             m_accentText->addItem(ngText("As the text", "Come il testo"));
             m_accentText->addItem(ngText("In the accent", "Nel colore d'accento"));
-            m_accentText->addItem(ngText("Titles in an Aurora gradient", "Titoli sfumati Aurora"));
-            m_accentText->setToolTip(ngText("In the accent: titles in a deep accent, the labels of sections and groups in the accent, the text a darker ink of the accent's hue. Titles in an Aurora gradient: the same, with the titles running from the accent to Aurora's second light.",
-                                            "Nel colore d'accento: titoli in un accento profondo, etichette di sezioni e gruppi in accento, il testo un inchiostro più scuro della tinta dell'accento. Titoli sfumati Aurora: lo stesso, con i titoli che sfumano dall'accento alla seconda luce di Aurora."));
+            m_accentText->addItem(ngText("In an Aurora gradient", "Sfumati Aurora"));
+            m_accentText->setToolTip(ngText("The titles of pages (the large ones at the top) in the accent, or in a gradient from the accent to Aurora's second light. The rest of the text stays as it is.",
+                                            "I titoli delle pagine (quelli grandi in alto) nel colore d'accento, oppure sfumati dall'accento alla seconda luce di Aurora. Il resto del testo resta com'è."));
             row->addWidget(m_accentText);
             row->addStretch(1);
             group->addLayout(row);

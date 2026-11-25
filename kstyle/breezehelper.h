@@ -165,16 +165,12 @@ public:
     //* the colour of text and marks on auroraSelection()
     QColor auroraSelectionText(const QPalette &palette) const;
 
-    // Breeze NG AccentText: 0 off, 1 titles and labels in the accent, 2 titles in a gradient (0 with a grey accent)
+    // Breeze NG AccentText: 0 off, 1 the titles of pages in the accent, 2 in a gradient (0 with a grey accent)
     int accentText(const QPalette &palette) const;
-    // the running text with AccentText: a darker ink of the accent's hue (light schemes), a tinged white (dark ones)
-    QColor accentInk(const QPalette &palette, const QColor &text) const;
     // the colour of a title: a deep accent (AccentText 2: the gradient's first stop)
     QColor accentTitleColor(const QPalette &palette) const;
     // a title's brush: the deep accent, or (AccentText 2) a gradient across the text from the accent to the second light
     QBrush accentTitleBrush(const QPalette &palette) const;
-    // the label of a section or a group: the accent, lighter than a title's
-    QColor accentLabelColor(const QPalette &palette) const;
     //* Breeze NG Aurora: the accent of what is on (a slider's track, a progress bar, the primary action): the application's
     //* accent, at lightness 0.52 on a light scheme and 0.60 on a dark one
     QColor auroraFill(const QPalette &palette) const;

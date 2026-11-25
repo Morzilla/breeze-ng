@@ -106,9 +106,9 @@
     <entry name="AccentTint" type="Bool">
       <default>true</default>
     </entry>
-    <!-- Breeze NG: titles and labels in the accent. 0: as the rest of the text. 1: titles in a deep accent, the labels
-         of sections and groups in the accent, the running text a darker ink of the accent's hue. 2: as 1, with the titles
-         in a gradient from the accent to Aurora's second light -->
+    <!-- Breeze NG: the titles of pages in the accent (only those: the rest of the text stays the ink). 0: as the rest of
+         the text. 1: a deep accent (a luminous one on dark schemes). 2: a gradient from the accent to Aurora's second
+         light -->
     <entry name="AccentText" type="Int">
       <default>0</default>
       <min>0</min>
