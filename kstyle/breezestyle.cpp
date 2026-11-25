@@ -754,8 +754,12 @@ void Style::polish(QPalette &palette)
         // the selection is translucent: selected text keeps the normal text colour
         // (Aurora with the full accent for selections: white on it)
         const bool full = _helper->isAurora() && _helper->auroraFullSelection();
+        // (Aurora on a light scheme: the deep accent on the light sheet of a selection, as a switched-on button's label;
+        // the plain text there read black on the blue sheet)
+        const bool deep = _helper->isAurora() && !full && !_helper->isDark(palette);
         for (QPalette::ColorGroup group : {QPalette::Active, QPalette::Inactive, QPalette::Disabled}) {
-            palette.setColor(group, QPalette::HighlightedText, full ? QColor(255, 255, 255) : palette.color(group, QPalette::Text));
+            palette.setColor(group, QPalette::HighlightedText,
+                             full ? QColor(255, 255, 255) : deep ? _helper->auroraSelectionText(palette) : palette.color(group, QPalette::Text));
         }
     }
 }
