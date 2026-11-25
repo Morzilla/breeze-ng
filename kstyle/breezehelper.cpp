@@ -1560,7 +1560,9 @@ void Helper::renderNgButtonFrame(QPainter *painter,
     } else {
         painter->drawPath(path);
     }
-    if ((key || (_aurora && defaultButton && !checked)) && joined.isEmpty() && !down && enabled) {
+    // (not on a dark scheme: there the light edge already draws the top, and a second line under it made the top
+    // edge look twice as thick as the others)
+    if ((key || (_aurora && defaultButton && !checked)) && joined.isEmpty() && !down && enabled && !dark) {
         // the light along the top of a key, inside its edge
         painter->save();
         painter->setClipPath(path);
