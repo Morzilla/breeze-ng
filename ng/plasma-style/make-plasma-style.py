@@ -259,8 +259,9 @@ json.dump({'KPlugin': {'Id': f'breeze-ng-{VARIANT}', 'Name': f'Breeze NG {VARIAN
                        'Authors': [{'Name': 'Morzilla'}], 'License': 'LGPL-2.0-or-later', 'Version': '1.0',
                        'Website': 'https://github.com/Morzilla/breeze-ng'},
            'X-Plasma-API': '5.0'}, open(f'{DST}/metadata.json', 'w'), indent=4)
-if os.path.exists(f'{SRC}/plasmarc'):
-    rc = open(f'{SRC}/plasmarc').read()
+# (a default style without a plasmarc, as Fedora's: the effects' groups are written all the same)
+if os.path.exists(f'{SRC}/plasmarc') or GLASS:
+    rc = open(f'{SRC}/plasmarc').read() if os.path.exists(f'{SRC}/plasmarc') else '[ContrastEffect]\nenabled=true\ncontrast=1.0\nsaturation=1.5\n\n[AdaptiveTransparency]\nenabled=true\n'
     if GLASS:
         # the blur behind the popups at its own colours: the default saturation (1.5) turned a blue wallpaper into a
         # strong blue under the text
