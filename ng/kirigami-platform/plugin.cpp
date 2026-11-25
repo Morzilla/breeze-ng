@@ -253,7 +253,11 @@ void tintText(PlatformTheme *theme, int accentText, const QColor &secondLight)
         release(); // (coloured text is left as it is)
         return;
     }
-    QColor tinted = QColor::fromHslF(accent.hslHueF(), text.lightnessF() < 0.5 ? 0.24 : 0.10, text.lightnessF());
+    if (text.lightnessF() >= 0.5) {
+        release(); // (the light text of a dark scheme stays white, as the widget style leaves it)
+        return;
+    }
+    QColor tinted = QColor::fromHslF(accent.hslHueF(), 0.24, text.lightnessF());
     tinted.setAlphaF(text.alphaF());
     if (theme->textColor() != tinted) {
         theme->setCustomTextColor(tinted);

@@ -797,7 +797,10 @@ void Style::polish(QPalette &palette)
     // for its own accent: with another accent (orange) the slate stayed blue. Only text near grey is tinged (a scheme
     // with coloured text keeps it), and not with a grey accent. BREEZE_NG_TINTED_TEXT=0 leaves the text as it is
     // (with the titles in Aurora's gradient the accent is theirs: the rest of the text stays plain, white on a dark scheme)
-    if (StyleConfigData::accentTint() && _helper->accentText(palette) != 2 && qEnvironmentVariable("BREEZE_NG_TINTED_TEXT") != QLatin1String("0")) {
+    // A dark scheme is left as it is, its white text and its dimmed text alike: a tinged dimmed text in the palette came
+    // out as near white secondary text in Kirigami (disabledTextColor, placeholders)
+    const bool darkScheme = palette.color(QPalette::Active, QPalette::Window).lightnessF() < 0.5;
+    if (StyleConfigData::accentTint() && !darkScheme && _helper->accentText(palette) != 2 && qEnvironmentVariable("BREEZE_NG_TINTED_TEXT") != QLatin1String("0")) {
         const QColor accent = palette.color(QPalette::Active, QPalette::Highlight);
         if (accent.hslSaturationF() >= 0.15) {
             const qreal hue = accent.hslHueF();
@@ -808,9 +811,12 @@ void Style::polish(QPalette &palette)
                         continue;
                     }
                     const qreal lightness = text.lightnessF();
-                    // (a dark text a clear tinge, as the slate; a light one only a hint, white with colour reads as tinted)
-                    const qreal saturation = lightness < 0.5 ? 0.24 : 0.10;
-                    QColor tinted = QColor::fromHslF(hue, saturation, lightness);
+                    // (a dark text a clear tinge, as the slate. The light text of a dark scheme stays white: even a hint
+                    // of colour read as tinted text there, the accent is left to the titles' option)
+                    if (lightness >= 0.5) {
+                        continue;
+                    }
+                    QColor tinted = QColor::fromHslF(hue, 0.24, lightness);
                     tinted.setAlphaF(text.alphaF());
                     palette.setColor(group, role, tinted);
                 }

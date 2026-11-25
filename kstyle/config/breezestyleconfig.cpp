@@ -782,8 +782,8 @@ QWidget *StyleConfig::pageAurora()
         group->addWidget(m_auroraCorners);
         connect(m_auroraCorners, &QCheckBox::toggled, this, &StyleConfig::updateChanged);
         m_accentTint = new QCheckBox(ngText("Text and light surfaces tinged by the accent", "Testi e superfici chiare con la tinta dell'accento"), m_auroraGroup);
-        m_accentTint->setToolTip(ngText("The text leans to the accent's colour, and fields, buttons and panels of the light looks take a tinge of it (every Breeze NG look). Off: as the colour scheme has them.",
-                                        "Il testo tende al colore d'accento, e campi, pulsanti e pannelli delle varianti chiare ne prendono una tinta (in ogni variante di Breeze NG). Spento: come li dà lo schema di colori."));
+        m_accentTint->setToolTip(ngText("The text leans to the accent's colour, and fields, buttons and panels of the light looks take a tinge of it (every Breeze NG look). On dark schemes the text stays white. Off: as the colour scheme has them.",
+                                        "Il testo tende al colore d'accento, e campi, pulsanti e pannelli delle varianti chiare ne prendono una tinta (in ogni variante di Breeze NG). Sugli schemi scuri il testo resta bianco. Spento: come li dà lo schema di colori."));
         group->addWidget(m_accentTint);
         connect(m_accentTint, &QCheckBox::toggled, this, &StyleConfig::updateChanged);
         {
