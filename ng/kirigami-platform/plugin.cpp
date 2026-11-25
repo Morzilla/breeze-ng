@@ -208,13 +208,13 @@ void tintText(PlatformTheme *theme, int accentText, const QColor &secondLight)
         && (theme->colorSet() == PlatformTheme::Window || theme->colorSet() == PlatformTheme::View || theme->colorSet() == PlatformTheme::Header)) {
         const bool dark = palette.color(QPalette::Window).lightnessF() < 0.5;
         const qreal hue = accent.hslHueF();
-        const QColor colour = accentText == 2 ? (dark ? QColor::fromHslF(hue, 0.80, 0.89) : QColor::fromHslF(hue, 0.66, 0.33))
+        const QColor colour = accentText == 2 ? (dark ? QColor::fromHslF(hue, 0.90, 0.78) : QColor::fromHslF(hue, 0.70, 0.38))
                                               : (dark ? QColor::fromHslF(hue, 0.80, 0.90) : QColor::fromHslF(hue, 0.62, 0.31));
         if (auto heading = qobject_cast<QQuickItem *>(const_cast<QObject *>(owner))) {
             if (accentText == 2) {
                 // (the second light: the user's colour, or the hue next to the accent's, as Helper::accentTitleBrush)
                 const qreal hue2 = (secondLight.isValid() && secondLight.hslHueF() >= 0) ? secondLight.hslHueF() : std::fmod(hue + 0.17, 1.0);
-                titleGradient(heading, colour, dark ? QColor::fromHslF(hue2, 0.75, 0.88) : QColor::fromHslF(hue2, 0.58, 0.40));
+                titleGradient(heading, colour, dark ? QColor::fromHslF(hue2, 0.85, 0.80) : QColor::fromHslF(hue2, 0.62, 0.45));
             } else {
                 titleGradient(heading, QColor(), QColor());
             }
@@ -223,6 +223,11 @@ void tintText(PlatformTheme *theme, int accentText, const QColor &secondLight)
             theme->setCustomTextColor(colour);
         }
         theme->setProperty("_breeze_ng_tinted", true);
+        return;
+    }
+    // (titles in Aurora's gradient: the rest of the text plain, as the widget style leaves its palette)
+    if (accentText == 2) {
+        release();
         return;
     }
     QPalette::ColorRole role;

@@ -399,8 +399,9 @@ QColor Helper::accentTitleColor(const QPalette &palette) const
 {
     const qreal hue = ngAccentHue(palette);
     // (dark schemes: nearly white with a light touch of the accent; a luminous accent read as a blue block of text)
+    // (the gradient's first light: the colour of Aurora's lights, lifted to read on the glass; nearly white it did not show)
     if (accentText(palette) == 2) {
-        return isDark(palette) ? QColor::fromHslF(hue, 0.80, 0.89) : QColor::fromHslF(hue, 0.66, 0.33);
+        return isDark(palette) ? QColor::fromHslF(hue, 0.90, 0.78) : QColor::fromHslF(hue, 0.70, 0.38);
     }
     return isDark(palette) ? QColor::fromHslF(hue, 0.80, 0.90) : QColor::fromHslF(hue, 0.62, 0.31);
 }
@@ -416,7 +417,7 @@ QBrush Helper::accentTitleBrush(const QPalette &palette) const
     if (const QColor chosen(StyleConfigData::auroraSecondAccent()); chosen.isValid() && !StyleConfigData::auroraSecondAccent().isEmpty() && chosen.hslHueF() >= 0) {
         hue = chosen.hslHueF();
     }
-    const QColor second = isDark(palette) ? QColor::fromHslF(hue, 0.75, 0.88) : QColor::fromHslF(hue, 0.58, 0.40);
+    const QColor second = isDark(palette) ? QColor::fromHslF(hue, 0.85, 0.80) : QColor::fromHslF(hue, 0.62, 0.45);
     // across the text itself (object bounding mode: the painter takes the text's own box)
     QLinearGradient gradient(0, 0, 1, 0);
     gradient.setCoordinateMode(QGradient::ObjectBoundingMode);
