@@ -285,6 +285,23 @@ qreal Helper::windowSheetAlpha() const
     return opacity / 100.0;
 }
 
+bool Helper::windowActive(const QWidget *widget) const
+{
+    const QWidget *window = widget ? widget->window() : nullptr;
+    if (!window) {
+        return true;
+    }
+    if (window->isActiveWindow()) {
+        return true;
+    }
+    // (the open popup's owner, through a chain of submenus)
+    const QWidget *owner = QApplication::activePopupWidget();
+    for (int depth = 0; owner && owner->windowType() == Qt::Popup && depth < 8; ++depth) {
+        owner = owner->parentWidget() ? owner->parentWidget()->window() : nullptr;
+    }
+    return owner && owner == window;
+}
+
 qreal Helper::auroraVeil(const QPalette &palette, bool button) const
 {
     const int percent = qBound(0, button ? StyleConfigData::auroraButtonVeil() : StyleConfigData::auroraPanelVeil(), 40);
@@ -696,7 +713,7 @@ void Helper::clearUnder(QPainter *painter, const QRectF &rect) const
         painter->setCompositionMode(QPainter::CompositionMode_Source);
         painter->fillRect(rect, base);
         painter->setCompositionMode(QPainter::CompositionMode_SourceOver);
-        renderAuroraLights(painter, QRectF(widget->mapFrom(window, QPoint(0, 0)), window->size()), window->palette(), window->isActiveWindow());
+        renderAuroraLights(painter, QRectF(widget->mapFrom(window, QPoint(0, 0)), window->size()), window->palette(), windowActive(window));
         for (const QColor &panel : std::as_const(panels)) {
             painter->fillRect(rect, panel);
         }

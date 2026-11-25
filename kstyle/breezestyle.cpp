@@ -2258,7 +2258,7 @@ bool Style::drawWidgetPrimitive(const QStyleOption *option, QPainter *painter, c
         painter->fillRect(widget->rect(), _helper->alphaColor(widget->palette().color(QPalette::Window), _helper->windowSheetAlpha()));
         if (_helper->isAurora()) {
             painter->setCompositionMode(QPainter::CompositionMode_SourceOver);
-            _helper->renderAuroraLights(painter, widget->rect(), widget->palette(), widget->isActiveWindow());
+            _helper->renderAuroraLights(painter, widget->rect(), widget->palette(), _helper->windowActive(widget));
         }
         painter->restore();
         _helper->cutCorners(painter, widget);
@@ -2863,7 +2863,7 @@ bool Style::eventFilter(QObject *object, QEvent *event)
                 painter.setCompositionMode(QPainter::CompositionMode_Source);
                 painter.fillRect(widget->rect(), _helper->alphaColor(widget->palette().color(QPalette::Window), _helper->windowSheetAlpha()));
                 painter.setCompositionMode(QPainter::CompositionMode_SourceOver);
-                _helper->renderAuroraLights(&painter, widget->rect(), widget->palette(), widget->isActiveWindow());
+                _helper->renderAuroraLights(&painter, widget->rect(), widget->palette(), _helper->windowActive(widget));
                 _helper->cutCorners(&painter, widget);
                 return false;
             }
@@ -3119,6 +3119,20 @@ bool Style::eventFilterNgPopup(QWidget *popup, QEvent *event)
 {
     static const char joinedProperty[] = "_breeze_ng_joined";
     static const bool debug = qEnvironmentVariableIsSet("BREEZE_NG_DEBUG");
+    if (event->type() == QEvent::Show && QApplication::mouseButtons() != Qt::NoButton) {
+        // A menu opened with a click on a window that was in the background: on Wayland the compositor makes the window
+        // the active one (its title bar says so) but the keyboard goes to the popup, and Qt hears of the activation
+        // only when the menu closes: under its open menu the window stayed dimmed, its default button grey. Qt is told
+        // now; the compositor's own word follows when the menu closes (or says otherwise)
+        QWidget *owner = popup->parentWidget() ? popup->parentWidget()->window() : nullptr;
+        if (owner && owner != popup && owner->isVisible() && !owner->isActiveWindow() && owner->windowType() != Qt::Popup
+            && owner->geometry().contains(QCursor::pos())) {
+            QT_WARNING_PUSH
+            QT_WARNING_DISABLE_DEPRECATED
+            QApplication::setActiveWindow(owner);
+            QT_WARNING_POP
+        }
+    }
     if (event->type() == QEvent::Show) {
         if (!StyleConfigData::menuJoin()) {
             return false; // switched off in the settings
@@ -3468,7 +3482,7 @@ bool Style::eventFilterDockWidget(QDockWidget *dockWidget, QEvent *event)
         painter.fillRect(dockWidget->rect(), _helper->alphaColor(dockWidget->palette().color(QPalette::Window), _helper->windowSheetAlpha()));
         if (_helper->isAurora()) {
             painter.setCompositionMode(QPainter::CompositionMode_SourceOver);
-            _helper->renderAuroraLights(&painter, QRectF(dockWidget->mapFrom(dockWidget->window(), QPoint(0, 0)), dockWidget->window()->size()), dockWidget->palette(), dockWidget->isActiveWindow());
+            _helper->renderAuroraLights(&painter, QRectF(dockWidget->mapFrom(dockWidget->window(), QPoint(0, 0)), dockWidget->window()->size()), dockWidget->palette(), _helper->windowActive(dockWidget));
         }
         painter.setCompositionMode(QPainter::CompositionMode_SourceOver);
         // Aurora, the controls of 2026-11-24: the content of a docked panel (Places, a sidebar) stands on a card, a

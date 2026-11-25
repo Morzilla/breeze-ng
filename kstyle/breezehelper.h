@@ -123,6 +123,10 @@ public:
     }
     //* Breeze NG Aurora: Glass pushed further (more see-through, lights of the accent colour behind the window, a light
     //* that follows the pointer inside buttons). Aurora is a kind of Glass: isGlass() is true as well.
+    // Is the window of this widget the one the user works in? Also while a menu of its own is open: on Wayland the
+    // popup takes the activation, and a window just clicked on its menu bar stayed dimmed under its open menu
+    bool windowActive(const QWidget *widget) const;
+
     bool isAurora() const
     {
         return _aurora;
