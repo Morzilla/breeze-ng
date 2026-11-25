@@ -909,6 +909,33 @@ public:
         connect(background, &QQuickItem::heightChanged, this, fit);
         fit();
     }
+    // the message's own icon (an emblem of the icon theme, a flat square or triangle) gives way to a badge drawn
+    // here, where it stood: a disc of the message's colour with a white sign
+    void setBadge(QQuickItem *icon, int type)
+    {
+        m_type = type;
+        if (m_icon == icon) {
+            update();
+            return;
+        }
+        m_icon = icon;
+        if (icon) {
+            icon->setOpacity(0.0);
+            connect(icon, &QQuickItem::xChanged, this, [this] {
+                update();
+            });
+            connect(icon, &QQuickItem::yChanged, this, [this] {
+                update();
+            });
+        }
+        update();
+    }
+    void setInset(qreal x, qreal y)
+    {
+        m_insetX = x;
+        m_insetY = y;
+        update();
+    }
     void setKind(const QColor &kind, qreal radius)
     {
         m_kind = kind;
@@ -922,7 +949,8 @@ public:
         }
         const bool dark = QGuiApplication::palette().color(QPalette::Window).lightnessF() < 0.5;
         const bool reversed = QGuiApplication::layoutDirection() == Qt::RightToLeft;
-        const QRectF rect(0, 0, width(), height());
+        const QRectF rect = QRectF(0, 0, width(), height()).adjusted(m_insetX, m_insetY, -m_insetX, -m_insetY);
+        const qreal m_radius = (m_insetX > 0 && this->m_radius < 1) ? 8 : this->m_radius;
         // a card of glass, as the panels (lighter and denser at the top), and the message's colour over it,
         // see-through: more at the icon's side, a breath at the other; a hairline of the colour round it
         painter->setRenderHint(QPainter::Antialiasing, true);
@@ -943,11 +971,44 @@ public:
         painter->setBrush(fill);
         painter->setPen(QPen(kind(dark ? 0.45 : 0.30), 1));
         painter->drawRoundedRect(rect.adjusted(0.5, 0.5, -0.5, -0.5), m_radius, m_radius);
+        if (m_icon && m_icon->width() > 4) {
+            const QRectF disc(m_icon->mapToItem(this, QPointF(0, 0)), QSizeF(m_icon->width(), m_icon->height()));
+            QLinearGradient body(disc.topLeft(), disc.bottomLeft());
+            body.setColorAt(0.0, m_kind.lighter(118));
+            body.setColorAt(1.0, m_kind);
+            painter->setPen(Qt::NoPen);
+            painter->setBrush(body);
+            painter->drawEllipse(disc);
+            const QPointF c = disc.center();
+            const qreal u = disc.width() / 22.0;
+            painter->setPen(QPen(QColor(255, 255, 255), 2.0 * u, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
+            painter->setBrush(Qt::NoBrush);
+            switch (m_type) {
+            case 1: // positive: a tick
+                painter->drawPolyline(QPolygonF({c + QPointF(-4.5, 0.5) * u, c + QPointF(-1.5, 3.5) * u, c + QPointF(4.5, -3.5) * u}));
+                break;
+            case 2: // warning: an exclamation mark
+                painter->drawLine(c + QPointF(0, -5) * u, c + QPointF(0, 1) * u);
+                painter->drawPoint(c + QPointF(0, 4.6) * u);
+                break;
+            case 3: // error: a cross
+                painter->drawLine(c + QPointF(-3.5, -3.5) * u, c + QPointF(3.5, 3.5) * u);
+                painter->drawLine(c + QPointF(3.5, -3.5) * u, c + QPointF(-3.5, 3.5) * u);
+                break;
+            default: // information: an i
+                painter->drawPoint(c + QPointF(0, -4.6) * u);
+                painter->drawLine(c + QPointF(0, -1) * u, c + QPointF(0, 5) * u);
+                break;
+            }
+        }
     }
 
 private:
     QColor m_kind;
     qreal m_radius = 0;
+    qreal m_insetX = 0, m_insetY = 0;
+    QPointer<QQuickItem> m_icon;
+    int m_type = 0;
 };
 
 class Relay : public QObject
@@ -1819,6 +1880,46 @@ private:
                     }
                 };
                 pale(background, 0);
+                // More room round the content, a message across the top of a page a card a little inside the page's
+                // edges, and the badge in place of the icon. A moment later: the message is not complete yet here (its
+                // position and paddings unread). Kirigami binds the paddings (controls/InlineMessage.qml: the border's
+                // margin plus smallSpacing): written through QQmlProperty, which takes the binding away
+                if (!guard->property("_breeze_ng_roomy").toBool()) {
+                    guard->setProperty("_breeze_ng_roomy", true);
+                    QPointer<QObject> message(guard);
+                    QTimer::singleShot(350, guard, [message, sheetGuard] {
+                        if (!message || !sheetGuard) {
+                            return;
+                        }
+                        const bool band = message->property("position").toInt() != 0;
+                        sheetGuard->setInset(band ? 6 : 0, band ? 4 : 0);
+                        for (const char *side : {"leftPadding", "rightPadding"}) {
+                            QQmlProperty padding(message, QString::fromLatin1(side));
+                            padding.write(padding.read().toReal() + (band ? 12 : 6));
+                        }
+                        for (const char *side : {"topPadding", "bottomPadding"}) {
+                            QQmlProperty padding(message, QString::fromLatin1(side));
+                            padding.write(padding.read().toReal() + (band ? 9 : 4));
+                        }
+                        // (the first Kirigami icon of the content: the message's own)
+                        QQuickItem *icon = nullptr;
+                        std::function<void(QQuickItem *, int)> find = [&](QQuickItem *node, int depth) {
+                            if (!icon && node->inherits("Icon") && node != sheetGuard) {
+                                icon = node;
+                            }
+                            if (!icon && depth < 4) {
+                                const auto children = node->childItems();
+                                for (QQuickItem *child : children) {
+                                    find(child, depth + 1);
+                                }
+                            }
+                        };
+                        if (auto content = qobject_cast<QQuickItem *>(message->property("contentItem").value<QObject *>())) {
+                            find(content, 0);
+                        }
+                        sheetGuard->setBadge(icon, message->property("type").toInt());
+                    });
+                }
                 background->setOpacity(1.0);
                 guard->setProperty("_breeze_ng_glass", true);
             }
