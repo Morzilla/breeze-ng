@@ -895,18 +895,26 @@ public:
         const bool dark = QGuiApplication::palette().color(QPalette::Window).lightnessF() < 0.5;
         const bool reversed = QGuiApplication::layoutDirection() == Qt::RightToLeft;
         const QRectF rect(0, 0, width(), height());
-        auto tone = [&](qreal tint, qreal alpha) {
-            QColor c = dark ? m_kind : QColor::fromRgbF(1.0 - tint * (1.0 - m_kind.redF()), 1.0 - tint * (1.0 - m_kind.greenF()), 1.0 - tint * (1.0 - m_kind.blueF()));
+        // a card of glass, as the panels (lighter and denser at the top), and the message's colour over it,
+        // see-through: more at the icon's side, a breath at the other; a hairline of the colour round it
+        painter->setRenderHint(QPainter::Antialiasing, true);
+        painter->setPen(Qt::NoPen);
+        QLinearGradient card(rect.topLeft(), rect.bottomLeft());
+        card.setColorAt(0.0, dark ? QColor(30, 34, 52, 110) : QColor(255, 255, 255, 110));
+        card.setColorAt(1.0, dark ? QColor(4, 5, 12, 80) : QColor(255, 255, 255, 50));
+        painter->setBrush(card);
+        painter->drawRoundedRect(rect, m_radius, m_radius);
+        auto kind = [&](qreal alpha) {
+            QColor c = m_kind;
             c.setAlphaF(alpha);
             return c;
         };
         QLinearGradient fill(reversed ? rect.topRight() : rect.topLeft(), reversed ? rect.topLeft() : rect.topRight());
-        fill.setColorAt(0.0, dark ? tone(1, 0.42) : tone(0.34, 0.86));
-        fill.setColorAt(1.0, dark ? tone(1, 0.10) : tone(0.06, 0.60));
-        painter->setRenderHint(QPainter::Antialiasing, true);
-        painter->setPen(Qt::NoPen);
+        fill.setColorAt(0.0, kind(dark ? 0.42 : 0.34));
+        fill.setColorAt(1.0, kind(dark ? 0.12 : 0.10));
         painter->setBrush(fill);
-        painter->drawRoundedRect(rect, m_radius, m_radius);
+        painter->setPen(QPen(kind(dark ? 0.45 : 0.30), 1));
+        painter->drawRoundedRect(rect.adjusted(0.5, 0.5, -0.5, -0.5), m_radius, m_radius);
     }
 
 private:
