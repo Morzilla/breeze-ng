@@ -375,7 +375,10 @@ static void ngAccentTitle(QLabel *label, const Helper &helper)
         }
         QString colour = helper.accentTitleColor(QApplication::palette()).name();
         const QBrush brush = helper.accentTitleBrush(QApplication::palette());
-        if (brush.gradient() && brush.gradient()->stops().size() >= 2) {
+        // (rich text is laid out by a text document, which draws a gradient as black: the plain colour there)
+        // (a label that wraps its words, or whose text can be selected or has links, is laid out by a text document too)
+        const bool richTitle = label->wordWrap() || label->textInteractionFlags() != Qt::NoTextInteraction || label->textFormat() == Qt::RichText || (label->textFormat() == Qt::AutoText && Qt::mightBeRichText(label->text()));
+        if (!richTitle && brush.gradient() && brush.gradient()->stops().size() >= 2) {
             colour = QStringLiteral("qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 %1, stop:1 %2)")
                          .arg(brush.gradient()->stops().constFirst().second.name(), brush.gradient()->stops().constLast().second.name());
         }
@@ -387,6 +390,9 @@ static void ngAccentTitle(QLabel *label, const Helper &helper)
             accented += QStringLiteral(" QLabel { color: %1 }").arg(colour);
         }
         accented += QLatin1Char(' ') + marker;
+        if (qEnvironmentVariableIsSet("BREEZE_NG_DEBUG_TITLE")) {
+            qWarning("breeze-ng title: ours %d sheet [%s] original [%s] accented [%s]", int(ours), qPrintable(sheet), qPrintable(original), qPrintable(accented));
+        }
         if (accented == sheet) {
             return; // (already the sheet of this mode and these colours)
         }
@@ -412,7 +418,7 @@ static void ngAccentTitle(QLabel *label, const Helper &helper)
     }
     QPalette palette = label->palette();
     // (rich text is laid out by a text document, which takes a plain colour: the gradient's first colour there)
-    const bool rich = label->textFormat() == Qt::RichText || (label->textFormat() == Qt::AutoText && Qt::mightBeRichText(label->text()));
+    const bool rich = label->wordWrap() || label->textInteractionFlags() != Qt::NoTextInteraction || label->textFormat() == Qt::RichText || (label->textFormat() == Qt::AutoText && Qt::mightBeRichText(label->text()));
     const QBrush brush = rich ? QBrush(helper.accentTitleColor(palette)) : helper.accentTitleBrush(palette);
     for (QPalette::ColorGroup group : {QPalette::Active, QPalette::Inactive}) {
         palette.setBrush(group, QPalette::WindowText, brush);

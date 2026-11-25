@@ -814,6 +814,11 @@ QWidget *StyleConfig::pageAurora()
         aurora->addRow(ngText("Buttons and fields", "Pulsanti e campi"), sliderRow(m_auroraButton, m_auroraButtonValue, m_auroraGroup));
         aurora->addRow(ngText("Lights", "Luci"), sliderRow(m_auroraLights, m_auroraLightsValue, m_auroraGroup));
         aurora->addRow(ngText("Grain", "Grana"), sliderRow(m_auroraGrain, m_auroraGrainValue, m_auroraGroup));
+        m_auroraPlasmaPanel = slider(0, 100, m_auroraGroup);
+        m_auroraPlasmaPanelValue = new QLabel(m_auroraGroup);
+        m_auroraPlasmaPanel->setToolTip(ngText("How dense Plasma's panel is: lower, more of the desktop shows through it, blurred. Applied at once.",
+                                               "Quanto è denso il pannello di Plasma: più basso, più si vede il desktop attraverso, sfocato. Si applica subito."));
+        aurora->addRow(ngText("Plasma panel", "Pannello di Plasma"), sliderRow(m_auroraPlasmaPanel, m_auroraPlasmaPanelValue, m_auroraGroup));
         group->addLayout(aurora);
         auto *auroraNote = new QLabel(ngText("The two veils are equal by default, so that sidebar, cards, buttons and fields have one intensity. The grain hides the bands that faint gradients show on some screens.",
                                              "I due veli sono uguali in partenza, così barra laterale, schede, pulsanti e campi hanno la stessa intensità. La grana nasconde le bande che le sfumature tenui mostrano su certi schermi."),
@@ -830,6 +835,7 @@ QWidget *StyleConfig::pageAurora()
         m_auroraButton->setValue(7);
         m_auroraLights->setValue(100);
         m_auroraGrain->setValue(30);
+        m_auroraPlasmaPanel->setValue(45);
         updateChanged();
     });
     auto *row = new QHBoxLayout();
@@ -837,7 +843,7 @@ QWidget *StyleConfig::pageAurora()
     row->addStretch();
     body->addLayout(row);
     body->addStretch();
-    for (QSlider *s : {m_auroraPanel, m_auroraButton, m_auroraLights, m_auroraGrain}) {
+    for (QSlider *s : {m_auroraPanel, m_auroraButton, m_auroraLights, m_auroraGrain, m_auroraPlasmaPanel}) {
         connect(s, &QSlider::valueChanged, this, &StyleConfig::updateChanged);
     }
     return w;
@@ -1046,6 +1052,7 @@ void StyleConfig::save()
     StyleConfigData::setAuroraButtonVeil(m_auroraButton->value());
     StyleConfigData::setAuroraLights(m_auroraLights->value());
     StyleConfigData::setAuroraGrain(m_auroraGrain->value());
+    StyleConfigData::setAuroraPlasmaPanel(m_auroraPlasmaPanel->value());
     const bool secondChanged = StyleConfigData::auroraSecondAccent() != m_auroraSecond || StyleConfigData::auroraDimInactive() != m_auroraDim->isChecked()
         || StyleConfigData::auroraAccentRight() != m_auroraAccentRight->isChecked();
     StyleConfigData::setAuroraAccentRight(m_auroraAccentRight->isChecked());
@@ -1186,6 +1193,7 @@ void StyleConfig::updateChanged()
     m_auroraButtonValue->setText(QStringLiteral("%1 %").arg(m_auroraButton->value()));
     m_auroraLightsValue->setText(QStringLiteral("%1 %").arg(m_auroraLights->value()));
     m_auroraGrainValue->setText(QStringLiteral("%1 %").arg(m_auroraGrain->value()));
+    m_auroraPlasmaPanelValue->setText(QStringLiteral("%1 %").arg(m_auroraPlasmaPanel->value()));
     m_blurStrengthValue->setText(QString::number(m_blurStrength->value()));
     m_auroraGroup->setEnabled(m_aurora->isChecked());
     static const char *const speeds[][2] = {{"Very fast", "Molto veloce"}, {"Fast", "Veloce"}, {"Normal", "Normale"}, {"Slow", "Lenta"}, {"Very slow", "Molto lenta"}};
@@ -1213,7 +1221,7 @@ void StyleConfig::updateChanged()
         || m_auroraBody->value() != StyleConfigData::auroraBodyOpacity()
         || m_auroraSidebar->value() != (StyleConfigData::auroraSidebarOpacity() < 0 ? StyleConfigData::auroraBodyOpacity() : StyleConfigData::auroraSidebarOpacity()) || m_auroraPanel->value() != StyleConfigData::auroraPanelVeil()
         || m_auroraButton->value() != StyleConfigData::auroraButtonVeil() || m_auroraLights->value() != StyleConfigData::auroraLights()
-        || m_auroraGrain->value() != StyleConfigData::auroraGrain() || m_auroraSecond != StyleConfigData::auroraSecondAccent() || m_auroraDim->isChecked() != StyleConfigData::auroraDimInactive() || m_auroraAccentRight->isChecked() != StyleConfigData::auroraAccentRight() || m_auroraFull->isChecked() != StyleConfigData::auroraFullSelection() || m_auroraCorners->isChecked() != StyleConfigData::auroraCornerLights() || m_accentTint->isChecked() != StyleConfigData::accentTint() || m_accentText->currentIndex() != StyleConfigData::accentText() || m_sidebarCompact->isChecked() != StyleConfigData::sidebarCompact() || (m_aurora->isChecked() && m_auroraLight->isChecked() != ngCurrentAuroraLight())
+        || m_auroraGrain->value() != StyleConfigData::auroraGrain() || m_auroraPlasmaPanel->value() != StyleConfigData::auroraPlasmaPanel() || m_auroraSecond != StyleConfigData::auroraSecondAccent() || m_auroraDim->isChecked() != StyleConfigData::auroraDimInactive() || m_auroraAccentRight->isChecked() != StyleConfigData::auroraAccentRight() || m_auroraFull->isChecked() != StyleConfigData::auroraFullSelection() || m_auroraCorners->isChecked() != StyleConfigData::auroraCornerLights() || m_accentTint->isChecked() != StyleConfigData::accentTint() || m_accentText->currentIndex() != StyleConfigData::accentText() || m_sidebarCompact->isChecked() != StyleConfigData::sidebarCompact() || (m_aurora->isChecked() && m_auroraLight->isChecked() != ngCurrentAuroraLight())
         || m_blurStrength->value() != blurStrength() || m_textShadow->currentIndex() != StyleConfigData::textShadow()
         || m_animations->isChecked() != StyleConfigData::animationsEnabled() || m_animationSpeed->value() != animationIndex()
         || m_transitions->isChecked() != StyleConfigData::stackedWidgetTransitionsEnabled() || m_mnemonics->currentIndex() != StyleConfigData::mnemonicsMode()
@@ -1249,6 +1257,7 @@ void StyleConfig::load()
     m_auroraButton->setValue(StyleConfigData::auroraButtonVeil());
     m_auroraLights->setValue(StyleConfigData::auroraLights());
     m_auroraGrain->setValue(StyleConfigData::auroraGrain());
+    m_auroraPlasmaPanel->setValue(StyleConfigData::auroraPlasmaPanel());
     m_auroraSecond = StyleConfigData::auroraSecondAccent();
     m_auroraDim->setChecked(StyleConfigData::auroraDimInactive());
     m_auroraAccentRight->setChecked(StyleConfigData::auroraAccentRight());

@@ -161,7 +161,7 @@ redraw('translucent/widgets/tooltip', [('', R_TIP, (BG, 0.72 if GLASS else 0.9),
 if AURORA:
     # (see-through, the compositor's blur behind it, under a light mask: a little of the background colour and a veil of
     # near white, frost on a light scheme and a lighter glass on a dark one)
-    redraw('translucent/widgets/panel-background', [('', 2, [(BG, 0.25), (HLT, 0.22)], None)])
+    redraw('translucent/widgets/panel-background', [('', 2, (BG, 0.06), None)])  # (the mask itself: Breeze NG's plugin, at the density of the settings)
 
 # buttons: raised ones (normal, pressed, with hover and focus drawn over them) and flat ones (toolbutton-*)
 if AURORA:

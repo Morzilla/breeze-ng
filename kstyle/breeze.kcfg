@@ -127,6 +127,13 @@
     <entry name="AuroraGrain" type="Int">
       <default>30</default>
     </entry>
+    <!-- Breeze NG Aurora: how dense the mask of Plasma's panel is (per cent; the desktop shows through the rest,
+         blurred). Painted by the Kirigami plugin for Plasma over the Plasma style's nearly empty panel -->
+    <entry name="AuroraPlasmaPanel" type="Int">
+      <default>45</default>
+      <min>0</min>
+      <max>100</max>
+    </entry>
     <!-- Breeze NG: a neon glow inside the field or button that has the focus (off: a thin outline) -->
     <entry name="FocusGlow" type="Bool">
       <default>true</default>

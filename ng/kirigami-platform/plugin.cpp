@@ -78,6 +78,7 @@ struct Look {
     bool accentRight = false; // the accent's light from the top right, the second light from the top left
     bool fullSelection = false; // selections in the full accent with white text
     bool accentTint = true; // the text tinged by the accent, as the widget style's palette (Breeze NG's AccentTint)
+    int plasmaPanel = 45; // the density of the mask of Plasma's panel (AuroraPlasmaPanel)
     int accentText = 0; // titles in the accent (Breeze NG's AccentText: 1 accent, 2 gradient titles, 3 secondary titles too)
     QColor onSelection; // text on a selection, where it is not the scheme's own
     QColor listSheet; // a selected row of a list: the light sheet of the accent (dark schemes: the accent, see-through)
@@ -377,6 +378,7 @@ Look readLook()
     look.fullSelection = common.readEntry("AuroraFullSelection", false);
     look.accentTint = common.readEntry("AccentTint", true);
     look.accentText = qBound(0, common.readEntry("AccentText", 0), 3);
+    look.plasmaPanel = qBound(0, common.readEntry("AuroraPlasmaPanel", 45), 100);
     const QString secondAccent = common.readEntry("AuroraSecondAccent", QString());
     look.second = secondAccent.isEmpty() ? QColor() : QColor(secondAccent);
     look.accentRight = common.readEntry("AuroraAccentRight", false);
@@ -587,7 +589,15 @@ public:
         const QRectF rect(0, 0, width(), height());
         QPainterPath shape;
         if (!m_sheet) {
-            // (a panel: only the lights and the grain over the Plasma style's own sheet)
+            // a panel: its mask (the window's colour lifted towards white: frost on a light scheme, a lighter glass on
+            // a dark one) at the density of the settings, then the lights and the grain
+            colours(*m_look);
+            const QColor window = QGuiApplication::palette().color(QPalette::Window);
+            const qreal lift = m_look->dark ? 0.22 : 0.55;
+            QColor mask = QColor::fromRgbF(window.redF() + (1.0 - window.redF()) * lift, window.greenF() + (1.0 - window.greenF()) * lift,
+                                           window.blueF() + (1.0 - window.blueF()) * lift);
+            mask.setAlphaF(m_look->plasmaPanel / 100.0);
+            painter->fillRect(rect, mask);
             paintAuroraLights(painter, rect, *m_look, true, false);
             return;
         }
