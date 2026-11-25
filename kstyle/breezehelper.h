@@ -190,7 +190,7 @@ public:
         }
         return auroraVeilColor(palette, false, 1.45);
     }
-    QColor auroraCardEdge(const QPalette &palette) const { return isDark(palette) ? QColor(255, 255, 255, 18) : QColor(255, 255, 255, 190); }
+    QColor auroraCardEdge(const QPalette &palette) const { return isDark(palette) ? QColor(255, 255, 255, 18) : QColor(255, 255, 255, 90); } // (light: 190 read as a white frame round each card)
     //* the card at a height \a t (0 top, 1 bottom): variant B of 2026-11-24, a vertical gradient, more light at the top
     QColor auroraCardColorAt(const QPalette &palette, qreal t) const;
     //* paint a card of the glass in \a rect (radius \a radius): its gradient and its edge, lighter along the top
