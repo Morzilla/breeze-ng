@@ -329,14 +329,13 @@ void Helper::renderAuroraCard(QPainter *painter, const QRectF &rect, const QPale
     for (qreal t : {0.0, 0.5, 1.0}) {
         fill.setColorAt(t, auroraCardColorAt(palette, t));
     }
-    const QColor edge = auroraCardEdge(palette);
-    QLinearGradient rim(rect.topLeft(), rect.bottomLeft());
-    // (the top edge brighter, where the light falls)
-    rim.setColorAt(0.0, QColor(edge.red(), edge.green(), edge.blue(), qMin(255, isDark(palette) ? edge.alpha() * 2 + 12 : 240)));
-    rim.setColorAt(0.35, edge);
-    rim.setColorAt(1.0, alphaColor(edge, 0.6));
+    // (one hairline all round, as the mockup: a brighter top edge read as a white line on the dark cards)
+    QColor edge = auroraCardEdge(palette);
+    if (isDark(palette)) {
+        edge = QColor(255, 255, 255, 22);
+    }
     painter->setBrush(fill);
-    painter->setPen(QPen(QBrush(rim), 1));
+    painter->setPen(QPen(edge, 1));
     painter->drawRoundedRect(rect.adjusted(0.5, 0.5, -0.5, -0.5), radius, radius);
     painter->restore();
 }
