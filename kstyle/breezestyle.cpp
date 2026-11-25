@@ -2774,7 +2774,7 @@ bool Style::eventFilter(QObject *object, QEvent *event)
                 } else {
                     painter.fillRect(strip, sheet);
                 }
-                const QColor line = KColorUtils::overlayColors(sheet, edge);
+                const QColor line = sheet.alpha() < 255 ? edge : KColorUtils::overlayColors(sheet, edge);
                 painter.fillRect(QRect(strip.left(), strip.top(), 1, strip.height()), line);
                 painter.fillRect(QRect(strip.right(), strip.top(), 1, strip.height()), line);
             }
@@ -7798,7 +7798,10 @@ bool Style::drawMenuBarItemControl(const QStyleOption *option, QPainter *painter
     const bool joined = sunken && widget && widget->property("_breeze_ng_joined").isValid() && widget->property("_breeze_ng_joined_item").toRect() == rect;
     if (joined) {
         const QColor sheet = widget->property("_breeze_ng_joined_bg").value<QColor>();
-        const QColor edge = KColorUtils::overlayColors(sheet, widget->property("_breeze_ng_joined_edge").value<QColor>());
+        // (a see-through sheet: the edge itself, a hairline of ink over the fill, as the menu's frame draws it. Mixed
+        // with the sheet first it came out a dark line round the title, beside the menu's light one)
+        const QColor rawEdge = widget->property("_breeze_ng_joined_edge").value<QColor>();
+        const QColor edge = sheet.alpha() < 255 ? rawEdge : KColorUtils::overlayColors(sheet, rawEdge);
         const qreal radius = _helper->frameRadius(PenWidth::Frame);
         QRectF shape = _helper->strokedRect(QRectF(rect));
         shape.adjust(0, 0, 0, radius + 3); // past the bottom: the painter is clipped to the title
