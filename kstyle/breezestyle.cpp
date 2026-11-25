@@ -3472,6 +3472,22 @@ bool Style::eventFilterDockWidget(QDockWidget *dockWidget, QEvent *event)
             // card, on the bare glass); a title bar of the application's own stays outside
             if (ngDockTitleInCard(dockWidget)) {
                 card.setTop(0);
+                // (its float and close buttons, which Qt lays flush with the panel's edge: in from the card's edge)
+                const auto buttons = dockWidget->findChildren<QAbstractButton *>(Qt::FindDirectChildrenOnly);
+                int right = 0;
+                for (const QAbstractButton *button : buttons) {
+                    if (button->isVisible() && button->objectName().startsWith(QLatin1String("qt_dockwidget_"))) {
+                        right = qMax(right, button->geometry().right());
+                    }
+                }
+                const int shift = right - (dockWidget->width() - 14);
+                if (right > 0 && shift > 0) {
+                    for (QAbstractButton *button : buttons) {
+                        if (button->objectName().startsWith(QLatin1String("qt_dockwidget_"))) {
+                            button->move(button->x() - shift, button->y());
+                        }
+                    }
+                }
             }
             _helper->renderAuroraSideCard(&painter, card, dockWidget->palette());
         }
