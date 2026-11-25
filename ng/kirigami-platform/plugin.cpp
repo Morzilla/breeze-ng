@@ -125,13 +125,15 @@ void tintText(PlatformTheme *theme, int accentText)
     // of a selection or a tooltip
     // AccentText (as the widget style, Helper::accentTitleColor / accentLabelColor): a Kirigami.Heading of level 1 or 2
     // is a title, in a deep accent (the gradient of the widget style's titles has no plain way into a Text item: its
-    // first colour); a heading of a lower level labels a section, in the accent
+    // first colour); level 3 labels a section, in the accent. Levels 4 and 5 are text: FormLayout's labels ("General:")
+    // are headings of level 5, and a whole form came out in the accent
     const QObject *owner = theme->parent();
-    if (accentText > 0 && owner && QByteArray(owner->metaObject()->className()).startsWith("Heading")
+    const int headingLevel = (owner && owner->property("level").isValid()) ? owner->property("level").toInt() : 1;
+    if (accentText > 0 && owner && headingLevel <= 3 && QByteArray(owner->metaObject()->className()).startsWith("Heading")
         && (theme->colorSet() == PlatformTheme::Window || theme->colorSet() == PlatformTheme::View || theme->colorSet() == PlatformTheme::Header)) {
         const bool dark = palette.color(QPalette::Window).lightnessF() < 0.5;
         const qreal hue = accent.hslHueF();
-        const int level = owner->property("level").isValid() ? owner->property("level").toInt() : 1;
+        const int level = headingLevel;
         QColor colour;
         if (level <= 2) {
             colour = accentText == 2 ? (dark ? QColor::fromHslF(hue, 0.90, 0.76) : QColor::fromHslF(hue, 0.66, 0.33))
