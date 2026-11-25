@@ -1042,7 +1042,8 @@ QColor Decoration::ngShadowColor() const
     if (highlight.hslSaturationF() < 0.15) {
         return chosen;
     }
-    return QColor::fromHslF(highlight.hslHueF(), qMin(0.70, highlight.hslSaturationF()), 0.16);
+    // (more of the accent, and lighter: at 0.16 it read as a black shadow with a hint of colour)
+    return QColor::fromHslF(highlight.hslHueF(), qMin(0.85, highlight.hslSaturationF() * 1.15), 0.32);
 }
 
 //________________________________________________________________
@@ -1067,8 +1068,10 @@ std::shared_ptr<KDecoration3::DecorationShadow> Decoration::createShadowObject(c
     shadowRenderer.setBorderRadius(m_scaledCornerRadius + 0.5);
     shadowRenderer.setBoxSize(boxSize);
 
-    const qreal strength = m_internalSettings->shadowStrength() / 255.0 * strengthScale;
     const QColor shadowColor = ngShadowColor();
+    // (the accent's shadow is a glow of colour more than a shade: lighter than the black one)
+    const bool tinted = m_internalSettings->shadowColor() == QColor(Qt::black) && shadowColor != QColor(Qt::black);
+    const qreal strength = m_internalSettings->shadowStrength() / 255.0 * strengthScale * (tinted ? 0.70 : 1.0);
     shadowRenderer.addShadow(params.shadow1.offset, params.shadow1.radius, withOpacity(shadowColor, params.shadow1.opacity * strength));
     shadowRenderer.addShadow(params.shadow2.offset, params.shadow2.radius, withOpacity(shadowColor, params.shadow2.opacity * strength));
 

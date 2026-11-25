@@ -1642,7 +1642,10 @@ private:
                 return;
             }
             if (auto background = qobject_cast<QQuickItem *>(guard->property("background").value<QObject *>())) {
-                background->setOpacity(0.34);
+                // (a veil of the message's colour: at a third, orange over the glass was a muddy brown block under
+                // dark text. Kirigami lays the colour itself in its background's children and binds it again, so the
+                // colour cannot be replaced from here: thinner)
+                background->setOpacity(QGuiApplication::palette().color(QPalette::Window).lightnessF() < 0.5 ? 0.30 : 0.16);
                 guard->setProperty("_breeze_ng_glass", true);
             }
         };

@@ -157,6 +157,10 @@ redraw('translucent/dialogs/background', [('', R_POPUP, (BG, AURORA_POPUP_SVG if
 redraw('widgets/tooltip', [('', R_TIP, (BG, 1), (INK, popup_rim)), ('mask-', R_TIP, None, None, True)])
 redraw('translucent/widgets/tooltip', [('', R_TIP, (BG, 0.72 if GLASS else 0.9), (INK, popup_rim)), ('mask-', R_TIP, None, None, True)])
 
+# the panel (Aurora): glass as the popups, the desktop showing through blurred (the default's is nearly solid)
+if AURORA:
+    redraw('translucent/widgets/panel-background', [('', 2, (BG, 0.55), None)])
+
 # buttons: raised ones (normal, pressed, with hover and focus drawn over them) and flat ones (toolbutton-*)
 if AURORA:
     redraw('widgets/button', [
