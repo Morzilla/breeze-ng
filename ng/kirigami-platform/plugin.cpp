@@ -177,6 +177,38 @@ QtObject {
     });
 }
 
+// AccentText for a title: only a Kirigami.Heading of level 1, the title of a page, takes the accent (as the widget
+// style, Helper::accentTitleColor), or Aurora's gradient through titleGradient. Every other heading is text:
+// FormLayout's labels ("General:") are headings of level 5. The surfaces of the window's own colours only: not the
+// dark ones of a light scheme (Complementary), not the text of a selection or a tooltip. True when the theme is a title's.
+bool titleText(PlatformTheme *theme, int accentText, const QColor &secondLight, bool dark)
+{
+    const QObject *owner = theme->parent();
+    const int headingLevel = (owner && owner->property("level").isValid()) ? owner->property("level").toInt() : 1;
+    if (accentText <= 0 || !owner || headingLevel > 1 || !QByteArray(owner->metaObject()->className()).startsWith("Heading")
+        || !(theme->colorSet() == PlatformTheme::Window || theme->colorSet() == PlatformTheme::View || theme->colorSet() == PlatformTheme::Header)) {
+        return false;
+    }
+    const QColor accent = QGuiApplication::palette().color(QPalette::Active, QPalette::Highlight);
+    const qreal hue = accent.hslHueF() < 0 ? 0.58 : accent.hslHueF();
+    const QColor colour = accentText == 2 ? (dark ? QColor::fromHslF(hue, 0.90, 0.78) : QColor::fromHslF(hue, 0.70, 0.38))
+                                          : (dark ? QColor::fromHslF(hue, 0.80, 0.90) : QColor::fromHslF(hue, 0.62, 0.31));
+    if (auto heading = qobject_cast<QQuickItem *>(const_cast<QObject *>(owner))) {
+        if (accentText == 2) {
+            // (the second light: the user's colour, or the hue next to the accent's, as Helper::accentTitleBrush)
+            const qreal hue2 = (secondLight.isValid() && secondLight.hslHueF() >= 0) ? secondLight.hslHueF() : std::fmod(hue + 0.17, 1.0);
+            titleGradient(heading, colour, dark ? QColor::fromHslF(hue2, 0.85, 0.80) : QColor::fromHslF(hue2, 0.62, 0.45));
+        } else {
+            titleGradient(heading, QColor(), QColor());
+        }
+    }
+    if (theme->textColor() != colour) {
+        theme->setCustomTextColor(colour);
+    }
+    theme->setProperty("_breeze_ng_tinted", true);
+    return true;
+}
+
 void tintText(PlatformTheme *theme, int accentText, const QColor &secondLight)
 {
     // (an icon of a button that is on has its text colour set by checkedIcon: left to it)
@@ -197,32 +229,8 @@ void tintText(PlatformTheme *theme, int accentText, const QColor &secondLight)
         release();
         return;
     }
-    // the surfaces of the window's own colours only: not the dark ones of a light scheme (Complementary), not the text
-    // of a selection or a tooltip
-    // AccentText (as the widget style, Helper::accentTitleColor): only a Kirigami.Heading of level 1, the title of a page,
-    // takes the accent (the gradient of the widget style's titles has no plain way into a Text item: its first colour).
-    // Every other heading is text: FormLayout's labels ("General:") are headings of level 5
-    const QObject *owner = theme->parent();
-    const int headingLevel = (owner && owner->property("level").isValid()) ? owner->property("level").toInt() : 1;
-    if (accentText > 0 && owner && headingLevel <= 1 && QByteArray(owner->metaObject()->className()).startsWith("Heading")
-        && (theme->colorSet() == PlatformTheme::Window || theme->colorSet() == PlatformTheme::View || theme->colorSet() == PlatformTheme::Header)) {
-        const bool dark = palette.color(QPalette::Window).lightnessF() < 0.5;
-        const qreal hue = accent.hslHueF();
-        const QColor colour = accentText == 2 ? (dark ? QColor::fromHslF(hue, 0.90, 0.78) : QColor::fromHslF(hue, 0.70, 0.38))
-                                              : (dark ? QColor::fromHslF(hue, 0.80, 0.90) : QColor::fromHslF(hue, 0.62, 0.31));
-        if (auto heading = qobject_cast<QQuickItem *>(const_cast<QObject *>(owner))) {
-            if (accentText == 2) {
-                // (the second light: the user's colour, or the hue next to the accent's, as Helper::accentTitleBrush)
-                const qreal hue2 = (secondLight.isValid() && secondLight.hslHueF() >= 0) ? secondLight.hslHueF() : std::fmod(hue + 0.17, 1.0);
-                titleGradient(heading, colour, dark ? QColor::fromHslF(hue2, 0.85, 0.80) : QColor::fromHslF(hue2, 0.62, 0.45));
-            } else {
-                titleGradient(heading, QColor(), QColor());
-            }
-        }
-        if (theme->textColor() != colour) {
-            theme->setCustomTextColor(colour);
-        }
-        theme->setProperty("_breeze_ng_tinted", true);
+    const bool dark = palette.color(QPalette::Window).lightnessF() < 0.5;
+    if (titleText(theme, accentText, secondLight, dark)) {
         return;
     }
     // (titles in Aurora's gradient: the rest of the text plain, as the widget style leaves its palette)
@@ -953,9 +961,17 @@ public:
     {
         PlatformPluginFactory *factory = real();
         PlatformTheme *theme = factory ? factory->createPlatformTheme(parent) : nullptr;
+#ifdef BREEZE_NG_PLASMA_STYLE
+        // in Plasma (the shell's panels and popups) only the titles, as the windows have them: the glass and the
+        // rest of the colours are the Plasma style's own
+        if (theme && m_look.aurora && m_look.accentText > 0) {
+            plasmaTitle(theme);
+        }
+#else
         if (theme && m_look.aurora) {
             glass(theme, parent);
         }
+#endif
         return theme;
     }
 
@@ -980,7 +996,11 @@ private:
         }
         const auto paths = QCoreApplication::libraryPaths();
         for (const QString &path : paths) {
+#ifdef BREEZE_NG_PLASMA_STYLE
+            const QString file = QFileInfo(path + QStringLiteral("/kf6/kirigami/platform/KirigamiPlasmaStyle.so")).canonicalFilePath();
+#else
             const QString file = QFileInfo(path + QStringLiteral("/kf6/kirigami/platform/org.kde.desktop.so")).canonicalFilePath();
+#endif
             if (file.isEmpty() || file == own) {
                 continue;
             }
@@ -994,6 +1014,37 @@ private:
             qWarning("breeze-ng: the desktop style's Kirigami plugin was not found: Kirigami falls back to its own colours");
         }
         return m_real;
+    }
+
+    // a heading of Plasma: the title's colour (or gradient) once it has its level and colour set. On Plasma's own
+    // surfaces: dark or light from the theme's background, not from the application's palette (a Plasma style can
+    // have colours of its own)
+    void plasmaTitle(PlatformTheme *theme)
+    {
+        QPointer<PlatformTheme> guard(theme);
+        const int accentText = m_look.accentText;
+        const QColor second = m_look.second;
+        auto apply = [guard, accentText, second] {
+            if (!guard || !guard->parent() || !QByteArray(guard->parent()->metaObject()->className()).startsWith("Heading")) {
+                return;
+            }
+            const bool tinted = guard->property("_breeze_ng_tinted").toBool();
+            const QColor ground = guard->property("_breeze_ng_ground").value<QColor>();
+            // (the background read before the title's colour was set: the theme's own)
+            const QColor background = (tinted && ground.isValid()) ? ground : guard->backgroundColor();
+            guard->setProperty("_breeze_ng_ground", background);
+            if (!titleText(guard, accentText, second, background.lightnessF() < 0.5) && tinted) {
+                guard->setCustomTextColor();
+                guard->setProperty("_breeze_ng_tinted", QVariant());
+                if (auto heading = qobject_cast<QQuickItem *>(guard->parent())) {
+                    titleGradient(heading, QColor(), QColor());
+                }
+            }
+        };
+        QObject::connect(theme, &PlatformTheme::colorSetChanged, theme, apply);
+        QObject::connect(theme, &PlatformTheme::inheritChanged, theme, apply);
+        QTimer::singleShot(0, theme, apply);
+        QTimer::singleShot(500, theme, apply);
     }
 
     void glass(PlatformTheme *theme, QObject *parent)

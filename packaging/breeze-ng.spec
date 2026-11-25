@@ -43,6 +43,8 @@ BuildRequires:  cmake(KF6WindowSystem)
 BuildRequires:  cmake(KDecoration3)
 BuildRequires:  cmake(Qt6Qml)
 BuildRequires:  cmake(KF6KirigamiPlatform)
+# (the Aurora gradient of page titles in Kirigami applications and Plasma: without it they keep a plain colour)
+Recommends:     qt6-qt5compat
 
 %description
 Breeze NG is a fork of KDE's Breeze widget style and window decoration with

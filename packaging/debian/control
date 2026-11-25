@@ -32,6 +32,7 @@ Rules-Requires-Root: no
 Package: breeze-ng
 Architecture: any
 Depends: ${misc:Depends}, ${shlibs:Depends}, plasma-desktoptheme
+Recommends: qml6-module-qt5compat-graphicaleffects
 Description: Breeze widget style and window decoration with Soft, Glass and Aurora looks
  Breeze NG is a fork of KDE's Breeze widget style and window decoration with
  three looks: Soft (surfaces told apart by tone, no separator lines), Glass
