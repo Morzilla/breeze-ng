@@ -707,6 +707,15 @@ void dumpItems(QQuickItem *item, int depth)
         return;
     }
     const QVariant colour = item->property("color");
+    static const bool thin = qgetenv("BREEZE_NG_DEBUG_QUICK") == "4"; // thin coloured items (lines) with their parents
+    if (thin && item->isVisible() && item->width() > 100 && item->height() <= 3 && item->height() > 0 && colour.isValid()) {
+        QByteArray chain;
+        for (const QQuickItem *o = item; o && chain.size() < 400; o = o->parentItem()) {
+            chain += QByteArray(o->metaObject()->className()) + " < ";
+        }
+        qWarning("breeze-ng kirigami line: %dx%d at y %d color %s opacity %.2f in %s", int(item->width()), int(item->height()), int(item->mapToScene(QPointF(0, 0)).y()),
+                 qPrintable(colour.value<QColor>().name(QColor::HexArgb)), item->opacity(), chain.constData());
+    }
     static const bool all = qgetenv("BREEZE_NG_DEBUG_QUICK") == "2"; // every large item, coloured or not
     if (all && item->isVisible() && item->width() > 900 && item->height() > 300) {
         qWarning("breeze-ng kirigami big: %s %dx%d flags %d opacity %.2f clip %d color %s", item->metaObject()->className(), int(item->width()), int(item->height()),
@@ -1039,6 +1048,40 @@ public Q_SLOTS:
 private:
     std::function<void()> m_call;
 };
+
+// A Kirigami.Separator laid across the top of a window, right under the title bar (the authentication dialog has one):
+// its colour is worked out from a background that is see-through here and came out a solid dark line between the title
+// bar and the glass. Aurora has no line there: the two are one sheet. Looked for when the window shows
+void topLine(QQuickWindow *window)
+{
+    QPointer<QQuickWindow> guard(window);
+    auto hide = [guard] {
+        if (!guard) {
+            return;
+        }
+        std::function<void(QQuickItem *, int)> visit = [&](QQuickItem *node, int depth) {
+            if (QByteArray(node->metaObject()->className()).startsWith("Separator") && node->height() <= 2 && node->width() >= guard->width() - 2
+                && node->mapToScene(QPointF(0, 0)).y() <= 1) {
+                node->setOpacity(0.0);
+            }
+            if (depth < 5) {
+                const auto children = node->childItems();
+                for (QQuickItem *child : children) {
+                    visit(child, depth + 1);
+                }
+            }
+        };
+        visit(guard->contentItem(), 0);
+    };
+    QObject::connect(window, &QWindow::visibleChanged, window, [guard, hide](bool visible) {
+        if (visible) {
+            QTimer::singleShot(0, guard, hide);
+            QTimer::singleShot(300, guard, hide);
+        }
+    });
+    QTimer::singleShot(0, window, hide);
+    QTimer::singleShot(600, window, hide);
+}
 
 // A plain Rectangle that covers (nearly) the whole window in the scheme's solid base or window colour is the page's
 // background painted by the application itself (Elisa's main view is one: palette.base, not Kirigami's theme): in
@@ -1771,6 +1814,7 @@ private:
                     QObject::connect(quickWindow, &QQuickWindow::colorChanged, quickWindow, clear, Qt::QueuedConnection);
                     quickWindow->setColor(Qt::transparent);
                     new AuroraBackdrop(quickWindow, &m_look, m_notifier);
+                    topLine(quickWindow);
                     if (!qEnvironmentVariableIsSet("BREEZE_NG_QUICK_NO_COVERS")) {
                         unfillCovers(quickWindow);
                     }
