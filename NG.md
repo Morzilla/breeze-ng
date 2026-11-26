@@ -43,12 +43,25 @@ see-through the glass is, how much the surfaces on it stand out, the lights, the
 selections use a light sheet of the accent or the full accent with white text.
 
 Qt Quick applications built with Kirigami (System Settings' modules, Info Centre, System Monitor, Discover) get the
-same glass through a small platform plugin that comes with Breeze NG ([how it works](ng/kirigami-platform/README.md)).
+same glass through a small platform plugin that comes with Breeze NG ([how it works](ng/kirigami-platform/README.md)):
+their pages, cards and inline messages are sheets of the same glass, and System Monitor's gauges are drawn as the
+style's own rings.
+
+Plasma follows too. The panel is frosted glass with the same lights (how dense is a setting, and it floats by
+default), and its popups, the launcher, the network and volume lists, look like any other Aurora window.
+
+A few things are options of the look, all on the Aurora page of the settings:
+
+- **Rings** (dials, gauges): plain, a gradient from the accent to the second light, a glow, or ticks.
+- **Titles**: the text colour, the accent, or a gradient of the two lights (page titles; also the secondary ones).
+- **The Plasma panel**: how dense its glass is, and whether it floats.
 
 | Dark | Light |
 |---|---|
+| <img src="ng/screenshots/aurora-controls-dark.png" width="420" alt="The common controls in Aurora Glass, dark"> | <img src="ng/screenshots/aurora-controls-light.png" width="420" alt="The common controls in Aurora Glass, light"> |
 | <img src="ng/screenshots/aurora-settings-dark.png" width="420" alt="Breeze NG's settings in Aurora Glass, dark"> | <img src="ng/screenshots/aurora-settings-light.png" width="420" alt="Breeze NG's settings in Aurora Glass, light"> |
-| <img src="ng/screenshots/aurora-qtquick-dark.png" width="420" alt="System Settings (Qt Quick) in Aurora Glass, dark"> | <img src="ng/screenshots/aurora-qtquick-light.png" width="420" alt="System Settings (Qt Quick) in Aurora Glass, light"> |
+| <img src="ng/screenshots/aurora-qtquick-dark.png" width="420" alt="System Monitor (Qt Quick, Kirigami) in Aurora Glass, dark, with ring gauges"> | <img src="ng/screenshots/aurora-qtquick-light.png" width="420" alt="System Monitor (Qt Quick, Kirigami) in Aurora Glass, light, with ring gauges"> |
+| <img src="ng/screenshots/aurora-plasma-dark.png" width="420" alt="Plasma's floating panel and launcher in Aurora Glass, dark"> | <img src="ng/screenshots/aurora-plasma-light.png" width="420" alt="Plasma's floating panel and launcher in Aurora Glass, light"> |
 
 ### Soft and Glass
 
