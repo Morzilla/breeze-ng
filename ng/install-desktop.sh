@@ -450,6 +450,32 @@ safe_pkgs() { # manager (dnf or apt-get), command and packages (without -y)
     if [ "$manager" = dnf ]; then $SUDO dnf "$@" -y; else $SUDO apt-get "$@" -y; fi
 }
 
+# The parts that are built (Dolphin NG, Breeze NG, Dialog NG, the KWin effects) need a recent Qt and KDE Frameworks:
+# on a system with older ones the build cannot succeed, however complete its development files. Said here, before
+# anything is installed or downloaded, and those parts are left out (no failure, no report to send). The numbers are
+# the lowest the sources ask for (their CMakeLists.txt): raise them here when those are raised.
+NEED_QT=6.10 NEED_KF=6.22
+lib_version() { # library base name -> its version, from the installed library's file name
+    basename "$(readlink -f /usr/lib*/"$1".so.6 /usr/lib/*/"$1".so.6 2>/dev/null | head -n1)" 2>/dev/null | sed -n 's/.*\.so\.//p'
+}
+older() { [ -n "$1" ] && [ "$1" != "$2" ] && [ "$(printf '%s\n%s\n' "$1" "$2" | sort -V | head -n1)" = "$1" ]; }
+HAVE_QT=$(lib_version libQt6Core); HAVE_KF=$(lib_version libKF6CoreAddons)
+if older "$HAVE_QT" "$NEED_QT" || older "$HAVE_KF" "$NEED_KF"; then
+    say "This system is too old for the parts that are built"
+    printf '  It has Qt %s and KDE Frameworks %s; they need Qt %s and KDE Frameworks %s or later\n' "${HAVE_QT:-?}" "${HAVE_KF:-?}" "$NEED_QT" "$NEED_KF"
+    printf '  (%s).\n' "$(. /etc/os-release 2>/dev/null; echo "${PRETTY_NAME:-this distribution}")"
+    printf '  Dolphin NG, Breeze NG, Dialog NG and the KWin effects are left out: nothing of them is downloaded or built.\n'
+    printf '  They should work on Kubuntu 26.04, Fedora 44 and later, and rolling distributions with a current Plasma.\n'
+    for i in "${!KEYS[@]}"; do
+        case "${KEYS[$i]}" in dolphin|breeze|dialog|effects|transcribe) PICK[$i]=0 ;; esac
+    done
+    if ! any_pick; then
+        echo
+        echo "Nothing else was selected: nothing to do. (The NeoLine icons can be installed on their own: --only icons.)"
+        exit 0
+    fi
+fi
+
 if [ "$DEPS" = 1 ]; then
     say "Build dependencies (sudo)"
     if command -v dnf >/dev/null; then
