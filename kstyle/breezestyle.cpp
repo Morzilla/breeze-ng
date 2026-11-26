@@ -379,7 +379,7 @@ static void ngAccentTitle(QLabel *label, const Helper &helper)
         const QBrush brush = helper.accentTitleBrush(QApplication::palette());
         // (rich text is laid out by a text document, which draws a gradient as black: the plain colour there)
         // (a label that wraps its words, or whose text can be selected, is laid out by a text document too)
-        const bool richTitle = label->wordWrap() || (label->textInteractionFlags() & (Qt::TextSelectableByMouse | Qt::TextSelectableByKeyboard)) || label->textFormat() == Qt::RichText || (label->textFormat() == Qt::AutoText && Qt::mightBeRichText(label->text()));
+        const bool richTitle = label->wordWrap() || (label->textInteractionFlags() & (Qt::TextSelectableByMouse | Qt::TextSelectableByKeyboard)) || label->textFormat() == Qt::RichText || label->textFormat() == Qt::MarkdownText || (label->textFormat() == Qt::AutoText && Qt::mightBeRichText(label->text()));
         if (!richTitle && brush.gradient() && brush.gradient()->stops().size() >= 2) {
             colour = QStringLiteral("qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 %1, stop:1 %2)")
                          .arg(brush.gradient()->stops().constFirst().second.name(), brush.gradient()->stops().constLast().second.name());
@@ -420,7 +420,7 @@ static void ngAccentTitle(QLabel *label, const Helper &helper)
     }
     QPalette palette = label->palette();
     // (rich text is laid out by a text document, which takes a plain colour: the gradient's first colour there)
-    const bool rich = label->wordWrap() || (label->textInteractionFlags() & (Qt::TextSelectableByMouse | Qt::TextSelectableByKeyboard)) || label->textFormat() == Qt::RichText || (label->textFormat() == Qt::AutoText && Qt::mightBeRichText(label->text()));
+    const bool rich = label->wordWrap() || (label->textInteractionFlags() & (Qt::TextSelectableByMouse | Qt::TextSelectableByKeyboard)) || label->textFormat() == Qt::RichText || label->textFormat() == Qt::MarkdownText || (label->textFormat() == Qt::AutoText && Qt::mightBeRichText(label->text()));
     const QBrush brush = rich ? QBrush(helper.accentTitleColor(palette)) : helper.accentTitleBrush(palette);
     for (QPalette::ColorGroup group : {QPalette::Active, QPalette::Inactive}) {
         palette.setBrush(group, QPalette::WindowText, brush);
@@ -10349,13 +10349,14 @@ bool Style::drawDialComplexControl(const QStyleOptionComplex *option, QPainter *
             const QColor accent = palette.color(QPalette::Active, QPalette::Highlight);
             const bool dark = _helper->isDark(palette);
             const qreal hue = accent.hslHueF() < 0 ? 0.58 : accent.hslHueF();
-            qreal hue2 = std::fmod(hue + 0.17, 1.0);
-            if (const QColor chosen(StyleConfigData::auroraSecondAccent()); chosen.isValid() && !StyleConfigData::auroraSecondAccent().isEmpty() && chosen.hslHueF() >= 0) {
-                hue2 = chosen.hslHueF();
-            }
+            // (a second accent with next to no colour stays as it is, like the first: only one not set gets the hue
+            // next to the accent's)
+            const QColor chosen = StyleConfigData::auroraSecondAccent().isEmpty() ? QColor() : QColor(StyleConfigData::auroraSecondAccent());
+            const bool grey2 = chosen.isValid() && (chosen.hslHueF() < 0 || chosen.hslSaturationF() < 0.15);
+            const qreal hue2 = chosen.isValid() && !grey2 ? chosen.hslHueF() : std::fmod(hue + 0.17, 1.0);
             const bool grey = accent.hslSaturationF() < 0.15;
             const QColor a1 = grey ? accent : QColor::fromHslF(hue, dark ? 0.90 : 0.80, dark ? 0.66 : 0.50);
-            const QColor a2 = grey ? accent : QColor::fromHslF(hue2, dark ? 0.88 : 0.68, dark ? 0.72 : 0.56);
+            const QColor a2 = grey2 ? chosen : (grey ? accent : QColor::fromHslF(hue2, dark ? 0.88 : 0.68, dark ? 0.72 : 0.56));
             const qreal span = (last - first) * 180 / M_PI;
             BreezeNg::paintAuroraRing(painter, QRectF(grooveRect), Metrics::Slider_GrooveThickness, first * 180 / M_PI, span,
                                       (enabled && last != first) ? (second - first) / (last - first) : 0.0, qBound(0, StyleConfigData::auroraRing(), 3), a1, a2,

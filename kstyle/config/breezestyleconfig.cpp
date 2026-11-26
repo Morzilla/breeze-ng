@@ -822,7 +822,8 @@ QWidget *StyleConfig::pageAurora()
         m_auroraRing->setToolTip(ngText("How rings are drawn: a dial's groove, System Monitor's gauges.", "Come si disegnano gli anelli: la corsa di una manopola, gli indicatori del Monitor di sistema."));
         aurora->addRow(ngText("Rings", "Anelli"), m_auroraRing);
         connect(m_auroraRing, &QComboBox::currentIndexChanged, this, &StyleConfig::updateChanged);
-        m_auroraPlasmaPanel = slider(0, 100, m_auroraGroup);
+        // (from the Plasma style's own panel sheet, about 41 %: under it the setting had no effect)
+        m_auroraPlasmaPanel = slider(40, 100, m_auroraGroup);
         m_auroraPlasmaPanelValue = new QLabel(m_auroraGroup);
         m_auroraPlasmaPanel->setToolTip(ngText("How dense Plasma's panel is: lower, more of the desktop shows through it, blurred. Plasma follows as soon as the settings are applied.",
                                                "Quanto è denso il pannello di Plasma: più basso, più si vede il desktop attraverso, sfocato. Plasma lo segue appena si applicano le impostazioni."));

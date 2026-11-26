@@ -27,6 +27,7 @@
 #include <QDBusConnection>
 #include <QDBusMessage>
 #include <QDBusPendingCall>
+#include <QDBusPendingCallWatcher>
 #include <QDir>
 #include <QEvent>
 #include <QFileInfo>
@@ -978,6 +979,10 @@ public:
         m_insetY = y;
         update();
     }
+    bool hasKind() const
+    {
+        return m_kind.isValid();
+    }
     void setKind(const QColor &kind, qreal radius)
     {
         m_kind = kind;
@@ -1101,11 +1106,15 @@ public:
         });
         connect(chart, &QObject::destroyed, this, &QObject::deleteLater);
         QObject::connect(notifier, SIGNAL(changed()), this, SLOT(update()));
-        if (QObject *source = valueSource()) {
-            if (source->metaObject()->indexOfSignal("dataChanged()") >= 0) {
-                QObject::connect(source, SIGNAL(dataChanged()), this, SLOT(update()));
+        for (const char *signal : {"valueSourcesChanged()", "rangeChanged()"}) {
+            if (chart->metaObject()->indexOfSignal(signal) >= 0) {
+                QObject::connect(chart, QByteArray("2" + QByteArray(signal)).constData(), this, SLOT(update()));
             }
         }
+        if (QObject *range = chart->property("range").value<QObject *>(); range && range->metaObject()->indexOfSignal("rangeChanged()") >= 0) {
+            QObject::connect(range, SIGNAL(rangeChanged()), this, SLOT(update()));
+        }
+        watch();
         fit();
     }
 
@@ -1114,42 +1123,29 @@ public:
         if (!m_chart) {
             return;
         }
-        QObject *source = valueSource();
-        // (the source's count and values are C++ methods out of reach here: read from its model, one value a column)
-        QAbstractItemModel *model = source ? qobject_cast<QAbstractItemModel *>(source->property("model").value<QObject *>()) : nullptr;
-        const int items = model ? (source->property("indexColumns").toBool() ? model->columnCount() : model->rowCount()) : 0;
-        const bool ours = m_look->ring != BreezeNg::RingPlain && items == 1;
-        if (model && !m_watched) {
-            m_watched = true;
-            connect(model, &QAbstractItemModel::dataChanged, this, [this] {
-                update();
-            });
-            connect(model, &QAbstractItemModel::modelReset, this, [this] {
-                update();
-            });
-            connect(model, &QAbstractItemModel::columnsInserted, this, [this] {
-                update();
-            });
-        }
+        // (the chart may be given another source, or the source another model, after the gauge was made)
+        watch();
+        qreal fraction = 0.0;
+        const bool ours = m_look->ring != BreezeNg::RingPlain && reading(&fraction);
         if (qEnvironmentVariableIsSet("BREEZE_NG_DEBUG_QUICK") && !m_told) {
             m_told = true;
             QQmlListReference sources(m_chart, "valueSources");
-            qWarning("breeze-ng ring gauge: sources valid %d count %d, source %s items %d, ring %d", int(sources.isValid()), int(sources.isValid() ? sources.count() : -1),
-                     source ? source->metaObject()->className() : "-", items, m_look->ring);
+            qWarning("breeze-ng ring gauge: sources valid %d count %d, source %s, ours %d, ring %d", int(sources.isValid()), int(sources.isValid() ? sources.count() : -1),
+                     m_source ? m_source->metaObject()->className() : "-", int(ours), m_look->ring);
         }
-        m_chart->setOpacity(ours ? 0.0 : 1.0);
+        // (the chart is hidden only while the gauge stands in for it, and gets back the opacity it had: a chart the
+        // gauge does not draw is the application's own)
+        if (ours && !m_hidden) {
+            m_hidden = true;
+            m_opacity = m_chart->opacity();
+            m_chart->setOpacity(0.0);
+            setOpacity(m_opacity);
+        } else if (!ours && m_hidden) {
+            m_hidden = false;
+            m_chart->setOpacity(m_opacity);
+        }
         if (!ours) {
             return;
-        }
-        const int role = model->roleNames().key(source->property("roleName").toString().toUtf8(), Qt::DisplayRole);
-        const qreal value = model->data(model->index(0, 0), role).toReal();
-        const QObject *range = m_chart->property("range").value<QObject *>();
-        qreal from = range ? range->property("from").toReal() : 0.0, to = range ? range->property("to").toReal() : 100.0;
-        if (!range || range->property("automatic").toBool() || to <= from) {
-            // (an automatic range: the sensors' own limits, which their model carries, as the chart takes them)
-            const QVariant least = model->property("minimum"), most = model->property("maximum");
-            from = least.isValid() ? least.toReal() : 0.0;
-            to = (most.isValid() && most.toReal() > from) ? most.toReal() : qMax(value, 1e-9);
         }
         const qreal fromAngle = m_chart->property("fromAngle").isValid() ? m_chart->property("fromAngle").toReal() : 0.0;
         const qreal toAngle = m_chart->property("toAngle").isValid() ? m_chart->property("toAngle").toReal() : 360.0;
@@ -1160,26 +1156,109 @@ public:
         const QColor accent = palette.color(QPalette::Active, QPalette::Highlight);
         const bool grey = accent.hslSaturationF() < 0.15;
         const qreal hue = accent.hslHueF() < 0 ? 0.58 : accent.hslHueF();
-        const qreal hue2 = (m_look->second.isValid() && m_look->second.hslHueF() >= 0) ? m_look->second.hslHueF() : std::fmod(hue + 0.17, 1.0);
+        // (a second accent with next to no colour stays as it is, like the first: only one not set gets the hue next
+        // to the accent's)
+        const bool second = m_look->second.isValid();
+        const bool grey2 = second && (m_look->second.hslHueF() < 0 || m_look->second.hslSaturationF() < 0.15);
+        const qreal hue2 = second && !grey2 ? m_look->second.hslHueF() : std::fmod(hue + 0.17, 1.0);
         QColor track = palette.color(QPalette::WindowText);
         track.setAlphaF(dark ? 0.16 : 0.13);
         // (the chart's angles run clockwise from twelve o'clock)
-        BreezeNg::paintAuroraRing(painter, rect, qMax(5.0, m_chart->property("thickness").toReal()), 90.0 - fromAngle, -(toAngle - fromAngle),
-                                  (value - from) / (to - from), m_look->ring, grey ? accent : QColor::fromHslF(hue, dark ? 0.90 : 0.80, dark ? 0.66 : 0.50),
-                                  grey ? accent : QColor::fromHslF(hue2, dark ? 0.88 : 0.68, dark ? 0.72 : 0.56), track);
+        BreezeNg::paintAuroraRing(painter, rect, qMax(5.0, m_chart->property("thickness").toReal()), 90.0 - fromAngle, -(toAngle - fromAngle), fraction, m_look->ring,
+                                  grey ? accent : QColor::fromHslF(hue, dark ? 0.90 : 0.80, dark ? 0.66 : 0.50),
+                                  grey2 ? m_look->second : (grey ? accent : QColor::fromHslF(hue2, dark ? 0.88 : 0.68, dark ? 0.72 : 0.56)), track);
     }
 
 private:
+    // The one source of a chart with one ring; none for a chart of several rings (one source each), left to the chart
     QObject *valueSource() const
     {
         QQmlListReference sources(m_chart, "valueSources");
-        return (sources.isValid() && sources.count() > 0) ? sources.at(0) : nullptr;
+        return (sources.isValid() && sources.count() == 1) ? sources.at(0) : nullptr;
+    }
+
+    // Follows the chart's source and the source's model, whichever they are now
+    void watch()
+    {
+        QObject *source = m_chart ? valueSource() : nullptr;
+        if (source != m_source) {
+            if (m_source) {
+                m_source->disconnect(this);
+            }
+            m_source = source;
+            if (source) {
+                for (const char *signal : {"dataChanged()", "modelChanged()", "columnChanged()", "roleNameChanged()", "indexColumnsChanged()"}) {
+                    if (source->metaObject()->indexOfSignal(signal) >= 0) {
+                        QObject::connect(source, QByteArray("2" + QByteArray(signal)).constData(), this, SLOT(update()));
+                    }
+                }
+            }
+        }
+        QAbstractItemModel *model = source ? qobject_cast<QAbstractItemModel *>(source->property("model").value<QObject *>()) : nullptr;
+        if (model != m_model) {
+            if (m_model) {
+                m_model->disconnect(this);
+            }
+            m_model = model;
+            if (model) {
+                auto again = [this] {
+                    update();
+                };
+                connect(model, &QAbstractItemModel::dataChanged, this, again);
+                connect(model, &QAbstractItemModel::modelReset, this, again);
+                connect(model, &QAbstractItemModel::layoutChanged, this, again);
+                connect(model, &QAbstractItemModel::columnsInserted, this, again);
+                connect(model, &QAbstractItemModel::columnsRemoved, this, again);
+                connect(model, &QAbstractItemModel::rowsInserted, this, again);
+                connect(model, &QAbstractItemModel::rowsRemoved, this, again);
+            }
+        }
+    }
+
+    // The part of the ring to fill, worked out as the chart does (PieChart::onDataChanged, RangeGroup::calculateRange
+    // and ModelSource::item of KQuickCharts; the source's count and values are C++ methods out of reach here, so they
+    // are read from its model). False when this is not a chart of one value the gauge can draw as the chart would
+    bool reading(qreal *fraction) const
+    {
+        if (!m_source || !m_model) {
+            return false;
+        }
+        const bool byColumns = m_source->property("indexColumns").toBool();
+        if ((byColumns ? m_model->columnCount() : m_model->rowCount()) != 1) {
+            return false;
+        }
+        const int role = m_model->roleNames().key(m_source->property("roleName").toString().toLatin1(), -1);
+        const int column = byColumns ? 0 : m_source->property("column").toInt();
+        const QModelIndex index = m_model->index(0, column);
+        const QObject *range = m_chart->property("range").value<QObject *>();
+        if (role < 0 || !index.isValid() || !range) {
+            return false;
+        }
+        const qreal value = m_model->data(index, role).toReal();
+        const bool automatic = range->property("automatic").toBool();
+        // (an automatic range starts at nought and ends at the value or at the limit its model carries, the sensors'
+        // own, whichever is more)
+        const QVariant least = m_model->property("minimum"), most = m_model->property("maximum");
+        const qreal start = automatic ? 0.0 : range->property("from").toReal();
+        qreal end = automatic ? qMax(value, (most.isValid() && most != least) ? most.toReal() : value) : range->property("to").toReal();
+        end = qMax(end, range->property("minimum").toReal());
+        if (const qreal step = range->property("increment").toReal(); step > 0.0) {
+            end = step * std::ceil(end / step);
+        }
+        if (!(end - start > 0.0)) {
+            return false;
+        }
+        *fraction = qBound(0.0, qMin(value - start, end) / (end - start), 1.0);
+        return true;
     }
 
     QPointer<QQuickItem> m_chart;
     Look *m_look;
+    QPointer<QObject> m_source;
+    QPointer<QAbstractItemModel> m_model;
+    qreal m_opacity = 1.0;
+    bool m_hidden = false;
     bool m_told = false;
-    bool m_watched = false;
 };
 
 // The ring charts of KQuickCharts on glass: their track is worked out from the theme's background, see-through here, and
@@ -1235,7 +1314,7 @@ void topLine(QQuickWindow *window)
         }
         std::function<void(QQuickItem *, int)> visit = [&](QQuickItem *node, int depth) {
             if (QByteArray(node->metaObject()->className()).startsWith("Separator") && node->height() <= 2 && node->width() >= guard->width() - 2
-                && node->mapToScene(QPointF(0, 0)).y() <= 1) {
+                && qAbs(node->mapToScene(QPointF(0, 0)).y()) <= 1) {
                 node->setOpacity(0.0);
             }
             if (depth < 5) {
@@ -1553,12 +1632,27 @@ public Q_SLOTS:
         if (applied.readEntry("FloatingPanelApplied", QString()) == mark) {
             return;
         }
-        applied.writeEntry("FloatingPanelApplied", mark);
-        applied.sync();
+        if (m_floatingPending) {
+            return;
+        }
+        m_floatingPending = true;
         QDBusMessage call = QDBusMessage::createMethodCall(QStringLiteral("org.kde.plasmashell"), QStringLiteral("/PlasmaShell"), QStringLiteral("org.kde.PlasmaShell"),
                                                            QStringLiteral("evaluateScript"));
         call << QStringLiteral("for (const p of panels()) { p.floating = %1; }").arg(mark);
-        QDBusConnection::sessionBus().asyncCall(call);
+        // (noted as applied only when the shell has run the script: a call that fails, the shell not ready yet or its
+        // scripting locked, is tried again at the next Apply or start)
+        auto watcher = new QDBusPendingCallWatcher(QDBusConnection::sessionBus().asyncCall(call), this);
+        connect(watcher, &QDBusPendingCallWatcher::finished, this, [this, mark](QDBusPendingCallWatcher *done) {
+            done->deleteLater();
+            m_floatingPending = false;
+            if (done->isError()) {
+                qWarning("breeze-ng: the floating panel preset was not applied: %s", qPrintable(done->error().message()));
+                return;
+            }
+            KConfigGroup applied = KSharedConfig::openConfig(QStringLiteral("breezengrc"))->group(QStringLiteral("Plasma"));
+            applied.writeEntry("FloatingPanelApplied", mark);
+            applied.sync();
+        });
 #endif
     }
 
@@ -2121,8 +2215,7 @@ private:
                 QPointer<MessageSheet> sheetGuard(sheet);
                 std::function<void(QQuickItem *, int)> pale = [&](QQuickItem *node, int depth) {
                     const int index = node->metaObject()->indexOfProperty("color");
-                    if (node != sheet && index >= 0 && node->width() >= background->width() * 0.5 && !node->property("_breeze_ng_pale").toBool()) {
-                        node->setProperty("_breeze_ng_pale", true);
+                    if (node != sheet && index >= 0 && node->width() >= background->width() * 0.5) {
                         QPointer<QQuickItem> item(node);
                         // (the item's own colour goes to the sheet, and the item is emptied; again whenever Kirigami
                         // writes its colour)
@@ -2140,6 +2233,10 @@ private:
                                 QColor kind = now;
                                 kind.setAlpha(255);
                                 sheetGuard->setKind(kind, item->property("radius").toReal());
+                            } else if (!sheetGuard->hasKind()) {
+                                // (a background that is not a coloured item gives the sheet no colour, and the sheet
+                                // draws nothing: the message keeps its own fill)
+                                return;
                             }
                             QColor none = now;
                             none.setAlpha(0);
@@ -2147,7 +2244,8 @@ private:
                         };
                         apply();
                         const QMetaMethod notify = node->metaObject()->property(index).notifySignal();
-                        if (notify.isValid()) {
+                        if (notify.isValid() && !node->property("_breeze_ng_pale").toBool()) {
+                            node->setProperty("_breeze_ng_pale", true);
                             auto relay = new Relay(node, apply);
                             QObject::connect(node, notify, relay, relay->metaObject()->method(relay->metaObject()->indexOfSlot("fire()")));
                         }
@@ -2232,6 +2330,7 @@ private:
     LookNotifier *m_notifier = nullptr;
     PlatformPluginFactory *m_real = nullptr;
     bool m_searched = false;
+    bool m_floatingPending = false;
 };
 
 #include "plugin.moc"

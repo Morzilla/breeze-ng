@@ -17,7 +17,9 @@ inline void paintAuroraRing(QPainter *painter, const QRectF &rect, qreal width, 
                             const QColor &second, const QColor &track)
 {
     value = qBound(0.0, value, 1.0);
-    const qreal margin = width / 2 + (style == RingGlow ? width * 0.7 : 0.0);
+    // (inside rect with all that is drawn: the glow's halo, and the ticks' outer ends with their round caps)
+    const qreal tickPen = qMax(1.6, width * 0.42);
+    const qreal margin = style == RingTicks ? width * 0.45 + tickPen / 2 : width / 2 + (style == RingGlow ? width * 0.7 : 0.0);
     const QRectF arc = rect.adjusted(margin, margin, -margin, -margin);
     if (arc.width() <= 2 || arc.height() <= 2) {
         return;
@@ -53,7 +55,7 @@ inline void paintAuroraRing(QPainter *painter, const QRectF &rect, qreal width, 
         for (int i = 0; i < count; ++i) {
             const qreal angle = start + step * (i + 0.5);
             const bool on = (i + 0.5) / count <= value && value > 0;
-            painter->setPen(QPen(on ? paint : QBrush(track), qMax(1.6, width * 0.42), Qt::SolidLine, Qt::RoundCap));
+            painter->setPen(QPen(on ? paint : QBrush(track), tickPen, Qt::SolidLine, Qt::RoundCap));
             painter->drawLine(at(angle, radius - width * 0.75), at(angle, radius + width * 0.45));
         }
         painter->restore();
@@ -63,13 +65,15 @@ inline void paintAuroraRing(QPainter *painter, const QRectF &rect, qreal width, 
     painter->drawArc(arc, qRound(start * 16), qRound(span * 16));
     if (value > 0) {
         const int from = qRound(start * 16), length = qRound(span * value * 16);
+        // (the caller's opacity is kept: the halo is a part of it)
+        const qreal opacity = painter->opacity();
         if (style == RingGlow) {
             for (const auto &halo : {std::pair<qreal, qreal>{2.5, 0.10}, {1.9, 0.14}, {1.45, 0.20}}) {
-                painter->setOpacity(halo.second);
+                painter->setOpacity(opacity * halo.second);
                 painter->setPen(QPen(paint, width * halo.first, Qt::SolidLine, Qt::RoundCap));
                 painter->drawArc(arc, from, length);
             }
-            painter->setOpacity(1.0);
+            painter->setOpacity(opacity);
         }
         painter->setPen(QPen(paint, width, Qt::SolidLine, Qt::RoundCap));
         painter->drawArc(arc, from, length == 0 ? (span < 0 ? -1 : 1) : length);
