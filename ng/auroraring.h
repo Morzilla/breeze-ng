@@ -12,7 +12,7 @@ namespace BreezeNg
 enum RingStyle { RingPlain = 0, RingGradient = 1, RingGlow = 2, RingTicks = 3 };
 
 // rect: the ring's outer bounds; width: its thickness; start, span: the whole track; value: 0..1 of it; first, second:
-// the accent and Aurora's second light (the gradient runs along the track, so a colour keeps its place as the value moves)
+// the accent and Aurora's second light (the gradient runs along the filled part: both colours show at any value)
 inline void paintAuroraRing(QPainter *painter, const QRectF &rect, qreal width, qreal start, qreal span, qreal value, int style, const QColor &first,
                             const QColor &second, const QColor &track)
 {
@@ -30,7 +30,9 @@ inline void paintAuroraRing(QPainter *painter, const QRectF &rect, qreal width, 
     QBrush paint(first);
     if (style != RingPlain) {
         QConicalGradient gradient(arc.center(), start);
-        const qreal part = qMin(1.0, std::abs(span) / 360.0);
+        // (the gradient runs along the filled part, from the first colour at its start to the second at its end: along
+        // the whole track a low value showed one colour only, and read as a plain ring)
+        const qreal part = qMin(1.0, std::abs(span) / 360.0) * qMax(value, 0.12);
         // (the first colour on both sides of the start, so that the round cap there is not the other end's colour)
         if (span < 0) { // clockwise: the track covers the end of the gradient's turn
             gradient.setColorAt(0.0, first);
