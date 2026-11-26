@@ -5749,12 +5749,15 @@ bool Style::drawFrameLineEditPrimitive(const QStyleOption *option, QPainter *pai
             return true;
         }
         auto background = _helper->inputBackground(palette);
+        bool barField = false;
         if (_helper->isAurora() && !_helper->isDark(palette) && enabled && !isQtQuickControl(option, widget)) {
             // a field in a tool bar (a search beside the location bar): the same white sheet as the path, a little of
-            // the glass through it, so that the row is of one kind
+            // the glass through it, so that the row is of one kind (and, below, the path's fainter edge and no shade
+            // inside its top edge: with them it still read as another kind of thing beside the path)
             for (const QWidget *parent = widget ? widget->parentWidget() : nullptr; parent && !parent->isWindow(); parent = parent->parentWidget()) {
                 if (parent->inherits("QToolBar")) {
                     background = QColor(255, 255, 255, 209);
+                    barField = true;
                     break;
                 }
             }
@@ -5777,6 +5780,9 @@ bool Style::drawFrameLineEditPrimitive(const QStyleOption *option, QPainter *pai
         // Aurora, the controls of 2026-11-24: a focused field is edged with the accent (the glow inside stays, softer);
         // a field that cannot be used is only a dashed outline, no ground
         const bool dashed = _helper->isAurora() && !enabled && !isQtQuickControl(option, widget);
+        if (barField && !neutral) {
+            edge = _helper->alphaColor(_helper->ink(palette), 0.10);
+        }
         if (_helper->isAurora() && hasFocus && !neutral) {
             edge = _helper->auroraAccent(palette, 1.0);
         }
@@ -5794,7 +5800,7 @@ bool Style::drawFrameLineEditPrimitive(const QStyleOption *option, QPainter *pai
             return true;
         }
         _helper->renderFrame(painter, rect, background, edge);
-        if (_helper->isGlass() && enabled && !readOnly) {
+        if (_helper->isGlass() && enabled && !readOnly && !barField) {
             // and a soft shade along the inside of its top edge, as a slot has: light from above
             painter->save();
             painter->setRenderHint(QPainter::Antialiasing, true);
