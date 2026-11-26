@@ -217,9 +217,10 @@ Settings also works: pick *Breeze NG Soft* or *Breeze NG Glass*.
 
 ## Limits
 
-Only Qt Widgets applications take the full look (Dolphin, Kate, Konsole, Okular, Gwenview…). QML applications
-such as System Settings or Discover draw their pages with Plasma's own QML theme and take only the controls from
-a widget style. Applications that bundle their own Qt (Telegram) or are not Qt at all cannot use it.
+Qt Widgets applications take the full look (Dolphin, Kate, Konsole, Okular…). QML applications built with Kirigami
+(System Settings, Discover, System Monitor) draw their own pages: in Aurora they get the glass, the lights and the
+titles through the platform plugin, in Soft and Glass only the controls. An application that paints its own
+background keeps it (Gwenview's view has solid bands). Applications that bundle their own Qt (Telegram) or are not Qt at all cannot use it.
 
 `BREEZE_NG_DEBUG=1` prints a trace of the button-to-menu joining logic.
 
