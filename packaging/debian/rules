@@ -60,4 +60,4 @@ override_dh_auto_test:
 
 override_dh_auto_clean:
 	dh_auto_clean
-	cmake -E remove_directory obj-kirigami
+	rm -rf obj-kirigami
