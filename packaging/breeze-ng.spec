@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: GPL-2.0-or-later
-%global commit      0cc888b0c642e54bddc6d640e94a2d37632d9f2e
+%global commit      a4ec7314c0df42b69b824bac22f1e94572c4c3f3
 %global shortcommit %(c=%{commit}; echo ${c:0:7})
-%global snapdate    202611241417
+%global snapdate    202611261402
 # snapdate: date and time of the commit (YYYYMMDDHHMM), so that two snapshots of one day sort in order
 # installed apart from the system, next to Fedora's own Breeze
 %global ngprefix    /opt/ng/breeze-ng
@@ -129,6 +129,13 @@ done
 %{_qt6_plugindir}/org.kde.kdecoration3.kcm/kcm_breezengdecoration.so
 
 %changelog
+* Thu Nov 26 2026 Morzilla <3956663+Morzilla@users.noreply.github.com> - 6.7.5^202611261402gita4ec731-1
+- Aurora: modern controls (pills, cards, segmented tabs), lighter window shadows in the accent
+- Plasma in Aurora: panel and popups of the same glass, a floating panel by default (options)
+- Rings for dials and System Monitor's gauges: gradient, glow or ticks (option)
+- Titles in the accent or in a gradient (option); Kirigami inline messages as glass cards
+- A menu joined to its button follows the menu opacity; a window stays active under its own menu
+
 * Tue Nov 24 2026 Morzilla <3956663+Morzilla@users.noreply.github.com> - 6.7.5^202611241417git0cc888b-1
 - Sidebars of every application as Dolphin NG's: a card, compact rows (option), text tinged by the accent
 - System Settings and other Qt Quick windows see-through again; readable list selections there
