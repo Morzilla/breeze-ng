@@ -122,6 +122,12 @@ private:
 
     void createButtons();
     void paintTitleBar(QPainter *painter, const QRectF &repaintRegion);
+    // Breeze NG Aurora: the wash, the lights and the grain of the window over an area of the decoration, centred as
+    // the widget style centres them on the window's contents (body: the contents' rectangle; bottom: the third light)
+    void ngPaintAuroraLights(QPainter *painter, const QRectF &area, const QRectF &body, bool bottom) const;
+    // Breeze NG: the colour of the window's shadow: the accent, deep (the user's own colour if one was chosen)
+    QColor ngShadowColor() const;
+    bool ngShadowTucked() const;
     void updateShadow();
     std::shared_ptr<KDecoration3::DecorationShadow> createShadowObject(const float strengthScale);
     void setScaledCornerRadius();

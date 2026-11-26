@@ -125,6 +125,7 @@ static int g_sDecoCount = 0;
 static int g_shadowSizeEnum = InternalSettings::ShadowLarge;
 static int g_shadowStrength = 255;
 static QColor g_shadowColor = Qt::black;
+static bool g_shadowTucked = true; // (the shadow pushed under the window: see ngShadowTucked)
 static std::shared_ptr<KDecoration3::DecorationShadow> g_sShadow;
 static std::shared_ptr<KDecoration3::DecorationShadow> g_sShadowInactive;
 
@@ -262,6 +263,7 @@ bool Decoration::init()
     // breeze-ng: a new accent or scheme repaints the lights of the title bar
     connect(window(), &KDecoration3::DecoratedWindow::paletteChanged, this, [this] {
         update();
+        updateShadow(); // (the shadow takes the accent)
     });
 
     createButtons();
@@ -587,9 +589,14 @@ void Decoration::recalculateBorders()
     if (isMaximized() || !outlinesEnabled()) {
         setBorderOutline(KDecoration3::BorderOutline());
     } else {
-        const auto color = KColorUtils::mix(window()->color(window()->isActive() ? ColorGroup::Active : ColorGroup::Inactive, ColorRole::Frame),
-                                            window()->palette().text().color(),
-                                            KColorScheme::frameContrast());
+        const QColor frame = window()->color(window()->isActive() ? ColorGroup::Active : ColorGroup::Inactive, ColorRole::Frame);
+        auto color = KColorUtils::mix(frame, window()->palette().text().color(), KColorScheme::frameContrast());
+        if (m_ngGlass && frame.lightnessF() < 0.5) {
+            // Breeze NG glass on a dark scheme: a faint hairline of light, as the edge of Aurora's dark cards. The frame's
+            // colour, solid, was a near black line around every window, apart from the glass it bounds. (Solid: KWin
+            // draws the outline without its alpha, a see-through white came out plain white)
+            color = KColorUtils::mix(frame, QColor(255, 255, 255), window()->isActive() ? 0.16 : 0.10);
+        }
         const qreal thickness = std::max(KDecoration3::pixelSize(window()->nextScale()), KDecoration3::snapToPixelGrid(1, window()->nextScale()));
 
         qreal topLeftRightRadius = 0;
@@ -726,6 +733,23 @@ void Decoration::paint(QPainter *painter, const QRectF &repaintRegion)
         }
 
         painter->restore();
+
+        // Aurora: the borders are the window's glass too, with its wash and lights. Filled with the bare sheet they were
+        // a grey frame around the window, plainer than the body, the more so towards the bottom where the body is lit
+        if (m_ngAurora && hasBorders() && s->isAlphaChannelSupported()) {
+            painter->save();
+            const QRectF contents(borderLeft(), borderTop(), size().width() - borderLeft() - borderRight(), size().height() - borderTop() - borderBottom());
+            QPainterPath frame;
+            frame.addRoundedRect(rect(), m_scaledCornerRadius, m_scaledCornerRadius);
+            QPainterPath hole;
+            hole.addRect(contents.adjusted(0, -borderTop(), 0, 0)); // (the title bar paints its own)
+            painter->setClipPath(frame.subtracted(hole));
+            if (!hideTitleBar()) {
+                painter->setClipRect(QRectF(0, borderTop(), size().width(), size().height() - borderTop()), Qt::IntersectClip);
+            }
+            ngPaintAuroraLights(painter, rect(), contents, true);
+            painter->restore();
+        }
     }
 
     if (!hideTitleBar()) {
@@ -742,6 +766,52 @@ void Decoration::paint(QPainter *painter, const QRectF &repaintRegion)
             painter->drawRect(rect().adjusted(0, 0, -1, -1));
             painter->restore();
         }
+    }
+}
+
+//________________________________________________________________
+void Decoration::ngPaintAuroraLights(QPainter *painter, const QRectF &rect, const QRectF &body, bool bottom) const
+{
+    // the accent from the window's palette, which KWin updates when the scheme or the accent changes (KWin's own
+    // application palette kept the accent of when it started: the title bar stayed in the old hue)
+    const QColor highlight = window()->palette().color(QPalette::Active, QPalette::Highlight);
+    const qreal hue = highlight.hslHueF() < 0 ? 0.58 : highlight.hslHueF();
+    const qreal saturation = (highlight.hslSaturationF() < 0.15 ? highlight.hslSaturationF() : qBound(0.60, highlight.hslSaturationF() * 1.4, 0.95));
+    const QColor accent = QColor::fromHslF(hue, saturation, (titleBarColor().lightnessF() < 0.5) ? 0.62 : 0.76); // luminous, as in the widget style
+    // (light schemes: 0.76 and 0.78, as Helper::renderAuroraLights since 2026-11-23: at 0.90 the title bar's lights were
+    // nearly white, the wallpaper showed through in its own colours and the bar read apart from the tinted body)
+    QColor second = QColor::fromHslF(std::fmod(hue + 0.17, 1.0), saturation, (titleBarColor().lightnessF() < 0.5) ? 0.64 : 0.78);
+    if (m_ngAuroraSecond.isValid()) { // the user's own second light, as in the widget style
+        second = QColor::fromHslF(m_ngAuroraSecond.hslHueF() < 0 ? hue : m_ngAuroraSecond.hslHueF(), (m_ngAuroraSecond.hslSaturationF() < 0.15 ? m_ngAuroraSecond.hslSaturationF() : qBound(0.60, m_ngAuroraSecond.hslSaturationF() * 1.4, 0.95)), (titleBarColor().lightnessF() < 0.5) ? 0.64 : 0.78);
+    }
+    const qreal strength = (titleBarColor().lightnessF() < 0.5 ? 1.0 : 0.95) * ((window()->isActive() || ngSteady()) ? 1.0 : 0.6) * m_ngAuroraLights;
+    const qreal radius = qBound(260.0, body.width() * 0.55, 620.0);
+    auto light = [&](const QPointF &centre, qreal r, QColor colour, qreal alpha) {
+        QRadialGradient gradient(centre, r);
+        colour.setAlphaF(qMin(1.0, alpha * strength));
+        gradient.setColorAt(0.0, colour);
+        colour.setAlphaF(qMin(1.0, alpha * strength * 0.46));
+        gradient.setColorAt(0.45, colour);
+        colour.setAlphaF(0.0);
+        gradient.setColorAt(1.0, colour);
+        painter->fillRect(rect, gradient);
+    };
+    if (titleBarColor().lightnessF() >= 0.5) { // (as Helper::renderAuroraLights: the wash of the accent on light schemes)
+        painter->fillRect(rect, QColor(255, 255, 255, 120));
+        QColor wash = accent;
+        wash.setAlphaF(qMin(1.0, 0.10 * strength)); // (as the widget style)
+        painter->fillRect(rect, wash);
+    }
+    const QPointF leftCentre(body.left(), body.top()), rightCentre(body.right(), body.top());
+    if (m_ngAuroraCornerLights) { // (off in Breeze NG's settings: no lights in the window either)
+        light(m_ngAuroraAccentRight ? rightCentre : leftCentre, radius, accent, 0.52); // (the corners the widget style uses)
+        light(m_ngAuroraAccentRight ? leftCentre : rightCentre, radius * 0.8, second, 0.36);
+        if (bottom) { // (the bloom at the bottom, as the widget style: only the side and bottom borders reach it)
+            light(m_ngAuroraAccentRight ? body.bottomLeft() : body.bottomRight(), radius * 0.9, accent, 0.32);
+        }
+    }
+    if (m_ngAuroraGrain > 0) {
+        painter->drawTiledPixmap(rect, ngGrainTile(m_ngAuroraGrain), rect.topLeft());
     }
 }
 
@@ -815,44 +885,8 @@ void Decoration::paintTitleBar(QPainter *painter, const QRectF &repaintRegion)
             clip.setFillRule(Qt::WindingFill);
         }
         painter->setClipPath(clip.simplified());
-        // the accent from the window's palette, which KWin updates when the scheme or the accent changes (KWin's own
-        // application palette kept the accent of when it started: the title bar stayed in the old hue)
-        const QColor highlight = window()->palette().color(QPalette::Active, QPalette::Highlight);
-        const qreal hue = highlight.hslHueF() < 0 ? 0.58 : highlight.hslHueF();
-        const qreal saturation = (highlight.hslSaturationF() < 0.15 ? highlight.hslSaturationF() : qBound(0.60, highlight.hslSaturationF() * 1.4, 0.95));
-        const QColor accent = QColor::fromHslF(hue, saturation, (titleBarColor().lightnessF() < 0.5) ? 0.62 : 0.76); // luminous, as in the widget style
-        // (light schemes: 0.76 and 0.78, as Helper::renderAuroraLights since 2026-11-23: at 0.90 the title bar's lights were
-        // nearly white, the wallpaper showed through in its own colours and the bar read apart from the tinted body)
-        QColor second = QColor::fromHslF(std::fmod(hue + 0.17, 1.0), saturation, (titleBarColor().lightnessF() < 0.5) ? 0.64 : 0.78);
-        if (m_ngAuroraSecond.isValid()) { // the user's own second light, as in the widget style
-            second = QColor::fromHslF(m_ngAuroraSecond.hslHueF() < 0 ? hue : m_ngAuroraSecond.hslHueF(), (m_ngAuroraSecond.hslSaturationF() < 0.15 ? m_ngAuroraSecond.hslSaturationF() : qBound(0.60, m_ngAuroraSecond.hslSaturationF() * 1.4, 0.95)), (titleBarColor().lightnessF() < 0.5) ? 0.64 : 0.78);
-        }
-        const qreal strength = (titleBarColor().lightnessF() < 0.5 ? 1.0 : 0.95) * ((window()->isActive() || ngSteady()) ? 1.0 : 0.6) * m_ngAuroraLights;
-        const qreal radius = qBound(260.0, rect.width() * 0.55, 620.0);
-        auto light = [&](const QPointF &centre, qreal r, QColor colour, qreal alpha) {
-            QRadialGradient gradient(centre, r);
-            colour.setAlphaF(qMin(1.0, alpha * strength));
-            gradient.setColorAt(0.0, colour);
-            colour.setAlphaF(qMin(1.0, alpha * strength * 0.46));
-            gradient.setColorAt(0.45, colour);
-            colour.setAlphaF(0.0);
-            gradient.setColorAt(1.0, colour);
-            painter->fillRect(rect, gradient);
-        };
-        if (titleBarColor().lightnessF() >= 0.5) { // (as Helper::renderAuroraLights: the wash of the accent on light schemes)
-            painter->fillRect(rect, QColor(255, 255, 255, 120));
-            QColor wash = accent;
-            wash.setAlphaF(qMin(1.0, 0.10 * strength)); // (as the widget style)
-            painter->fillRect(rect, wash);
-        }
-        const QPointF leftCentre(rect.left(), rect.bottom() + 1), rightCentre(rect.right() + 1, rect.bottom() + 1);
-        if (m_ngAuroraCornerLights) { // (off in Breeze NG's settings: no lights in the window either)
-            light(m_ngAuroraAccentRight ? rightCentre : leftCentre, radius, accent, 0.52); // (the corners the widget style uses)
-            light(m_ngAuroraAccentRight ? leftCentre : rightCentre, radius * 0.8, second, 0.36);
-        }
-        if (m_ngAuroraGrain > 0) {
-            painter->drawTiledPixmap(rect, ngGrainTile(m_ngAuroraGrain), rect.topLeft());
-        }
+        // the window's contents start at the bottom of the title bar
+        ngPaintAuroraLights(painter, rect, QRectF(borderLeft(), rect.bottom() + 1, size().width() - borderLeft() - borderRight(), size().height() - rect.bottom() - 1 - borderBottom()), true);
         painter->restore();
     }
 
@@ -968,12 +1002,13 @@ void Decoration::updateShadow()
     }
 
     if (g_shadowSizeEnum != m_internalSettings->shadowSize() || g_shadowStrength != m_internalSettings->shadowStrength()
-        || g_shadowColor != m_internalSettings->shadowColor()) {
+        || g_shadowColor != ngShadowColor() || g_shadowTucked != ngShadowTucked()) {
         g_sShadow.reset();
         g_sShadowInactive.reset();
         g_shadowSizeEnum = m_internalSettings->shadowSize();
         g_shadowStrength = m_internalSettings->shadowStrength();
-        g_shadowColor = m_internalSettings->shadowColor();
+        g_shadowColor = ngShadowColor();
+        g_shadowTucked = ngShadowTucked();
     }
 
     auto &shadow = (window()->isActive()) ? g_sShadow : g_sShadowInactive;
@@ -982,6 +1017,33 @@ void Decoration::updateShadow()
         g_sShadowInactive = createShadowObject(0.5);
     }
     setShadow(shadow);
+}
+
+//________________________________________________________________
+bool Decoration::ngShadowTucked() const
+{
+    // Breeze NG glass: the shadow is pushed two pixels under the window only at a fractional scale. Under a
+    // see-through window those pixels showed through the glass, a grey frame around every window
+    const qreal scale = window()->nextScale();
+    return !m_ngGlass || std::abs(scale - std::round(scale)) > 0.01;
+}
+
+//________________________________________________________________
+QColor Decoration::ngShadowColor() const
+{
+    // the shadow of the accent, deep: a coloured window casts a coloured shade (black, the default, reads as a hole in
+    // the desktop under the glass). A colour the user chose in the decoration's settings is kept, and a grey accent
+    // gives black as before
+    const QColor chosen = m_internalSettings->shadowColor();
+    if (chosen != QColor(Qt::black)) {
+        return chosen;
+    }
+    const QColor highlight = window()->palette().color(QPalette::Active, QPalette::Highlight);
+    if (highlight.hslSaturationF() < 0.15) {
+        return chosen;
+    }
+    // (more of the accent, and lighter: at 0.16 it read as a black shadow with a hint of colour)
+    return QColor::fromHslF(highlight.hslHueF(), qMin(0.85, highlight.hslSaturationF() * 1.15), 0.32);
 }
 
 //________________________________________________________________
@@ -1006,9 +1068,12 @@ std::shared_ptr<KDecoration3::DecorationShadow> Decoration::createShadowObject(c
     shadowRenderer.setBorderRadius(m_scaledCornerRadius + 0.5);
     shadowRenderer.setBoxSize(boxSize);
 
-    const qreal strength = m_internalSettings->shadowStrength() / 255.0 * strengthScale;
-    shadowRenderer.addShadow(params.shadow1.offset, params.shadow1.radius, withOpacity(m_internalSettings->shadowColor(), params.shadow1.opacity * strength));
-    shadowRenderer.addShadow(params.shadow2.offset, params.shadow2.radius, withOpacity(m_internalSettings->shadowColor(), params.shadow2.opacity * strength));
+    const QColor shadowColor = ngShadowColor();
+    // (the accent's shadow is a glow of colour more than a shade: lighter than the black one)
+    const bool tinted = m_internalSettings->shadowColor() == QColor(Qt::black) && shadowColor != QColor(Qt::black);
+    const qreal strength = m_internalSettings->shadowStrength() / 255.0 * strengthScale * (tinted ? 0.70 : 1.0);
+    shadowRenderer.addShadow(params.shadow1.offset, params.shadow1.radius, withOpacity(shadowColor, params.shadow1.opacity * strength));
+    shadowRenderer.addShadow(params.shadow2.offset, params.shadow2.radius, withOpacity(shadowColor, params.shadow2.opacity * strength));
 
     QImage shadowTexture = shadowRenderer.render();
 
@@ -1028,7 +1093,11 @@ std::shared_ptr<KDecoration3::DecorationShadow> Decoration::createShadowObject(c
     QRectF innerRect = outerRect - padding;
     // Push the shadow slightly under the window, which helps avoiding glitches with fractional scaling
     // TODO fix this more properly
-    innerRect.adjust(2, 2, -2, -2);
+    // (Breeze NG glass: not at a whole scale. Under a see-through window those two pixels of shadow showed through the
+    // glass, a grey frame around every window, the stronger towards the bottom where the shadow falls)
+    if (ngShadowTucked()) {
+        innerRect.adjust(2, 2, -2, -2);
+    }
 
     painter.setPen(Qt::NoPen);
     painter.setBrush(Qt::black);
@@ -1056,6 +1125,7 @@ void Decoration::updateScale()
 {
     setScaledCornerRadius();
     recalculateBorders();
+    updateShadow(); // (the shadow's mask depends on the scale: ngShadowTucked)
 }
 } // namespace
 

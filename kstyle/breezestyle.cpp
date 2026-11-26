@@ -25,6 +25,8 @@
 #include <KIconLoader>
 #include <kguiaddons_version.h>
 
+#include <QLabel>
+#include <QRegularExpression>
 #include <QApplication>
 #include <QWindow>
 #include <QElapsedTimer>
@@ -43,6 +45,7 @@
 #include <QGraphicsItem>
 #include <QGraphicsProxyWidget>
 #include <QGraphicsView>
+#include "../ng/auroraring.h"
 #include <QGroupBox>
 #include <QItemDelegate>
 #include <QLineEdit>
@@ -70,6 +73,11 @@
 #include <QTreeView>
 #include <QWidgetAction>
 #include <QListView>
+#include <cmath>
+#include <QEasingCurve>
+#include <QTextCharFormat>
+#include <QCalendarWidget>
+#include <QPlainTextEdit>
 #include <QStyledItemDelegate>
 #include <QVariantAnimation>
 #include <QPersistentModelIndex>
@@ -333,10 +341,103 @@ Style::~Style()
 }
 
 //______________________________________________________________
+// Breeze NG AccentText: a label set in a larger font than the application's is a title (KTitleWidget's, the heading of
+// a settings page, a welcome screen's): it takes the accent's title brush. Its palette is set, and given back when the
+// style is unpolished or the option turned off
+static void ngAccentTitle(QLabel *label, const Helper &helper)
+{
+    // KTitleWidget (the heading of every KPageDialog page: Kate's settings, Dolphin's) gives its label a style sheet
+    // with the size and the colour of the title, which the palette cannot override: the colour is rewritten in that
+    // sheet (a style sheet takes gradients too, in the text's own box). KTitleWidget writes its sheet again whenever its
+    // palette or font change; the style is asked to polish the label every time, and lays the colour in again
+    static const QString marker = QStringLiteral("/* breeze-ng accent */");
+    if (label->parentWidget() && label->parentWidget()->inherits("KTitleWidget") && label->styleSheet().contains(QLatin1String("font-size"))) {
+        const QString sheet = label->styleSheet();
+        const int mode = helper.accentText(QApplication::palette());
+        // (the sheet as KTitleWidget wrote it: kept aside the first time ours replaces it. KTitleWidget writing it
+        // again drops the marker, and the new one is the original)
+        const bool ours = sheet.contains(marker);
+        const QString original = ours ? label->property("_breeze_ng_title_sheet").toString() : sheet;
+        QPointer<QLabel> guard(label);
+        // (a sheet queued here is dropped if the label is unpolished, or a newer one is queued, before it lands)
+        const int seq = label->property("_breeze_ng_title_seq").toInt() + 1;
+        if (mode == 0) {
+            if (ours) {
+                // (the original stays saved until it is given back: an unpolish meanwhile restores it from there)
+                label->setProperty("_breeze_ng_title_seq", seq);
+                QTimer::singleShot(0, label, [guard, original, seq, sheet] {
+                    // (not over a sheet KTitleWidget wrote meanwhile)
+                    if (guard && guard->property("_breeze_ng_title_seq").toInt() == seq && guard->styleSheet() == sheet) {
+                        guard->setStyleSheet(original);
+                        guard->setProperty("_breeze_ng_title_sheet", QVariant());
+                    }
+                });
+            }
+            return;
+        }
+        QString colour = helper.accentTitleColor(QApplication::palette()).name();
+        const QBrush brush = helper.accentTitleBrush(QApplication::palette());
+        // (rich text is laid out by a text document, which draws a gradient as black: the plain colour there)
+        // (a label that wraps its words, or whose text can be selected, is laid out by a text document too)
+        const bool richTitle = label->wordWrap() || (label->textInteractionFlags() & (Qt::TextSelectableByMouse | Qt::TextSelectableByKeyboard)) || label->textFormat() == Qt::RichText || label->textFormat() == Qt::MarkdownText || (label->textFormat() == Qt::AutoText && Qt::mightBeRichText(label->text()));
+        if (!richTitle && brush.gradient() && brush.gradient()->stops().size() >= 2) {
+            colour = QStringLiteral("qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 %1, stop:1 %2)")
+                         .arg(brush.gradient()->stops().constFirst().second.name(), brush.gradient()->stops().constLast().second.name());
+        }
+        static const QRegularExpression colourRule(QStringLiteral("(^|[;{\\s])color\\s*:[^;}]*"));
+        QString accented = original;
+        if (accented.contains(colourRule)) {
+            accented.replace(colourRule, QStringLiteral("\\1color: ") + colour);
+        } else {
+            accented += QStringLiteral(" QLabel { color: %1 }").arg(colour);
+        }
+        accented += QLatin1Char(' ') + marker;
+        if (qEnvironmentVariableIsSet("BREEZE_NG_DEBUG_TITLE")) {
+            qWarning("breeze-ng title: ours %d sheet [%s] original [%s] accented [%s]", int(ours), qPrintable(sheet), qPrintable(original), qPrintable(accented));
+        }
+        if (accented == sheet) {
+            return; // (already the sheet of this mode and these colours)
+        }
+        label->setProperty("_breeze_ng_title_sheet", original);
+        label->setProperty("_breeze_ng_title_seq", seq);
+        QTimer::singleShot(0, label, [guard, accented, seq, sheet] {
+            if (guard && guard->property("_breeze_ng_title_seq").toInt() == seq && guard->styleSheet() == sheet) {
+                guard->setStyleSheet(accented);
+            }
+        });
+        return;
+    }
+    const bool was = label->property("_breeze_ng_title").toBool();
+    const QFontInfo own(label->font()), app(QApplication::font());
+    const bool title = helper.accentText(QApplication::palette()) > 0 && own.pixelSize() >= qRound(app.pixelSize() * 1.2) && !label->text().isEmpty()
+        && !label->window()->inherits("QToolTip") && !qobject_cast<QMenu *>(label->window());
+    if (!title) {
+        if (was) {
+            label->setPalette(QPalette());
+            label->setProperty("_breeze_ng_title", QVariant());
+        }
+        return;
+    }
+    QPalette palette = label->palette();
+    // (rich text is laid out by a text document, which takes a plain colour: the gradient's first colour there)
+    const bool rich = label->wordWrap() || (label->textInteractionFlags() & (Qt::TextSelectableByMouse | Qt::TextSelectableByKeyboard)) || label->textFormat() == Qt::RichText || label->textFormat() == Qt::MarkdownText || (label->textFormat() == Qt::AutoText && Qt::mightBeRichText(label->text()));
+    const QBrush brush = rich ? QBrush(helper.accentTitleColor(palette)) : helper.accentTitleBrush(palette);
+    for (QPalette::ColorGroup group : {QPalette::Active, QPalette::Inactive}) {
+        palette.setBrush(group, QPalette::WindowText, brush);
+        palette.setBrush(group, QPalette::Text, brush);
+    }
+    label->setPalette(palette);
+    label->setProperty("_breeze_ng_title", true);
+}
+
 void Style::polish(QWidget *widget)
 {
     if (!widget) {
         return;
+    }
+
+    if (auto label = qobject_cast<QLabel *>(widget)) {
+        ngAccentTitle(label, *_helper);
     }
 
     // register widget to animations
@@ -510,6 +611,60 @@ void Style::polish(QWidget *widget)
     } else if (widget->parent() && widget->parent()->inherits("QComboBoxListView")) {
         widget->setAutoFillBackground(false);
 
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+    // (Qt 6 only: there the calendar's delegate asks the style for each cell's panel, where the disc is drawn. Qt 5's
+    // paints the cell itself: with this palette its chosen day would be white on white, no mark)
+    } else if (widget->objectName() == QLatin1String("qt_calendar_navigationbar") && _helper->isAurora()) {
+        // the calendar's bar of month and year: on the glass, as the rest of the calendar (it filled itself solid),
+        // its text the window's
+        QPalette calendarPalette = widget->palette();
+        calendarPalette.setColor(QPalette::Highlight, QColor(0, 0, 0, 0));
+        calendarPalette.setColor(QPalette::HighlightedText, calendarPalette.color(QPalette::WindowText));
+        widget->setPalette(calendarPalette);
+        if (widget->autoFillBackground()) {
+            widget->setAutoFillBackground(false);
+            widget->setProperty("_breeze_ng_unfilled", true);
+        }
+    } else if ((widget->objectName() == QLatin1String("qt_calendar_calendarview") || widget->inherits("QCalendarWidget")) && _helper->isAurora()) {
+        // the weekend's days: Qt's pure red read dark on the glass of a dark scheme, and loud on a light one
+        if (auto *calendar = qobject_cast<QCalendarWidget *>(widget)) {
+            for (Qt::DayOfWeek day : {Qt::Saturday, Qt::Sunday}) {
+                QTextCharFormat format = calendar->weekdayTextFormat(day);
+                if (format.foreground().color() == QColor(Qt::red)) {
+                    format.setForeground(_helper->isDark(widget->palette()) ? QColor(240, 138, 126) : QColor(192, 57, 43));
+                    calendar->setWeekdayTextFormat(day, format);
+                }
+            }
+        }
+        if (!widget->property("_breeze_ng_calendar_palette").isValid()) {
+            widget->setProperty("_breeze_ng_calendar_palette", QVariant::fromValue(widget->palette()));
+            widget->setProperty("_breeze_ng_calendar_own", widget->testAttribute(Qt::WA_SetPalette));
+        }
+        // (the calendar's model takes the chosen day's colours from the calendar widget's palette, not its view's)
+        // the chosen day is a disc of the full accent (drawPanelItemViewItemPrimitive): its number white. The
+        // calendar's own delegate fills the whole cell with the highlight first: the cell's own ground, the disc is ours
+        QPalette palette = widget->palette();
+        for (QPalette::ColorGroup group : {QPalette::Active, QPalette::Inactive, QPalette::Disabled}) {
+            palette.setColor(group, QPalette::HighlightedText, QColor(255, 255, 255));
+            // (and the cells clear, the chosen one included: the calendar stands on its card of the glass, as the
+            // mockup of 2026-11-24; with opaque cells it was a solid block, black on a dark scheme)
+            palette.setColor(group, QPalette::Highlight, QColor(0, 0, 0, 0));
+            palette.setColor(group, QPalette::Base, QColor(0, 0, 0, 0));
+            palette.setColor(group, QPalette::AlternateBase, QColor(0, 0, 0, 0));
+            palette.setColor(group, QPalette::Window, QColor(0, 0, 0, 0)); // (the row of the days' names)
+        }
+        widget->setPalette(palette);
+#endif
+
+    } else if (_helper->isGlass() && (qobject_cast<QLineEdit *>(widget) || qobject_cast<QTextEdit *>(widget) || qobject_cast<QPlainTextEdit *>(widget))) {
+        // Breeze NG Glass: text selected in a field or an editor sits on the scheme's full accent (Glass gives a
+        // selection the normal text colour, made for the light sheet of the views): white on it
+        QPalette palette = widget->palette();
+        for (QPalette::ColorGroup group : {QPalette::Active, QPalette::Inactive}) {
+            palette.setColor(group, QPalette::HighlightedText, QColor(255, 255, 255));
+        }
+        widget->setPalette(palette);
+
     } else if (widget->inherits("QComboBoxListView") && _helper->isGlass()) {
         // Breeze NG: the list of a combo box draws its rows with Qt's plain item delegate, which fills the current row
         // with the scheme's full accent whatever the view's palette says (dark text on blue, Glass giving a selection
@@ -671,7 +826,11 @@ void Style::polish(QPalette &palette)
     // hue, as the slate of Breeze NG's light scheme leans to its blue. A colour scheme carries one text colour, made
     // for its own accent: with another accent (orange) the slate stayed blue. Only text near grey is tinged (a scheme
     // with coloured text keeps it), and not with a grey accent. BREEZE_NG_TINTED_TEXT=0 leaves the text as it is
-    if (StyleConfigData::accentTint() && qEnvironmentVariable("BREEZE_NG_TINTED_TEXT") != QLatin1String("0")) {
+    // (with the titles in Aurora's gradient the accent is theirs: the rest of the text stays plain, white on a dark scheme)
+    // A dark scheme is left as it is, its white text and its dimmed text alike: a tinged dimmed text in the palette came
+    // out as near white secondary text in Kirigami (disabledTextColor, placeholders)
+    const bool darkScheme = palette.color(QPalette::Active, QPalette::Window).lightnessF() < 0.5;
+    if (StyleConfigData::accentTint() && !darkScheme && _helper->accentText(palette) < 2 && qEnvironmentVariable("BREEZE_NG_TINTED_TEXT") != QLatin1String("0")) {
         const QColor accent = palette.color(QPalette::Active, QPalette::Highlight);
         if (accent.hslSaturationF() >= 0.15) {
             const qreal hue = accent.hslHueF();
@@ -682,11 +841,26 @@ void Style::polish(QPalette &palette)
                         continue;
                     }
                     const qreal lightness = text.lightnessF();
-                    // (a dark text a clear tinge, as the slate; a light one only a hint, white with colour reads as tinted)
-                    const qreal saturation = lightness < 0.5 ? 0.24 : 0.10;
-                    QColor tinted = QColor::fromHslF(hue, saturation, lightness);
+                    // (a dark text a clear tinge, as the slate. The light text of a dark scheme stays white: even a hint
+                    // of colour read as tinted text there, the accent is left to the titles' option)
+                    if (lightness >= 0.5) {
+                        continue;
+                    }
+                    QColor tinted = QColor::fromHslF(hue, 0.24, lightness);
                     tinted.setAlphaF(text.alphaF());
                     palette.setColor(group, role, tinted);
+                }
+            }
+        }
+    }
+    // Aurora on a light scheme: the glass takes the colour of what lies behind it (a lilac, a peach), a middle tone on
+    // which the scheme's slate text was soft. A deeper ink: the same hue, darker
+    if (_helper->isAurora() && !darkScheme) {
+        for (QPalette::ColorGroup group : {QPalette::Active, QPalette::Inactive}) {
+            for (QPalette::ColorRole role : {QPalette::WindowText, QPalette::Text, QPalette::ButtonText}) {
+                const QColor text = palette.color(group, role);
+                if (text.alpha() == 255 && text.lightnessF() > 0.16 && text.lightnessF() < 0.5) {
+                    palette.setColor(group, role, QColor::fromHslF(qMax<qreal>(0.0, text.hslHueF()), text.hslSaturationF(), text.lightnessF() * 0.62));
                 }
             }
         }
@@ -695,8 +869,12 @@ void Style::polish(QPalette &palette)
         // the selection is translucent: selected text keeps the normal text colour
         // (Aurora with the full accent for selections: white on it)
         const bool full = _helper->isAurora() && _helper->auroraFullSelection();
+        // (Aurora on a light scheme: the deep accent on the light sheet of a selection, as a switched-on button's label;
+        // the plain text there read black on the blue sheet)
+        const bool deep = _helper->isAurora() && !full && !_helper->isDark(palette);
         for (QPalette::ColorGroup group : {QPalette::Active, QPalette::Inactive, QPalette::Disabled}) {
-            palette.setColor(group, QPalette::HighlightedText, full ? QColor(255, 255, 255) : palette.color(group, QPalette::Text));
+            palette.setColor(group, QPalette::HighlightedText,
+                             full ? QColor(255, 255, 255) : deep ? _helper->auroraSelectionText(palette) : palette.color(group, QPalette::Text));
         }
     }
 }
@@ -797,7 +975,10 @@ void Style::ngUnfill(QWidget *widget)
         const bool viewport = scrollArea && scrollArea->viewport() == widget;
         const QWidget *subject = viewport ? static_cast<const QWidget *>(holder) : widget;
         const auto textEdit = qobject_cast<const QTextEdit *>(subject);
-        bool keep = (textEdit && !textEdit->isReadOnly()) || subject->inherits("QPlainTextEdit") || subject->inherits("QGraphicsView") || subject->inherits("QMdiArea")
+        // (a text editor of widgets keeps its solid page on a light scheme, white paper; on a dark one it is a field of
+        // the glass, as the mockup of 2026-11-24 has it: a solid dark block in the middle of the glass looked like a hole)
+        const bool darkScheme = _helper->isDark(QApplication::palette());
+        bool keep = (!darkScheme && ((textEdit && !textEdit->isReadOnly()) || subject->inherits("QPlainTextEdit"))) || subject->inherits("QGraphicsView") || subject->inherits("QMdiArea")
             || subject->inherits("QQuickWidget") || subject->inherits("QOpenGLWidget") || subject->inherits("KItemListContainer") || subject->inherits("QLineEdit")
             || subject->inherits("QAbstractSpinBox") || subject->inherits("QComboBox");
         for (const QWidget *up = subject; up && !keep; up = up->parentWidget()) {
@@ -994,6 +1175,47 @@ private:
 };
 }
 
+// Breeze NG Aurora: the raised segment of a segmented tab bar glides from the old current tab to the new one
+class NgSegmentSlide : public QObject
+{
+public:
+    explicit NgSegmentSlide(QTabBar *bar)
+        : QObject(bar)
+        , m_bar(bar)
+    {
+        m_animation.setDuration(220);
+        m_animation.setEasingCurve(QEasingCurve::OutCubic);
+        QObject::connect(&m_animation, &QVariantAnimation::valueChanged, bar, [bar] {
+            bar->update();
+        });
+        m_last = bar->currentIndex() >= 0 ? QRectF(bar->tabRect(bar->currentIndex())) : QRectF();
+        QObject::connect(bar, &QTabBar::currentChanged, this, [this](int index) {
+            const QRectF to = index >= 0 ? QRectF(m_bar->tabRect(index)) : QRectF();
+            const QRectF from = running() ? m_animation.currentValue().toRectF() : m_last;
+            m_last = to;
+            if (from.isValid() && to.isValid() && StyleConfigData::animationsEnabled()) {
+                m_animation.stop();
+                m_animation.setStartValue(from);
+                m_animation.setEndValue(to);
+                m_animation.start();
+            }
+        });
+    }
+    bool running() const
+    {
+        return m_animation.state() == QAbstractAnimation::Running;
+    }
+    QRectF current() const
+    {
+        return running() ? m_animation.currentValue().toRectF() : QRectF();
+    }
+
+private:
+    QTabBar *m_bar;
+    QRectF m_last;
+    QVariantAnimation m_animation;
+};
+
 // Breeze NG: the rows of a compact sidebar stand 12 px in from the list's sides, as those of Dolphin NG's sidebar from
 // its card (the style draws their selection as a pill, see drawPanelItemViewItemPrimitive)
 class NgSideRowDelegate : public QStyledItemDelegate
@@ -1068,6 +1290,26 @@ void Style::polishScrollArea(QAbstractScrollArea *scrollArea)
         if (scrollArea->autoFillBackground()) {
             scrollArea->setAutoFillBackground(false); // (the list of pages of a settings dialog fills itself, not its viewport)
             scrollArea->setProperty("_breeze_ng_unfilled", true);
+        }
+        // a list in a docked panel (Places): its rows stand in from the sides, inside the card the dock lays under it
+        // (eventFilterDockWidget), as Dolphin NG's sidebar. Only the view's own default delegate
+        if (auto *list = qobject_cast<QListView *>(scrollArea); list && !list->property("_breeze_ng_rows").toBool() && list->itemDelegate()
+            && list->itemDelegate()->parent() == list && QByteArray(list->itemDelegate()->metaObject()->className()) == "QStyledItemDelegate"
+            && !scrollArea->inherits("KDEPrivate::KPageListView")) {
+            bool inDock = false;
+            for (const QWidget *up = scrollArea->parentWidget(); up && !inDock; up = up->parentWidget()) {
+                inDock = qobject_cast<const QDockWidget *>(up) != nullptr;
+            }
+            if (inDock) {
+                list->setProperty("_breeze_ng_rows", true);
+                list->setProperty("_breeze_ng_rows_delegate", QVariant::fromValue(QPointer<QObject>(list->itemDelegate())));
+                list->setProperty("_breeze_ng_rows_mode", int(list->viewMode()));
+                list->setProperty("_breeze_ng_rows_wrap", list->wordWrap());
+                list->setProperty("_breeze_ng_rows_frame", int(list->frameShape()));
+                list->setProperty("_breeze_ng_rows_icon", list->iconSize());
+                list->setProperty("_breeze_ng_rows_palette", QVariant::fromValue(list->palette()));
+                list->setItemDelegate(new NgSideRowDelegate(list));
+            }
         }
     }
 
@@ -1157,6 +1399,27 @@ void Style::polishScrollArea(QAbstractScrollArea *scrollArea)
 //_______________________________________________________________
 void Style::unpolish(QWidget *widget)
 {
+    if (widget && widget->property("_breeze_ng_title").toBool()) {
+        widget->setPalette(QPalette());
+        widget->setProperty("_breeze_ng_title", QVariant());
+    }
+    if (auto label = qobject_cast<QLabel *>(widget)) {
+        label->setProperty("_breeze_ng_title_seq", label->property("_breeze_ng_title_seq").toInt() + 1); // (a queued sheet is dropped)
+    }
+    if (auto label = qobject_cast<QLabel *>(widget); label && label->property("_breeze_ng_title_sheet").isValid()) {
+        // (KTitleWidget's own sheet, as it was before the accent)
+        label->setStyleSheet(label->property("_breeze_ng_title_sheet").toString());
+        label->setProperty("_breeze_ng_title_sheet", QVariant());
+    }
+    if (widget && widget->property("_breeze_ng_joined").isValid()) {
+        // a button still joined to its menu (or fading out of it): let go now, and the next round makes a pending
+        // fade's end do nothing
+        widget->setProperty("_breeze_ng_join_round", widget->property("_breeze_ng_join_round").toInt() + 1);
+        for (const char *name : {"_breeze_ng_joined", "_breeze_ng_joined_fade", "_breeze_ng_join_corner", "_breeze_ng_joined_bg", "_breeze_ng_joined_edge", "_breeze_ng_joined_item"}) {
+            widget->setProperty(name, QVariant());
+        }
+    }
+
     // register widget to animations
     _animations->unregisterWidget(widget);
     _frameShadowFactory->unregisterWidget(widget);
@@ -1167,6 +1430,17 @@ void Style::unpolish(QWidget *widget)
     _blurHelper->unregisterWidget(widget);
     _toolsAreaManager->unregisterWidget(widget);
 
+    if (widget->property("_breeze_ng_calendar_palette").isValid()) {
+        // the calendar's palette as it was before the chosen day became a disc (see polish)
+        if (widget->property("_breeze_ng_calendar_own").toBool()) {
+            widget->setPalette(widget->property("_breeze_ng_calendar_palette").value<QPalette>());
+        } else {
+            widget->setPalette(QPalette());
+            widget->setAttribute(Qt::WA_SetPalette, false);
+        }
+        widget->setProperty("_breeze_ng_calendar_palette", QVariant());
+        widget->setProperty("_breeze_ng_calendar_own", QVariant());
+    }
     if (auto *list = qobject_cast<QListView *>(widget); list && list->property("_breeze_ng_rows").toBool()) {
         // the list of pages of a settings window as it was before the compact rows (see polishScrollArea)
         QAbstractItemDelegate *ours = list->itemDelegate();
@@ -1469,7 +1743,8 @@ int Style::pixelMetric(PixelMetric metric, const QStyleOption *option, const QWi
     case PM_DockWidgetFrameWidth:
         return 0;
     case PM_DockWidgetTitleMargin:
-        return Metrics::Frame_FrameWidth;
+        // (Aurora: the title stands inside the panel's card, with room around it as a group's title has)
+        return Metrics::Frame_FrameWidth + (_helper->isAurora() ? 8 : 0);
     case PM_DockWidgetTitleBarButtonMargin:
         return Metrics::ToolButton_MarginWidth;
 
@@ -1984,7 +2259,7 @@ bool Style::drawWidgetPrimitive(const QStyleOption *option, QPainter *painter, c
         painter->fillRect(widget->rect(), _helper->alphaColor(widget->palette().color(QPalette::Window), _helper->windowSheetAlpha()));
         if (_helper->isAurora()) {
             painter->setCompositionMode(QPainter::CompositionMode_SourceOver);
-            _helper->renderAuroraLights(painter, widget->rect(), widget->palette(), widget->isActiveWindow());
+            _helper->renderAuroraLights(painter, widget->rect(), widget->palette(), _helper->windowActive(widget));
         }
         painter->restore();
         _helper->cutCorners(painter, widget);
@@ -2338,13 +2613,17 @@ void Style::drawItemText(QPainter *painter,
     // under dimmed text (the notes of a settings page, a disabled control): faint and thin, the shadow smudged it
     if (enabled && !_ngNoGlassShadow && textRole != QPalette::NoRole && textRole != QPalette::HighlightedText && !text.isEmpty()) {
         QColor shadow;
-        const QColor ink = palette.color(enabled ? QPalette::Active : QPalette::Disabled, textRole);
+        const QBrush inkBrush = palette.brush(enabled ? QPalette::Active : QPalette::Disabled, textRole);
+        // (a title in a gradient: the tone of its first colour)
+        const QColor ink = (inkBrush.gradient() && !inkBrush.gradient()->stops().isEmpty()) ? inkBrush.gradient()->stops().constFirst().second : inkBrush.color();
         if (_helper->textShadow(painter->device(), ink, &shadow)) {
             const qreal strength = 1.0;
-            // (mostly below the strokes, a little at their sides: a ring all round blurred small grey text instead)
+            // (one line of the opposite tone right under the strokes, as the etched text of macOS: it lifts the
+            // letters off the glass and leaves their edges sharp. Six spots round the strokes, a soft halo, read as
+            // text out of focus at these sizes)
             static const struct {
                 qreal dx, dy, alpha;
-            } spots[] = {{0, 1, 0.55}, {-1, 1, 0.22}, {1, 1, 0.22}, {0, 2, 0.22}, {-1, 0, 0.12}, {1, 0, 0.12}};
+            } spots[] = {{0, 1, 0.60}};
             for (const auto &spot : spots) {
                 QPalette ghost(palette);
                 QColor c = shadow;
@@ -2437,10 +2716,38 @@ bool Style::eventFilter(QObject *object, QEvent *event)
     if (auto tabBar = qobject_cast<QTabBar *>(object)) {
         // Breeze NG Glass: a tab bar in a translucent window is not cleared between paints, so the old tongue and
         // the labels would pile up when the current tab changes. Lay a fresh sheet first.
-        if (event->type() == QEvent::Paint && tabBar->window() && tabBar->window()->property("_breeze_ng_glass").toBool()) {
+        const bool glassBar = tabBar->window() && tabBar->window()->property("_breeze_ng_glass").toBool();
+        const bool segmented = _helper->isAurora() && !tabBar->documentMode() && tabBar->count() > 0 && !tabBar->property("_breeze_ng_pill_tabs").toBool()
+            && (tabBar->shape() == QTabBar::RoundedNorth || tabBar->shape() == QTabBar::RoundedSouth || tabBar->shape() == QTabBar::TriangularNorth
+                || tabBar->shape() == QTabBar::TriangularSouth);
+        if (event->type() == QEvent::Paint && (glassBar || segmented)) {
             QPainter painter(tabBar);
             painter.setClipRegion(static_cast<QPaintEvent *>(event)->region());
-            _helper->clearUnder(&painter, tabBar->rect());
+            if (glassBar) {
+                _helper->clearUnder(&painter, tabBar->rect());
+            }
+            // Aurora, the controls of 2026-11-24: the track of a segmented control, once across all the tabs, before
+            // they paint (the tabs draw only the raised segment of the current one, see drawTabBarTabShapeControl),
+            // in any window, opaque or glass
+            if (segmented) {
+                QRect bar = tabBar->tabRect(0);
+                for (int i = 1; i < tabBar->count(); ++i) {
+                    bar = bar.united(tabBar->tabRect(i));
+                }
+                _helper->renderSegmentTrack(&painter, QRectF(bar), tabBar->palette());
+                // the raised segment of the current tab, here under the labels, gliding when the current tab changes
+                auto *slide = static_cast<NgSegmentSlide *>(tabBar->property("_breeze_ng_segment_slide").value<QObject *>());
+                if (!slide) {
+                    slide = new NgSegmentSlide(tabBar);
+                    tabBar->setProperty("_breeze_ng_segment_slide", QVariant::fromValue<QObject *>(slide));
+                }
+                const int current = tabBar->currentIndex();
+                if (current >= 0) {
+                    QRectF at = slide->running() ? slide->current() : QRectF(tabBar->tabRect(current));
+                    const bool first = at.left() <= bar.left() + 1, last = at.right() >= bar.right() - 1;
+                    _helper->renderSegmentTab(&painter, at, tabBar->palette(), true, first, last);
+                }
+            }
         }
         return false;
     }
@@ -2469,7 +2776,7 @@ bool Style::eventFilter(QObject *object, QEvent *event)
                 } else {
                     painter.fillRect(strip, sheet);
                 }
-                const QColor line = KColorUtils::overlayColors(sheet, edge);
+                const QColor line = sheet.alpha() < 255 ? edge : KColorUtils::overlayColors(sheet, edge);
                 painter.fillRect(QRect(strip.left(), strip.top(), 1, strip.height()), line);
                 painter.fillRect(QRect(strip.right(), strip.top(), 1, strip.height()), line);
             }
@@ -2557,7 +2864,7 @@ bool Style::eventFilter(QObject *object, QEvent *event)
                 painter.setCompositionMode(QPainter::CompositionMode_Source);
                 painter.fillRect(widget->rect(), _helper->alphaColor(widget->palette().color(QPalette::Window), _helper->windowSheetAlpha()));
                 painter.setCompositionMode(QPainter::CompositionMode_SourceOver);
-                _helper->renderAuroraLights(&painter, widget->rect(), widget->palette(), widget->isActiveWindow());
+                _helper->renderAuroraLights(&painter, widget->rect(), widget->palette(), _helper->windowActive(widget));
                 _helper->cutCorners(&painter, widget);
                 return false;
             }
@@ -2648,6 +2955,10 @@ bool Style::eventFilterScrollArea(QWidget *widget, QEvent *event)
         if (auto scrollArea = qobject_cast<QScrollArea *>(widget)) {
             ngUnfill(scrollArea->viewport());
             ngUnfill(scrollArea->widget());
+        } else if (auto area = qobject_cast<QAbstractScrollArea *>(widget); area && event->type() == QEvent::Show) {
+            // (any scroll area's viewport, once its window is known to be glass: polished before its window, the
+            // viewport of a text editor was looked at too early and kept its solid page)
+            ngUnfill(area->viewport());
         }
     }
 
@@ -2809,6 +3120,20 @@ bool Style::eventFilterNgPopup(QWidget *popup, QEvent *event)
 {
     static const char joinedProperty[] = "_breeze_ng_joined";
     static const bool debug = qEnvironmentVariableIsSet("BREEZE_NG_DEBUG");
+    if (event->type() == QEvent::Show && QApplication::mouseButtons() != Qt::NoButton) {
+        // A menu opened with a click on a window that was in the background: on Wayland the compositor makes the window
+        // the active one (its title bar says so) but the keyboard goes to the popup, and Qt hears of the activation
+        // only when the menu closes: under its open menu the window stayed dimmed, its default button grey. Qt is told
+        // now; the compositor's own word follows when the menu closes (or says otherwise)
+        QWidget *owner = popup->parentWidget() ? popup->parentWidget()->window() : nullptr;
+        if (owner && owner != popup && owner->isVisible() && !owner->isActiveWindow() && owner->windowType() != Qt::Popup
+            && owner->geometry().contains(QCursor::pos())) {
+            QT_WARNING_PUSH
+            QT_WARNING_DISABLE_DEPRECATED
+            QApplication::setActiveWindow(owner);
+            QT_WARNING_POP
+        }
+    }
     if (event->type() == QEvent::Show) {
         if (!StyleConfigData::menuJoin()) {
             return false; // switched off in the settings
@@ -2883,6 +3208,11 @@ bool Style::eventFilterNgPopup(QWidget *popup, QEvent *event)
             }
             return false;
         }
+        // (a menu narrower than its button: as wide as the button, so that the two are one shape; the button's
+        // corner past the menu's edge stood out square)
+        if (popup->width() < buttonRect.width()) {
+            popup->resize(buttonRect.width(), popup->height());
+        }
         popup->setProperty("_breeze_ng_joins", QVariant::fromValue(QPointer<QWidget>(button)));
         popup->setProperty("_breeze_ng_join_button", buttonRect);
         popup->setProperty("_breeze_ng_join_top", menuEdge == Qt::TopEdge);
@@ -2891,7 +3221,35 @@ bool Style::eventFilterNgPopup(QWidget *popup, QEvent *event)
         QColor outline;
         const QColor sheet = _helper->menuSheet(popup->palette(), _helper->hasAlphaChannel(popup), &outline, true);
         button->setProperty(joinedProperty, buttonSide);
+        // (a new opening: a release still waiting for the last menu's fade must not let go of this one)
+        button->setProperty("_breeze_ng_join_round", button->property("_breeze_ng_join_round").toInt() + 1);
+        button->setProperty("_breeze_ng_joined_fade", QVariant());
+        // the corners on the joined side go from round to square as the menu opens (160 ms, as the menu fades in)
+        if (StyleConfigData::animationsEnabled()) {
+            button->setProperty("_breeze_ng_join_corner", 1.0);
+            const int openRound = button->property("_breeze_ng_join_round").toInt();
+            QPointer<QWidget> opened(button);
+            auto *square = new QVariantAnimation(button);
+            square->setDuration(160);
+            square->setStartValue(1.0);
+            square->setEndValue(0.0);
+            square->setEasingCurve(QEasingCurve::OutCubic);
+            QObject::connect(square, &QVariantAnimation::valueChanged, button, [opened, openRound](const QVariant &value) {
+                if (opened && opened->property("_breeze_ng_join_round").toInt() == openRound) {
+                    opened->setProperty("_breeze_ng_join_corner", value.toReal());
+                    opened->update();
+                }
+            });
+            square->start(QAbstractAnimation::DeleteWhenStopped);
+        } else {
+            button->setProperty("_breeze_ng_join_corner", 0.0);
+        }
         button->setProperty("_breeze_ng_joined_bg", sheet);
+        // (on Aurora's light frost the menu's edge is a white hairline, which a joined button on the frost did not
+        // show: the button's open side read as no edge at all. There a faint edge of ink, as the menu's shadow draws it)
+        if (_helper->isAurora() && !_helper->isDark(popup->palette())) {
+            outline = _helper->alphaColor(_helper->ink(popup->palette()), 0.34); // (as dark as the menu's edge with its shadow, also on the darker glass of a menu bar)
+        }
         button->setProperty("_breeze_ng_joined_edge", outline);
         button->update();
         _shadowHelper->updateShadows(popup); // no shadow on the joined side
@@ -2905,16 +3263,59 @@ bool Style::eventFilterNgPopup(QWidget *popup, QEvent *event)
         const QVariant joins = popup->property("_breeze_ng_joins");
         if (joins.isValid()) {
             if (QWidget *button = joins.value<QPointer<QWidget>>()) {
-                button->setProperty(joinedProperty, QVariant());
-                button->setProperty("_breeze_ng_joined_bg", QVariant());
-                button->setProperty("_breeze_ng_joined_edge", QVariant());
-                button->setProperty("_breeze_ng_joined_item", QVariant());
-                // while the popup was open the button counted as pressed; drop that at once, or the hover tone
-                // would fade out over the button as if the pointer had just left it
-                _animations->widgetStateEngine().snap(button, AnimationHover, false);
-                _animations->widgetStateEngine().snap(button, AnimationFocus, false);
-                _animations->widgetStateEngine().snap(button, AnimationPressed, false);
-                button->update();
+                // the button lets go of the menu when the menu is gone: KWin fades a closing popup out (its "Fading
+                // popups", 600 ms at the normal speed), and a button let go at once showed the menu fading with its
+                // corner cut, joined to nothing. A new opening meanwhile keeps the button joined (the counter)
+                const int round = button->property("_breeze_ng_join_round").toInt() + 1;
+                button->setProperty("_breeze_ng_join_round", round);
+                const qreal factor = KSharedConfig::openConfig(QStringLiteral("kdeglobals"))->group(QStringLiteral("KDE")).readEntry("AnimationDurationFactor", 1.0);
+                const int fadeOut = StyleConfigData::animationsEnabled() ? qBound(0, qRound(600 * factor), 1500) : 0;
+                QPointer<QWidget> guard(button);
+                // (the fade runs on the button: the style may be gone, a change of style, before it ends)
+                QPointer<QObject> self(this);
+                auto release = [this, self, guard, round] {
+                    QWidget *button = guard.data();
+                    if (!self || !button || button->property("_breeze_ng_join_round").toInt() != round) {
+                        return;
+                    }
+                    button->setProperty(joinedProperty, QVariant());
+                    button->setProperty("_breeze_ng_join_corner", QVariant());
+                    button->setProperty("_breeze_ng_joined_bg", QVariant());
+                    button->setProperty("_breeze_ng_joined_edge", QVariant());
+                    button->setProperty("_breeze_ng_joined_item", QVariant());
+                    // while the popup was open the button counted as pressed; drop that at once, or the hover tone
+                    // would fade out over the button as if the pointer had just left it
+                    _animations->widgetStateEngine().snap(button, AnimationHover, false);
+                    _animations->widgetStateEngine().snap(button, AnimationFocus, false);
+                    _animations->widgetStateEngine().snap(button, AnimationPressed, false);
+                    button->update();
+                };
+                if (fadeOut > 0) {
+                    // the joined shape fades as the menu does: opacity (1 - t)^4, KWin's OutQuart
+                    auto *fade = new QVariantAnimation(button);
+                    fade->setDuration(fadeOut);
+                    fade->setStartValue(0.0);
+                    fade->setEndValue(1.0);
+                    QObject::connect(fade, &QVariantAnimation::valueChanged, button, [guard, round](const QVariant &value) {
+                        if (!guard || guard->property("_breeze_ng_join_round").toInt() != round) {
+                            return;
+                        }
+                        const qreal t = value.toReal();
+                        const qreal opacity = std::pow(1.0 - t, 4.0);
+                        guard->setProperty("_breeze_ng_joined_fade", opacity);
+                        guard->setProperty("_breeze_ng_join_corner", 1.0 - opacity); // (the corners round off as the menu goes)
+                        guard->update();
+                    });
+                    QObject::connect(fade, &QVariantAnimation::finished, button, [release, guard] {
+                        if (guard) {
+                            guard->setProperty("_breeze_ng_joined_fade", QVariant());
+                        }
+                        release();
+                    });
+                    fade->start(QAbstractAnimation::DeleteWhenStopped);
+                } else {
+                    release();
+                }
             }
             popup->setProperty("_breeze_ng_joins", QVariant());
             popup->setProperty("_breeze_ng_join_span", QVariant());
@@ -3007,6 +3408,7 @@ void Style::ngRenderPopupPanel(QPainter *painter, const QRect &rect, const QPale
     }
 
     painter->save();
+    const auto mode = painter->compositionMode();
     _helper->renderMenuFrame(painter, rect, background, outline, hasAlpha, seamlessEdges);
 
     if (joinSpan.isValid()) {
@@ -3024,16 +3426,36 @@ void Style::ngRenderPopupPanel(QPainter *painter, const QRect &rect, const QPale
         // popup is wider than the button or shifted, its edge then meets the button's sides without a break
         painter->drawRect(QRect(joinSpan.left() + 1, y, qMax(1, joinSpan.width() - 2), 2));
         // a corner under the button becomes square, and the side outline runs straight up to the button
-        const int cornerTop = top ? rect.top() : rect.bottom() - radius;
-        // (a see-through sheet is laid in place of what was there, and so is its outline: the frame's own colour then)
-        const QColor sideLine = background.alpha() < 255 ? outline : KColorUtils::overlayColors(background, outline);
-        if (joinSpan.left() <= rect.left() + radius) {
-            painter->drawRect(QRect(rect.left(), cornerTop, radius, radius));
-            painter->fillRect(QRect(rect.left(), cornerTop, 1, radius), sideLine);
-        }
-        if (joinSpan.right() >= rect.right() - radius) {
-            painter->drawRect(QRect(rect.right() - radius, cornerTop, radius + 1, radius));
-            painter->fillRect(QRect(rect.right(), cornerTop, 1, radius), sideLine);
+        if (hasAlpha) {
+            // a see-through sheet: the corner is the frame itself again, drawn by the same code with its top (and the
+            // side towards the button) left open, so that the side line is the same antialiased stroke over half a pixel
+            // of sheet as the rest of the edge. A plain line laid there came out lighter than the edge below it
+            auto openCorner = [&](const QRect &corner, Qt::Edges open) {
+                painter->save();
+                painter->setCompositionMode(QPainter::CompositionMode_Source);
+                painter->fillRect(corner, Qt::transparent);
+                painter->setCompositionMode(mode);
+                _helper->renderMenuFrame(painter, corner, background, outline, true, open);
+                painter->restore();
+            };
+            const int cornerY = top ? rect.top() : rect.bottom() - radius + 1;
+            if (joinSpan.left() <= rect.left() + radius) {
+                openCorner(QRect(rect.left(), cornerY, radius, radius), Qt::TopEdge | Qt::RightEdge | Qt::BottomEdge);
+            }
+            if (joinSpan.right() >= rect.right() - radius) {
+                openCorner(QRect(rect.right() - radius + 1, cornerY, radius, radius), Qt::TopEdge | Qt::LeftEdge | Qt::BottomEdge);
+            }
+        } else {
+            const int cornerTop = top ? rect.top() : rect.bottom() - radius;
+            const QColor sideLine = KColorUtils::overlayColors(background, outline);
+            if (joinSpan.left() <= rect.left() + radius) {
+                painter->drawRect(QRect(rect.left(), cornerTop, radius, radius));
+                painter->fillRect(QRect(rect.left(), cornerTop, 1, radius), sideLine);
+            }
+            if (joinSpan.right() >= rect.right() - radius) {
+                painter->drawRect(QRect(rect.right() - radius, cornerTop, radius + 1, radius));
+                painter->fillRect(QRect(rect.right(), cornerTop, 1, radius), sideLine);
+            }
         }
     }
 
@@ -3041,6 +3463,15 @@ void Style::ngRenderPopupPanel(QPainter *painter, const QRect &rect, const QPale
 }
 
 //____________________________________________________________________________
+// Aurora: a docked panel whose title Qt draws (no title bar widget of the application's, horizontal) has it inside
+// the card its content stands on (eventFilterDockWidget, drawDockWidgetTitleControl)
+static bool ngDockTitleInCard(const QDockWidget *dockWidget)
+{
+    return dockWidget && !dockWidget->isFloating() && !dockWidget->titleBarWidget() && !(dockWidget->features() & QDockWidget::DockWidgetVerticalTitleBar)
+        && dockWidget->window() && dockWidget->window()->property("_breeze_ng_glass").toBool() && dockWidget->widget()
+        && !dockWidget->widget()->inherits("KFilePlacesView");
+}
+
 bool Style::eventFilterDockWidget(QDockWidget *dockWidget, QEvent *event)
 {
     // Breeze NG Glass: inside a translucent window the dock area is not cleared before its children repaint, so
@@ -3052,9 +3483,38 @@ bool Style::eventFilterDockWidget(QDockWidget *dockWidget, QEvent *event)
         painter.fillRect(dockWidget->rect(), _helper->alphaColor(dockWidget->palette().color(QPalette::Window), _helper->windowSheetAlpha()));
         if (_helper->isAurora()) {
             painter.setCompositionMode(QPainter::CompositionMode_SourceOver);
-            _helper->renderAuroraLights(&painter, QRectF(dockWidget->mapFrom(dockWidget->window(), QPoint(0, 0)), dockWidget->window()->size()), dockWidget->palette(), dockWidget->isActiveWindow());
+            _helper->renderAuroraLights(&painter, QRectF(dockWidget->mapFrom(dockWidget->window(), QPoint(0, 0)), dockWidget->window()->size()), dockWidget->palette(), _helper->windowActive(dockWidget));
         }
         painter.setCompositionMode(QPainter::CompositionMode_SourceOver);
+        // Aurora, the controls of 2026-11-24: the content of a docked panel (Places, a sidebar) stands on a card, a
+        // different tone from the window, as Dolphin NG's sidebar (it stood on the bare glass)
+        // (not under a panel of Dolphin NG, which lays its own card: the two came out as a double white edge)
+        if (_helper->isAurora() && dockWidget->widget() && dockWidget->widget()->isVisible() && !dockWidget->widget()->inherits("KFilePlacesView")
+            && !dockWidget->inherits("DolphinDockWidget")) {
+            QRectF card = QRectF(dockWidget->widget()->geometry()).adjusted(-2, -2, 2, 2);
+            // the panel's own title ("Places") inside the card, as a group's title in its card (it stood above the
+            // card, on the bare glass); a title bar of the application's own stays outside
+            if (ngDockTitleInCard(dockWidget)) {
+                card.setTop(0);
+                // (its float and close buttons, which Qt lays flush with the panel's edge: in from the card's edge)
+                const auto buttons = dockWidget->findChildren<QAbstractButton *>(Qt::FindDirectChildrenOnly);
+                int right = 0;
+                for (const QAbstractButton *button : buttons) {
+                    if (button->isVisible() && button->objectName().startsWith(QLatin1String("qt_dockwidget_"))) {
+                        right = qMax(right, button->geometry().right());
+                    }
+                }
+                const int shift = right - (dockWidget->width() - 14);
+                if (right > 0 && shift > 0) {
+                    for (QAbstractButton *button : buttons) {
+                        if (button->objectName().startsWith(QLatin1String("qt_dockwidget_"))) {
+                            button->move(button->x() - shift, button->y());
+                        }
+                    }
+                }
+            }
+            _helper->renderAuroraSideCard(&painter, card, dockWidget->palette());
+        }
         _helper->cutCorners(&painter, dockWidget); // (a window that rounds its own corners: the dock reaches into one)
         return false;
     }
@@ -3348,9 +3808,14 @@ void Style::loadConfiguration()
     // Breeze NG: what is open shows the new settings at once (opacity, veils, lights, selections): the values were
     // read again above, but the windows kept what they had painted until something repainted them by chance. A
     // moment later, so that every window has had the change too.
-    QTimer::singleShot(0, this, [] {
+    // The titles (AccentText) are laid in when a label is polished: the labels already open take the option again
+    QTimer::singleShot(0, this, [this] {
         const auto widgets = QApplication::topLevelWidgets();
         for (QWidget *widget : widgets) {
+            const auto labels = widget->findChildren<QLabel *>();
+            for (QLabel *label : labels) {
+                ngAccentTitle(label, *_helper);
+            }
             if (widget->isVisible()) {
                 widget->update();
                 const auto children = widget->findChildren<QWidget *>();
@@ -5127,8 +5592,10 @@ bool Style::drawFramePrimitive(const QStyleOption *option, QPainter *painter, co
     }
 
     // render
-    if (_helper->isAurora() && widget && widget->property(PropertyNames::sidePanelView).toBool() && widget->property("_breeze_ng_veil").toBool()
-        && widget->window()->property("_breeze_ng_glass").toBool()) {
+    // (any side panel of a glass window: the veil mark is set only when the panel filled itself, and a dock's list that
+    // did not stood on the bare glass, the same as the window)
+    if (_helper->isAurora() && widget && widget->property(PropertyNames::sidePanelView).toBool() && widget->window()->property("_breeze_ng_glass").toBool()
+        && !widget->inherits("KFilePlacesView")) {
         // Aurora: a side panel is a card on the glass, as the sidebar of Dolphin NG
         _helper->renderAuroraSideCard(painter, QRectF(rect), palette);
     } else if (!StyleConfigData::sidePanelDrawFrame() && widget && widget->property(PropertyNames::sidePanelView).toBool()) {
@@ -5274,14 +5741,33 @@ bool Style::drawFrameLineEditPrimitive(const QStyleOption *option, QPainter *pai
             // a field is a slot in the glass: a hairline round it so that it reads as one (a flat block of veil, the
             // same tone as a button, did not say "type here"); one that cannot be typed into is the same slot, its
             // ground much lighter, so that its text (a font's name, a path) still reads as the content
-            edge = _helper->alphaColor(_helper->ink(palette), _helper->isDark(palette) ? 0.16 : 0.12);
+            edge = _helper->alphaColor(_helper->ink(palette), _helper->isDark(palette) ? 0.22 : 0.12);
             if (!enabled || readOnly) {
                 background = _helper->alphaColor(background, 0.40);
                 edge = _helper->alphaColor(edge, enabled ? 0.9 : 0.6);
             }
         }
+        // Aurora, the controls of 2026-11-24: a focused field is edged with the accent (the glow inside stays, softer);
+        // a field that cannot be used is only a dashed outline, no ground
+        const bool dashed = _helper->isAurora() && !enabled && !isQtQuickControl(option, widget);
+        if (_helper->isAurora() && hasFocus && !neutral) {
+            edge = _helper->auroraAccent(palette, 1.0);
+        }
+        if (dashed) {
+            _helper->renderFrame(painter, rect, QColor(0, 0, 0, 0), QColor(0, 0, 0, 0));
+            painter->save();
+            painter->setRenderHint(QPainter::Antialiasing, true);
+            QPen pen(_helper->alphaColor(_helper->ink(palette), _helper->isDark(palette) ? 0.28 : 0.24), 1.0, Qt::DashLine);
+            pen.setDashPattern({3, 3});
+            painter->setPen(pen);
+            painter->setBrush(Qt::NoBrush);
+            const qreal radius = _helper->frameRadius(PenWidth::Frame);
+            painter->drawRoundedRect(QRectF(rect).adjusted(0.5, 0.5, -0.5, -0.5), radius, radius);
+            painter->restore();
+            return true;
+        }
         _helper->renderFrame(painter, rect, background, edge);
-        if (_helper->isGlass() && enabled && !readOnly && !_helper->isDark(palette)) {
+        if (_helper->isGlass() && enabled && !readOnly) {
             // and a soft shade along the inside of its top edge, as a slot has: light from above
             painter->save();
             painter->setRenderHint(QPainter::Antialiasing, true);
@@ -5291,8 +5777,9 @@ bool Style::drawFrameLineEditPrimitive(const QStyleOption *option, QPainter *pai
             slot.addRoundedRect(inner, radius, radius);
             painter->setClipPath(slot);
             QLinearGradient shade(inner.topLeft(), inner.topLeft() + QPointF(0, 5));
-            shade.setColorAt(0.0, _helper->alphaColor(_helper->ink(palette), 0.07));
-            shade.setColorAt(1.0, _helper->alphaColor(_helper->ink(palette), 0.0));
+            const QColor shadeColor = _helper->isDark(palette) ? QColor(0, 0, 0, 92) : _helper->alphaColor(_helper->ink(palette), 0.07);
+            shade.setColorAt(0.0, shadeColor);
+            shade.setColorAt(1.0, _helper->alphaColor(shadeColor, 0.0));
             painter->fillRect(QRectF(inner.left(), inner.top(), inner.width(), 5), shade);
             painter->restore();
         }
@@ -5305,6 +5792,9 @@ bool Style::drawFrameLineEditPrimitive(const QStyleOption *option, QPainter *pai
             strength = 0.45 * opacity;
         } else if (mouseOver) {
             strength = 0.45;
+        }
+        if (_helper->isAurora() && !neutral) {
+            strength *= 0.55; // (the accent edge says it now)
         }
         _helper->renderNgGlow(painter, rect, neutral ? _helper->neutralText(palette) : _helper->focusColor(palette), strength);
     }
@@ -5322,6 +5812,11 @@ bool Style::drawFrameFocusRectPrimitive(const QStyleOption *option, QPainter *pa
 
     // no focus indicator on ComboBox list items
     if (widget && widget->inherits("QComboBoxListView")) {
+        return true;
+    }
+    // nor on the days of a calendar on Aurora: the chosen day is its disc (a square block around it was the focus)
+    if (_helper->isAurora() && widget && (widget->objectName() == QLatin1String("qt_calendar_calendarview")
+                                         || (widget->parentWidget() && widget->parentWidget()->objectName() == QLatin1String("qt_calendar_calendarview")))) {
         return true;
     }
 
@@ -5435,15 +5930,21 @@ bool Style::drawFrameGroupBoxPrimitive(const QStyleOption *option, QPainter *pai
 
     // normal frame
     const auto &palette(option->palette);
-    const auto background(_helper->frameBackgroundColor(palette));
-    const auto outline(_helper->frameOutlineColor(palette));
+    auto background(_helper->frameBackgroundColor(palette));
+    auto outline(_helper->frameOutlineColor(palette));
+    // Aurora, the controls of 2026-11-24: a group box is a card of the glass, a veil with a light hairline (the solid
+    // mix of window and base it had made every card an opaque block on the glass)
+    painter->setClipRegion(option->rect);
+    if (_helper->isAurora()) {
+        _helper->renderAuroraCard(painter, QRectF(option->rect), palette, _helper->frameRadius(PenWidth::Frame));
+        return true;
+    }
 
     /*
      * need to reset painter's clip region in order to paint behind textbox label
      * (was taken out in QCommonStyle)
      */
 
-    painter->setClipRegion(option->rect);
     _helper->renderFrame(painter, option->rect, background, outline);
 
     return true;
@@ -6059,13 +6560,47 @@ bool Style::drawPanelItemViewItemPrimitive(const QStyleOption *option, QPainter 
     const bool enabled(state & State_Enabled);
     const bool active(state & State_Active);
 
+    // Aurora, the controls of 2026-11-24: the chosen day of a calendar is a round disc of the accent, the square of
+    // the cell's smaller side, centred (never stretched to an ellipse); hover a faint disc
+    const auto inCalendar = [](const QWidget *w) {
+        for (int depth = 0; w && depth < 4; w = w->parentWidget(), ++depth) {
+            if (w->objectName() == QLatin1String("qt_calendar_calendarview") || w->inherits("QCalendarWidget")) {
+                return true;
+            }
+        }
+        return false;
+    };
+    if (_helper->isAurora() && (inCalendar(actualWidget) || inCalendar(widget)) && ((state & State_Selected) || mouseOver)) {
+        const bool selected = state & State_Selected; // (its highlight is clear on purpose, see polish)
+        // (the cell's own ground first, the calendar's opaque Base as its neighbours have: without, the chosen cell
+        // stayed see-through, a square of glass around the disc)
+        _helper->clearUnder(painter, option->rect); // (as every other cell: the calendar's cells are clear, see polish)
+        const qreal side = qMin(rect.width(), rect.height()) - 4;
+        const QRectF disc(QRectF(rect).center().x() - side / 2, QRectF(rect).center().y() - side / 2, side, side);
+        painter->save();
+        painter->setRenderHint(QPainter::Antialiasing, true);
+        painter->setPen(Qt::NoPen);
+        // (the application's accent: the calendar's own highlight is clear, see polish)
+        QColor dayColour = _helper->auroraAccent(QApplication::palette(), 1.0);
+        if (_helper->isDark(palette)) {
+            dayColour = QColor::fromHslF(dayColour.hslHueF(), dayColour.hslSaturationF(), 0.60); // (the deeper accent under a white number)
+        }
+        painter->setBrush(selected ? dayColour : _helper->auroraVeilColor(palette, false));
+        painter->drawEllipse(disc);
+        painter->restore();
+        return true;
+    }
+
     const bool hasCustomBackground = viewItemOption->backgroundBrush.style() != Qt::NoBrush && !selected;
     const bool hasSolidBackground = !hasCustomBackground || viewItemOption->backgroundBrush.style() == Qt::SolidPattern;
     const bool hasAlternateBackground(viewItemOption->features & QStyleOptionViewItem::Alternate);
 
     // Breeze NG: in a list with one selection, the selection slides from the old entry to the new one
     NgSelectionSlide *slide = nullptr;
+    // (not in the list of a combo box: a popup that follows the pointer, repainted at every step of the slide, laid
+    // its see-through rows over each other and the entries above came out lighter and lighter)
     if (auto listView = qobject_cast<const QListView *>(actualWidget); listView && listView->viewMode() == QListView::ListMode
+                                                                        && !listView->inherits("QComboBoxListView")
                                                                         && listView->selectionMode() == QAbstractItemView::SingleSelection
                                                                         && !hasCustomBackground && viewItemOption->index.isValid()) {
         slide = static_cast<NgSelectionSlide *>(listView->property("_breeze_ng_slide").value<QObject *>());
@@ -6693,15 +7228,22 @@ bool Style::drawPushButtonLabelControl(const QStyleOption *option, QPainter *pai
     }
     // Breeze NG Soft: the primary action is a block of the full accent (Helper::renderButtonFrame): its label and icon
     // take the colour of text on a selection (on a light scheme they stayed dark on the blue)
-    if (!_helper->isGlass() && (option->state & State_Enabled) && (option->state & State_Active) && !(option->state & State_On)
-        && option->palette.color(QPalette::ButtonText) != option->palette.color(QPalette::HighlightedText)) {
+    // (Aurora too, since the controls of 2026-11-24: its primary action is the full accent, its label white)
+    const QColor onPrimary = _helper->isAurora() ? QColor(255, 255, 255) : option->palette.color(QPalette::HighlightedText);
+    if ((!_helper->isGlass() || _helper->isAurora()) && (option->state & State_Enabled) && (option->state & State_Active) && !(option->state & State_On)
+        && option->palette.color(QPalette::ButtonText) != onPrimary) {
         if (const auto original = qstyleoption_cast<const QStyleOptionButton *>(option);
             original && (original->features & QStyleOptionButton::DefaultButton) && !(original->features & QStyleOptionButton::Flat)) {
             QStyleOptionButton copy(*original);
             for (QPalette::ColorRole role : {QPalette::ButtonText, QPalette::WindowText, QPalette::Text}) {
-                copy.palette.setColor(role, option->palette.color(QPalette::HighlightedText));
+                copy.palette.setColor(role, onPrimary);
             }
-            return drawPushButtonLabelControl(&copy, painter, widget);
+            // (the label stands on the full accent, not on the glass: no glass shadow, which doubled the white text)
+            const bool before = _ngNoGlassShadow;
+            _ngNoGlassShadow = true;
+            const bool done = drawPushButtonLabelControl(&copy, painter, widget);
+            _ngNoGlassShadow = before;
+            return done;
         }
     }
     // cast option and check
@@ -7274,7 +7816,10 @@ bool Style::drawMenuBarItemControl(const QStyleOption *option, QPainter *painter
     const bool joined = sunken && widget && widget->property("_breeze_ng_joined").isValid() && widget->property("_breeze_ng_joined_item").toRect() == rect;
     if (joined) {
         const QColor sheet = widget->property("_breeze_ng_joined_bg").value<QColor>();
-        const QColor edge = KColorUtils::overlayColors(sheet, widget->property("_breeze_ng_joined_edge").value<QColor>());
+        // (a see-through sheet: the edge itself, a hairline of ink over the fill, as the menu's frame draws it. Mixed
+        // with the sheet first it came out a dark line round the title, beside the menu's light one)
+        const QColor rawEdge = widget->property("_breeze_ng_joined_edge").value<QColor>();
+        const QColor edge = sheet.alpha() < 255 ? rawEdge : KColorUtils::overlayColors(sheet, rawEdge);
         const qreal radius = _helper->frameRadius(PenWidth::Frame);
         QRectF shape = _helper->strokedRect(QRectF(rect));
         shape.adjust(0, 0, 0, radius + 3); // past the bottom: the painter is clipped to the title
@@ -7725,6 +8270,9 @@ bool Style::drawProgressBarContentsControl(const QStyleOption *option, QPainter 
         }
 
         auto contentsColor(option->state.testFlag(QStyle::State_Selected) ? palette.color(QPalette::HighlightedText) : palette.color(HighlightColor));
+        if (_helper->isAurora() && !option->state.testFlag(QStyle::State_Selected) && option->state.testFlag(QStyle::State_Enabled)) {
+            contentsColor = _helper->auroraFill(palette); // (as a slider's track)
+        }
 
         _helper->renderProgressBarGroove(painter, rect, contentsColor, palette.color(QPalette::Window));
         painter->setClipRegion(oldClipRegion);
@@ -8481,7 +9029,27 @@ bool Style::drawTabBarTabLabelControl(const QStyleOption *option, QPainter *pain
 {
     // Breeze NG Aurora: the label of what is on takes the colour of text on a selection (white on the full accent,
     // the deep accent on its light sheet in a light scheme)
-    if (_helper->isAurora() && (_helper->auroraFullSelection() || !_helper->isDark(option->palette)) && (option->state & State_Selected) && option->palette.color(QPalette::ButtonText) != _helper->auroraSelectionText(option->palette)) {
+    // (not a tab of a page: a segment of a segmented control since 2026-11-24, white or a light veil, its label the
+    // normal text; white on a dark scheme)
+    const auto *segmentTab = qstyleoption_cast<const QStyleOptionTab *>(option);
+    const bool segment = _helper->isAurora() && segmentTab && !segmentTab->documentMode && !isQtQuickControl(option, widget)
+        && !(widget && widget->property("_breeze_ng_pill_tabs").toBool());
+    if (segment && (option->state & State_Selected)) {
+        // (the plain text on the raised segment: white on a dark scheme, the window's text on a light one. Not the
+        // accent some tab bars give their current tab: on white it read as a link)
+        const QColor onSegment = _helper->isDark(option->palette) ? QColor(255, 255, 255) : option->palette.color(QPalette::WindowText);
+        if (option->palette.color(QPalette::ButtonText) != onSegment || option->palette.color(QPalette::WindowText) != onSegment
+            || option->palette.color(QPalette::Highlight) != onSegment) {
+            QStyleOptionTab copy(*segmentTab);
+            for (QPalette::ColorRole role : {QPalette::ButtonText, QPalette::WindowText, QPalette::Text, QPalette::Highlight, QPalette::HighlightedText}) {
+                copy.palette.setColor(role, onSegment);
+            }
+            return drawTabBarTabLabelControl(&copy, painter, widget);
+        }
+    }
+    // (nor the current tab of a document bar: the top of its page, its label the page's text)
+    const bool documentTab = _helper->isAurora() && segmentTab && segmentTab->documentMode && !(widget && widget->property("_breeze_ng_pill_tabs").toBool());
+    if (!segment && !documentTab && _helper->isAurora() && (_helper->auroraFullSelection() || !_helper->isDark(option->palette)) && (option->state & State_Selected) && option->palette.color(QPalette::ButtonText) != _helper->auroraSelectionText(option->palette)) {
         if (const auto original = qstyleoption_cast<const QStyleOptionTab *>(option)) {
             QStyleOptionTab copy(*original);
             const QColor onSelection = _helper->auroraSelectionText(option->palette);
@@ -8707,6 +9275,21 @@ bool Style::drawTabBarTabShapeControl(const QStyleOption *option, QPainter *pain
     if (reverseLayout && !verticalTabs) {
         qSwap(isFirst, isLast);
         qSwap(isLeftOfSelected, isRightOfSelected);
+    }
+
+    // Aurora, the controls of 2026-11-24: the tabs of a page (not a document bar) are a segmented control, drawn in
+    // each tab's own rectangle, before the classic tabs' overlaps change it
+    if (_helper->isAurora() && !tabOption->documentMode && !isQtQuickControl && !(widget && widget->property("_breeze_ng_pill_tabs").toBool())
+        && (tabOption->shape == QTabBar::RoundedNorth || tabOption->shape == QTabBar::RoundedSouth || tabOption->shape == QTabBar::TriangularNorth
+            || tabOption->shape == QTabBar::TriangularSouth)) {
+        // (the track is laid once for the whole bar by the tab bar's paint filter, see eventFilter; without a tab bar
+        // widget, each tab lays the part over its own rectangle)
+        // (with a tab bar the track and the current segment are its paint filter's, see eventFilter)
+        if (!qobject_cast<const QTabBar *>(widget)) {
+            _helper->renderSegmentTrack(painter, QRectF(rect), option->palette);
+            _helper->renderSegmentTab(painter, QRectF(rect), option->palette, selected, isFirst, isLast);
+        }
+        return true;
     }
 
     // overlap
@@ -9044,6 +9627,30 @@ bool Style::drawDockWidgetTitleControl(const QStyleOption *option, QPainter *pai
         rect.adjust(4, 0, 0, 0);
     }
 
+    // Aurora: the title inside the panel's card, as a group's title: small, uppercase, a little spaced, faint, set in
+    // from the card's edge; no line under it
+    if (_helper->isAurora() && !verticalTitleBar && ngDockTitleInCard(qobject_cast<const QDockWidget *>(widget))) {
+        QFont small = painter->font();
+        small.setPointSizeF(qMax(7.0, small.pointSizeF() - 1.5));
+        small.setWeight(QFont::DemiBold);
+        small.setLetterSpacing(QFont::PercentageSpacing, 106);
+        small.setCapitalization(QFont::AllUppercase);
+        painter->save();
+        painter->setFont(small);
+        QColor faint = palette.color(QPalette::WindowText);
+        faint.setAlphaF(enabled ? 0.55 : 0.35);
+        painter->setPen(faint);
+        if (_helper->accentText(palette) == 3 && enabled) {
+            painter->setPen(QPen(_helper->accentTitleBrush(palette), 1)); // (AccentText 3: the secondary titles' gradient)
+        }
+        // (the float and close buttons stand 14 px in from the card's edge: eventFilterDockWidget moves them)
+        const QRect text = reverseLayout ? rect.adjusted(14, 0, -12, 0) : rect.adjusted(12, 0, -14, 0);
+        const QString shown = QFontMetrics(small).elidedText(dockWidgetOption->title, Qt::ElideRight, text.width(), Qt::TextHideMnemonic);
+        painter->drawText(text, Qt::AlignLeft | Qt::AlignVCenter | Qt::TextHideMnemonic, shown);
+        painter->restore();
+        return true;
+    }
+
     if (!verticalTitleBar) {
         auto rect(option->rect);
         rect.setY(rect.height() - 1);
@@ -9162,6 +9769,27 @@ bool Style::drawGroupBoxComplexControl(const QStyleOptionComplex *option, QPaint
         if (!styleHint(QStyle::SH_UnderlineShortcut, option, widget))
             alignment |= Qt::TextHideMnemonic;
 
+        // Aurora, the controls of 2026-11-24: the title of a section is small, uppercase, a little spaced and faint,
+        // at the left of its card, so that the card holds the content and the title only names it
+        if (_helper->isAurora() && !(groupBoxOption->subControls & QStyle::SC_GroupBoxCheckBox)) {
+            QFont small = font;
+            small.setPointSizeF(qMax(7.0, font.pointSizeF() - 1.5));
+            small.setWeight(QFont::DemiBold);
+            small.setLetterSpacing(QFont::PercentageSpacing, 106);
+            small.setCapitalization(QFont::AllUppercase);
+            painter->setFont(small);
+            QColor faint = groupBoxOption->palette.color(QPalette::WindowText);
+            faint.setAlphaF(0.55);
+            painter->setPen(faint);
+            // (AccentText 3: the secondary titles take the titles' gradient too)
+            if (_helper->accentText(groupBoxOption->palette) == 3 && (groupBoxOption->state & State_Enabled)) {
+                painter->setPen(QPen(_helper->accentTitleBrush(groupBoxOption->palette), 1));
+            }
+            const QRect left(groupBoxOption->rect.left() + 14, textRect.top(), groupBoxOption->rect.width() - 28, textRect.height());
+            painter->drawText(left, Qt::AlignLeft | Qt::AlignVCenter | Qt::TextHideMnemonic, groupBoxOption->text);
+            return true;
+        }
+
         drawItemText(painter,
                      textRect,
                      Qt::TextShowMnemonic | Qt::AlignHCenter | alignment,
@@ -9257,10 +9885,22 @@ bool Style::drawToolButtonComplexControl(const QStyleOptionComplex *option, QPai
     const auto buttonRect(subControlRect(CC_ToolButton, option, SC_ToolButton, widget));
     const auto menuRect(subControlRect(CC_ToolButton, option, SC_ToolButtonMenu, widget));
 
+    // Breeze NG: a button with its menu beside it (a split button) is one key, its hover and press over the whole:
+    // drawn as two, button and menu part each had their frame, edge and shadow, as if they were two buttons
+    const bool oneKey = menuStyle == BreezePrivate::ToolButtonMenuArrowStyle::SubControl && !inTabBar;
+
     // frame
     if (toolButtonOption->subControls & SC_ToolButton) {
         if (!flat) {
-            copy.rect = buttonRect;
+            copy.rect = oneKey ? buttonRect.united(menuRect) : buttonRect;
+        }
+        if (oneKey && (toolButtonOption->activeSubControls & SC_ToolButtonMenu) && (toolButtonOption->state & State_Sunken)) {
+            copy.state |= State_Sunken; // (the menu part pressed: the whole key)
+        }
+        if (oneKey) {
+            // (the panel's own handling of a split button clips it short of the menu part, to join a second frame
+            // there: not wanted, the key is drawn whole)
+            copy.features &= ~QStyleOptionToolButton::MenuButtonPopup;
         }
         if (inTabBar) {
             drawTabBarPanelButtonToolPrimitive(&copy, painter, widget);
@@ -9270,9 +9910,12 @@ bool Style::drawToolButtonComplexControl(const QStyleOptionComplex *option, QPai
     }
 
     // arrow
+    copy.features = toolButtonOption->features;
     if (menuStyle == BreezePrivate::ToolButtonMenuArrowStyle::SubControl) {
         copy.rect = menuRect;
-        drawPrimitive(PE_IndicatorButtonDropDown, &copy, painter, widget);
+        if (!oneKey) {
+            drawPrimitive(PE_IndicatorButtonDropDown, &copy, painter, widget);
+        }
 
         copy.state &= ~State_MouseOver;
         copy.state &= ~State_Sunken;
@@ -9569,10 +10212,17 @@ bool Style::drawSliderComplexControl(const QStyleOptionComplex *option, QPainter
                 // calculate positions and draw lines
                 const int position(sliderPositionFromValue(sliderOption->minimum, sliderOption->maximum, current, available, upsideDown) + fudge);
                 for (const QLine &tickLine : std::as_const(tickLines)) {
-                    if (horizontal) {
-                        painter->drawLine(tickLine.translated(reverse ? (rect.width() - position) : position, 0));
+                    const QLine line = horizontal ? tickLine.translated(reverse ? (rect.width() - position) : position, 0) : tickLine.translated(0, position);
+                    if (_helper->isAurora()) {
+                        // Aurora, the controls of 2026-11-24: a tick is a dot, not a line
+                        painter->save();
+                        painter->setRenderHint(QPainter::Antialiasing, true);
+                        painter->setPen(Qt::NoPen);
+                        painter->setBrush(color);
+                        painter->drawEllipse(QPointF(line.p1()) + QPointF(0.5, 0.5), 1.6, 1.6);
+                        painter->restore();
                     } else {
-                        painter->drawLine(tickLine.translated(0, position));
+                        painter->drawLine(line);
                     }
                 }
 
@@ -9593,7 +10243,10 @@ bool Style::drawSliderComplexControl(const QStyleOptionComplex *option, QPainter
             const bool upsideDown(sliderOption->upsideDown);
 
             // highlight color
-            const auto &highlight = hasHighlightNeutral(widget, option, mouseOver, hasFocus) ? _helper->neutralText(palette) : palette.color(HighlightColor);
+            QColor highlight = hasHighlightNeutral(widget, option, mouseOver, hasFocus) ? _helper->neutralText(palette) : palette.color(HighlightColor);
+            if (_helper->isAurora() && !hasHighlightNeutral(widget, option, mouseOver, hasFocus) && enabled) {
+                highlight = _helper->auroraFill(palette); // (the accent of the mockup, light enough on a dark scheme)
+            }
 
             if (sliderOption->orientation == Qt::Horizontal) {
                 auto leftRect(grooveRect);
@@ -9690,10 +10343,31 @@ bool Style::drawDialComplexControl(const QStyleOptionComplex *option, QPainter *
         const qreal first(dialAngle(sliderOption, sliderOption->minimum));
         const qreal last(dialAngle(sliderOption, sliderOption->maximum));
 
+        if (_helper->isAurora()) {
+            // Aurora: the ring of the settings (AuroraRing: plain, gradient, glow or ticks), as System Monitor's gauges
+            const qreal second = dialAngle(sliderOption, sliderOption->sliderPosition);
+            const QColor accent = palette.color(QPalette::Active, QPalette::Highlight);
+            const bool dark = _helper->isDark(palette);
+            const qreal hue = accent.hslHueF() < 0 ? 0.58 : accent.hslHueF();
+            // (a second accent with next to no colour stays as it is, like the first: only one not set gets the hue
+            // next to the accent's)
+            const QColor chosen = StyleConfigData::auroraSecondAccent().isEmpty() ? QColor() : QColor(StyleConfigData::auroraSecondAccent());
+            const bool grey2 = chosen.isValid() && (chosen.hslHueF() < 0 || chosen.hslSaturationF() < 0.15);
+            const qreal hue2 = chosen.isValid() && !grey2 ? chosen.hslHueF() : std::fmod(hue + 0.17, 1.0);
+            const bool grey = accent.hslSaturationF() < 0.15;
+            const QColor a1 = grey ? accent : QColor::fromHslF(hue, dark ? 0.90 : 0.80, dark ? 0.66 : 0.50);
+            // (a chosen second accent keeps its hue also next to a colourless first one)
+            const QColor a2 = grey2 ? chosen : ((grey && !chosen.isValid()) ? accent : QColor::fromHslF(hue2, dark ? 0.88 : 0.68, dark ? 0.72 : 0.56));
+            const qreal span = (last - first) * 180 / M_PI;
+            BreezeNg::paintAuroraRing(painter, QRectF(grooveRect), Metrics::Slider_GrooveThickness, first * 180 / M_PI, span,
+                                      (enabled && last != first) ? (second - first) / (last - first) : 0.0, qBound(0, StyleConfigData::auroraRing(), 3), a1, a2,
+                                      _helper->alphaColor(palette.color(QPalette::WindowText), dark ? 0.16 : 0.13));
+        } else {
         // render groove
         _helper->renderDialGroove(painter, grooveRect, grooveColor, palette.color(QPalette::Window), first, last);
+        }
 
-        if (enabled) {
+        if (enabled && !_helper->isAurora()) {
             // highlight
             const auto &highlight = palette.color(HighlightColor);
 

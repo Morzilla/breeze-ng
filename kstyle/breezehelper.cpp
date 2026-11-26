@@ -21,6 +21,7 @@
 #endif
 
 #include <QApplication>
+#include <QGroupBox>
 #include <QCursor>
 #include <cmath>
 #include <QDockWidget>
@@ -206,14 +207,23 @@ QColor Helper::menuSheet(const QPalette &palette, bool alpha, QColor *outline, b
     // (joined: opaque. Behind the menu lies the blur of its own window, behind the button the blur of the desktop:
     // whatever a see-through sheet let through, the open button came out a tone apart from its menu; at 74 % a
     // quarter of the difference, at 90 % still two or three levels)
-    const int glassOpacity = _aurora ? (isDark(palette) ? (joined ? 100 : 38) : (joined ? 100 : 72)) : 78;
-    const int menuOpacity = (joined && !_aurora) ? 100 : ((isGlass() && StyleConfigData::menuOpacity() >= 100) ? glassOpacity : StyleConfigData::menuOpacity());
+    // (2026-11-25, asked for: a menu joined to its button is see-through as every other menu, at the menus' opacity;
+    // the button takes the same sheet, and the small difference of tone between the two is accepted)
+    const int glassOpacity = _aurora ? (isDark(palette) ? 38 : 72) : 78;
+    int menuOpacity = (joined && !_aurora) ? 100 : ((isGlass() && StyleConfigData::menuOpacity() >= 100) ? glassOpacity : StyleConfigData::menuOpacity());
+    // (joined to its button: never thinner than 70 %. The button lies on the window's glass, the menu on the blur of
+    // that window: through a thin sheet the two came out some five levels apart, at 70 % about two)
+    if (joined) {
+        menuOpacity = qMax(menuOpacity, 70);
+    }
     QColor edge = isGlass() ? alphaColor(ink(palette), 0.16) : frameOutlineColor(palette);
     if (menuOpacity < 100 && alpha) {
         background.setAlphaF(menuOpacity / 100.0);
         edge = alphaColor(ink(palette), isGlass() ? 0.16 : 0.12);
         if (_aurora && !isDark(palette)) {
-            edge = QColor(255, 255, 255, 190); // frost has a bright hairline edge
+            // frost has a bright hairline edge; a menu joined to its button takes the button's edge of ink (see
+            // Style::eventFilterNgMenu): its white hairline under the button's dark one read as a white side
+            edge = joined ? alphaColor(ink(palette), 0.34) : QColor(255, 255, 255, 190);
         }
     } else if (isSoft()) {
         edge = alphaColor(ink(palette), 0.10);
@@ -275,6 +285,23 @@ qreal Helper::windowSheetAlpha() const
     return opacity / 100.0;
 }
 
+bool Helper::windowActive(const QWidget *widget) const
+{
+    const QWidget *window = widget ? widget->window() : nullptr;
+    if (!window) {
+        return true;
+    }
+    if (window->isActiveWindow()) {
+        return true;
+    }
+    // (the open popup's owner, through a chain of submenus)
+    const QWidget *owner = QApplication::activePopupWidget();
+    for (int depth = 0; owner && owner->windowType() == Qt::Popup && depth < 8; ++depth) {
+        owner = owner->parentWidget() ? owner->parentWidget()->window() : nullptr;
+    }
+    return owner && owner == window;
+}
+
 qreal Helper::auroraVeil(const QPalette &palette, bool button) const
 {
     const int percent = qBound(0, button ? StyleConfigData::auroraButtonVeil() : StyleConfigData::auroraPanelVeil(), 40);
@@ -303,23 +330,47 @@ QColor Helper::auroraVeilColor(const QPalette &palette, bool button, qreal facto
                             qMin((auroraVeil(palette, button) * (button ? 15.0 : 8.8) * factor) + more * 3.0, 0.94));
 }
 
-void Helper::renderAuroraSideCard(QPainter *painter, const QRectF &rect, const QPalette &palette) const
+QColor Helper::auroraCardColorAt(const QPalette &palette, qreal t) const
 {
-    // the same card as DolphinDockWidget::paintNgGlass in Dolphin NG: every application's sidebar looks like it
-    const QRectF card = rect.adjusted(6, 6, -6, -6);
+    // (the card's own colour in the middle; lighter and a little denser at the top, more see-through at the bottom:
+    // a sheet lit from above, variant B of the 2026-11-24 panels mockup)
+    t = qBound(0.0, t, 1.0);
+    const QColor base = auroraCardColor(palette);
+    if (isDark(palette)) {
+        const QColor top = QColor::fromRgbF(30 / 255.0, 34 / 255.0, 52 / 255.0, qMin(1.0, base.alphaF() * 1.25));
+        const QColor bottom = QColor::fromRgbF(4 / 255.0, 5 / 255.0, 12 / 255.0, qMin(1.0, base.alphaF() * 1.4));
+        return KColorUtils::mix(top, bottom, t);
+    }
+    QColor top = base, bottom = base;
+    top.setAlphaF(qMin(1.0, base.alphaF() * 1.18));
+    bottom.setAlphaF(base.alphaF() * 0.70);
+    return KColorUtils::mix(top, bottom, t);
+}
+
+void Helper::renderAuroraCard(QPainter *painter, const QRectF &rect, const QPalette &palette, qreal radius) const
+{
     painter->save();
     painter->setRenderHint(QPainter::Antialiasing, true);
-    // (the panels' veil, as Dolphin NG's card: a denser one was tried beside System Settings' page, which looked as
-    // light as the card only because its window was opaque, see polish())
-    painter->setBrush(auroraVeilColor(palette, false));
-    if (isDark(palette)) {
-        painter->setPen(Qt::NoPen);
-        painter->drawRoundedRect(card, 12, 12);
-    } else {
-        painter->setPen(QPen(QColor(255, 255, 255, 140), 1)); // (frost has a bright hairline edge)
-        painter->drawRoundedRect(card.adjusted(0.5, 0.5, -0.5, -0.5), 12, 12);
+    QLinearGradient fill(rect.topLeft(), rect.bottomLeft());
+    for (qreal t : {0.0, 0.5, 1.0}) {
+        fill.setColorAt(t, auroraCardColorAt(palette, t));
     }
+    // (one hairline all round, as the mockup: a brighter top edge read as a white line on the dark cards)
+    QColor edge = auroraCardEdge(palette);
+    if (isDark(palette)) {
+        edge = QColor(255, 255, 255, 22);
+    }
+    painter->setBrush(fill);
+    painter->setPen(QPen(edge, 1));
+    painter->drawRoundedRect(rect.adjusted(0.5, 0.5, -0.5, -0.5), radius, radius);
     painter->restore();
+}
+
+void Helper::renderAuroraSideCard(QPainter *painter, const QRectF &rect, const QPalette &palette) const
+{
+    // a sidebar's card, the same as every other card of the glass (group boxes): one look for all the panels, its
+    // density the setting "Sidebar, cards, lists"
+    renderAuroraCard(painter, rect.adjusted(6, 6, -6, -6), palette, frameRadius(PenWidth::Frame));
 }
 
 bool Helper::auroraFullSelection() const
@@ -344,6 +395,59 @@ QColor Helper::auroraSelection(const QPalette &palette, qreal more) const
     const QColor accent = auroraAccent(palette, 1.0);
     const qreal a = qMin(0.5, 0.22 + more), w = 0.55 * (1.0 - a), alpha = w + a;
     return QColor::fromRgbF((w + accent.redF() * a) / alpha, (w + accent.greenF() * a) / alpha, (w + accent.blueF() * a) / alpha, alpha);
+}
+
+QColor Helper::auroraFill(const QPalette &palette) const
+{
+    const QColor accent = auroraAccent(QApplication::palette(), 1.0);
+    return QColor::fromHslF(accent.hslHueF(), accent.hslSaturationF(), isDark(palette) ? 0.60 : 0.52);
+}
+
+int Helper::accentText(const QPalette &palette) const
+{
+    const QColor accent = palette.color(QPalette::Active, QPalette::Highlight);
+    if (accent.hslSaturationF() < 0.15 || qEnvironmentVariable("BREEZE_NG_TINTED_TEXT") == QLatin1String("0")) {
+        return 0;
+    }
+    return qBound(0, StyleConfigData::accentText(), 3);
+}
+
+// (the tones of the mockup "Testi verso l'accento", variants C and D, 2026-11-25)
+static qreal ngAccentHue(const QPalette &palette)
+{
+    const qreal hue = palette.color(QPalette::Active, QPalette::Highlight).hslHueF();
+    return hue < 0 ? 0.58 : hue;
+}
+
+QColor Helper::accentTitleColor(const QPalette &palette) const
+{
+    const qreal hue = ngAccentHue(palette);
+    // (dark schemes: nearly white with a light touch of the accent; a luminous accent read as a blue block of text)
+    // (the gradient's first light: the colour of Aurora's lights, lifted to read on the glass; nearly white it did not show)
+    if (accentText(palette) >= 2) {
+        return isDark(palette) ? QColor::fromHslF(hue, 0.90, 0.78) : QColor::fromHslF(hue, 0.70, 0.38);
+    }
+    return isDark(palette) ? QColor::fromHslF(hue, 0.80, 0.90) : QColor::fromHslF(hue, 0.62, 0.31);
+}
+
+QBrush Helper::accentTitleBrush(const QPalette &palette) const
+{
+    const QColor first = accentTitleColor(palette);
+    if (accentText(palette) < 2) {
+        return first;
+    }
+    // the second light of Aurora: the user's colour, or the hue next to the accent's
+    qreal hue = std::fmod(ngAccentHue(palette) + 0.17, 1.0);
+    if (const QColor chosen(StyleConfigData::auroraSecondAccent()); chosen.isValid() && !StyleConfigData::auroraSecondAccent().isEmpty() && chosen.hslHueF() >= 0) {
+        hue = chosen.hslHueF();
+    }
+    const QColor second = isDark(palette) ? QColor::fromHslF(hue, 0.85, 0.80) : QColor::fromHslF(hue, 0.62, 0.45);
+    // across the text itself (object bounding mode: the painter takes the text's own box)
+    QLinearGradient gradient(0, 0, 1, 0);
+    gradient.setCoordinateMode(QGradient::ObjectBoundingMode);
+    gradient.setColorAt(0.0, first);
+    gradient.setColorAt(1.0, second);
+    return QBrush(gradient);
 }
 
 QColor Helper::auroraSelectionText(const QPalette &palette) const
@@ -526,6 +630,12 @@ bool Helper::glassLayers(const QPainter *painter, QColor *base, QList<QColor> *p
             panels->prepend(inputBackground(parent->palette()));
             continue;
         }
+        if (_aurora && parent->inherits("QDockWidget") && !static_cast<const QDockWidget *>(parent)->isFloating()) {
+            // the card a docked panel lays under its content (Style::eventFilterDockWidget)
+            const qreal y = widget->mapTo(parent, QPoint(0, widget->height() / 2)).y();
+            panels->prepend(auroraCardColorAt(parent->palette(), parent->height() > 0 ? y / qreal(parent->height()) : 0.5));
+            continue;
+        }
         if (parent->inherits("QTabWidget") && child->inherits("QTabBar")) {
             continue; // the tab bar is beside the panel of its tab widget, not on it
         }
@@ -536,7 +646,18 @@ bool Helper::glassLayers(const QPainter *painter, QColor *base, QList<QColor> *p
                 panels->prepend(tabPanelColor(parent->palette()));
             }
         } else if (parent->inherits("QGroupBox")) {
-            panels->prepend(frameBackgroundColor(parent->palette()));
+            // (Aurora: the card's veil, as Style::drawFrameGroupBoxPrimitive lays it; a flat group box lays none)
+            const auto groupBox = qobject_cast<const QGroupBox *>(parent);
+            if (groupBox && groupBox->isFlat()) {
+                continue;
+            }
+            if (_aurora) {
+                // (the card's gradient at the height of what is cleared on it)
+                const qreal y = widget->mapTo(parent, QPoint(0, widget->height() / 2)).y();
+                panels->prepend(auroraCardColorAt(parent->palette(), parent->height() > 0 ? y / qreal(parent->height()) : 0.5));
+            } else {
+                panels->prepend(frameBackgroundColor(parent->palette()));
+            }
         }
     }
     if (widgetOut) {
@@ -592,7 +713,7 @@ void Helper::clearUnder(QPainter *painter, const QRectF &rect) const
         painter->setCompositionMode(QPainter::CompositionMode_Source);
         painter->fillRect(rect, base);
         painter->setCompositionMode(QPainter::CompositionMode_SourceOver);
-        renderAuroraLights(painter, QRectF(widget->mapFrom(window, QPoint(0, 0)), window->size()), window->palette(), window->isActiveWindow());
+        renderAuroraLights(painter, QRectF(widget->mapFrom(window, QPoint(0, 0)), window->size()), window->palette(), windowActive(window));
         for (const QColor &panel : std::as_const(panels)) {
             painter->fillRect(rect, panel);
         }
@@ -648,9 +769,20 @@ void Helper::joinedFill(QPainter *painter, const QPainterPath &path, const QColo
 QColor Helper::inputBackground(const QPalette &palette) const
 {
     const QColor base = palette.color(QPalette::Base);
-    // Aurora: the same veil as the buttons, so that every surface has one intensity
+    // Aurora: the same veil as the buttons, so that every surface has one intensity; on a light scheme a field is
+    // nearly white, without the accent's tinge (tinged and at the buttons' density it read grey, as if disabled)
     if (_aurora) {
-        return auroraVeilColor(palette, true);
+        if (isDark(palette)) {
+            // (variant B of the 2026-11-24 dark contrast mockup: a field is a dark slot in the glass, set apart from the
+            // light keys: where one types, not what one presses). The buttons' veil setting scales it: 7 %, the
+            // default, gives the mockup's 97)
+            const qreal scale = qBound(0, StyleConfigData::auroraButtonVeil(), 40) / 7.0;
+            return QColor(8, 10, 20, qBound(0, qRound(97 * scale), 230));
+        }
+        // (variant A of 2026-11-24: white with 2 % of the accent)
+        const QColor accent = auroraFill(palette);
+        const qreal t = 0.02;
+        return QColor::fromRgbF(1.0 - t + t * accent.redF(), 1.0 - t + t * accent.greenF(), 1.0 - t + t * accent.blueF(), 0.97);
     }
     if (isGlass()) {
         // Glass: on a dark scheme the field colour at the glass' strength; on a light one a grey veil of ink, as the
@@ -1133,7 +1265,8 @@ void Helper::renderMenuFrame(QPainter *painter, const QRectF &rect, const QColor
                 // over the sheet, never in its place: a see-through menu is painted in Source mode, and the grain
                 // (nearly clear) replaced the sheet: the menu lost its glass and its opacity setting
                 painter->setCompositionMode(QPainter::CompositionMode_SourceOver);
-                painter->drawTiledPixmap(frameRect, ngGrainTile(grain));
+                // (tiled from the widget's origin: a corner drawn again on its own keeps the same grain)
+                painter->drawTiledPixmap(frameRect, ngGrainTile(grain), frameRect.topLeft());
             }
         }
 
@@ -1319,6 +1452,25 @@ void Helper::renderNgButtonFrame(QPainter *painter,
                                  qreal bgAnimation,
                                  qreal penAnimation) const
 {
+    // a menu closing: KWin fades it out (OutQuart), the button lets go of it at the same pace. The button as it is
+    // without the menu, then its joined shape over it at the menu's opacity (Style::eventFilterNgMenu sets it)
+    if (!_ngInJoinFade && painter->device() && painter->device()->devType() == QInternal::Widget) {
+        const QWidget *device = static_cast<const QWidget *>(painter->device());
+        const QVariant fade = device->property("_breeze_ng_joined_fade");
+        if (fade.isValid() && device->property("_breeze_ng_joined").isValid()) {
+            _ngInJoinFade = true;
+            _ngIgnoreJoined = true;
+            renderNgButtonFrame(painter, rect, palette, stateProperties, bgAnimation, penAnimation);
+            _ngIgnoreJoined = false;
+            painter->save();
+            painter->setOpacity(painter->opacity() * qBound(0.0, fade.toReal(), 1.0));
+            renderNgButtonFrame(painter, rect, palette, stateProperties, bgAnimation, penAnimation);
+            painter->restore();
+            _ngInJoinFade = false;
+            return;
+        }
+    }
+
     const bool enabled = stateProperties.value("enabled", true);
     const bool visualFocus = stateProperties.value("visualFocus");
     const bool hovered = stateProperties.value("hovered") && enabled;
@@ -1354,9 +1506,38 @@ void Helper::renderNgButtonFrame(QPainter *painter,
         // Aurora: what is on wears the accent
         bg = auroraSelection(palette, fill - 0.18);
     }
+    // Aurora, the controls of 2026-11-24: a button is a raised key, a little more opaque than the glass, with a hairline,
+    // a light along its top and a soft shadow below (see the end of this function); the primary action is the full
+    // accent with a white label (Style::drawPushButtonLabelControl)
+    const bool key = _aurora && !flat && !checked && !hasNeutralHighlight;
     if (_aurora && defaultButton && !checked) {
-        // Aurora: the primary action is a sheet of the accent
-        bg = auroraAccent(palette, qMin(1.0, (dark ? 0.62 : 0.50) + (fill - auroraVeil(palette, true)) * 1.5));
+        QColor accent = auroraAccent(palette, 1.0);
+        if (dark) {
+            // (the dark scheme's accent is a light one, made for lights and text: under a white label, the deeper one)
+            accent = QColor::fromHslF(accent.hslHueF(), accent.hslSaturationF(), 0.60);
+        }
+        const qreal lift = (penAnimation != AnimationData::OpacityInvalid ? penAnimation : hovered ? 1.0 : 0.0);
+        const qreal press = (bgAnimation != AnimationData::OpacityInvalid ? bgAnimation : down ? 1.0 : 0.0);
+        accent = QColor::fromHslF(accent.hslHueF(), accent.hslSaturationF(), qBound(0.0, accent.lightnessF() + 0.04 * lift - 0.06 * press, 1.0));
+        bg = accent;
+    } else if (key) {
+        const qreal lift = (penAnimation != AnimationData::OpacityInvalid ? penAnimation : hovered ? 1.0 : 0.0);
+        const qreal press = (bgAnimation != AnimationData::OpacityInvalid ? bgAnimation : down ? 1.0 : 0.0);
+        if (dark) {
+            // (variant B of the 2026-11-24 dark contrast mockup: a clearly lighter key on the dark glass)
+            // (scaled by the buttons' veil setting: 0.22 at its default of 7 %)
+            const qreal rest = 0.22 * qBound(0, StyleConfigData::auroraButtonVeil(), 40) / 7.0;
+            bg = QColor::fromRgbF(1, 1, 1, qMin(0.9, rest + 0.05 * lift + 0.08 * press));
+        } else {
+            // (light scheme, variant A of 2026-11-24: nearly white with 4 % of the accent)
+            const QColor accent = auroraFill(palette);
+            const qreal t = 0.04 + 0.03 * press;
+            // (hover does not change the sheet: the light under the pointer says it. A sheet that whitened with the hover
+            // and faded back after the light had gone flashed white for an instant on the way in and out)
+            Q_UNUSED(lift)
+            bg = QColor::fromRgbF(1.0 - t + t * accent.redF(), 1.0 - t + t * accent.greenF(), 1.0 - t + t * accent.blueF(),
+                                  qBound(0.0, 0.94 - 0.06 * press, 1.0));
+        }
     } else if (defaultButton && !checked) {
         // the primary action: tinted with the highlight, still readable with the normal button text
         bg = glass ? KColorUtils::mix(alphaColor(inkColor, 0.16), highlight, 0.25) : (hovered ? highlight.lighter(112) : highlight);
@@ -1369,13 +1550,23 @@ void Helper::renderNgButtonFrame(QPainter *painter,
     if (rims && (!flat || checked || hovered || down)) {
         edge = alphaColor(inkColor, checked ? 0.26 : (hovered ? 0.22 : 0.14));
     }
+    if (key && !defaultButton) {
+        edge = dark ? QColor::fromRgbF(1, 1, 1, 0.32) : alphaColor(inkColor, 0.10); // (dark: a well defined light edge, variant B)
+    }
+    if (key && !enabled) {
+        // a key that cannot be pressed: faded as a whole, as in the mockup (only its label was)
+        bg = alphaColor(bg, 0.42);
+        edge = alphaColor(edge, 0.42);
+    }
     if (visualFocus) {
         // the glow below says it
     } else if (penAnimation != AnimationData::OpacityInvalid && rims) {
         edge = KColorUtils::mix(edge, alphaColor(inkColor, 0.22), penAnimation);
     }
 
-    clearUnder(painter, rect); // Breeze NG Glass: a clean sheet first (even when nothing follows: the old veil goes)
+    if (!(_ngInJoinFade && !_ngIgnoreJoined)) { // (not over the first of the two paints of a fading join)
+        clearUnder(painter, rect); // Breeze NG Glass: a clean sheet first (even when nothing follows: the old veil goes)
+    }
     if (bg.alpha() == 0 && edge.alpha() == 0) {
         if (visualFocus) {
             renderNgGlow(painter, rect, focusColor(palette), 1.0, roundButton ? std::max(rect.width(), rect.height()) / 2 : frameRadius(PenWidth::Frame));
@@ -1395,7 +1586,7 @@ void Helper::renderNgButtonFrame(QPainter *painter,
     QRectF widgetRect;
     if (painter->device() && painter->device()->devType() == QInternal::Widget) {
         const QWidget *device = static_cast<const QWidget *>(painter->device());
-        joined = device->property("_breeze_ng_joined").toString();
+        joined = _ngIgnoreJoined ? QString() : device->property("_breeze_ng_joined").toString();
         joinedBg = device->property("_breeze_ng_joined_bg").value<QColor>();
         joinedEdge = device->property("_breeze_ng_joined_edge").value<QColor>();
         widgetRect = device->rect();
@@ -1404,7 +1595,28 @@ void Helper::renderNgButtonFrame(QPainter *painter,
         // the menu's own sheet and outline. The shape covers the whole widget, whatever sub-rect the style was
         // handed, because the menu sits against the widget's edge; it runs past the joined side, which the widget clips.
         frameRect = strokedRect(widgetRect.isValid() ? widgetRect : QRectF(rect));
-        if (joined == QLatin1String("bottom")) {
+        // the corners on the joined side round off as the menu comes and goes (0: square, joined; 1: round), as the
+        // buttons of Dolphin NG's bar do (Style::eventFilterNgMenu animates it)
+        qreal corner = 0.0;
+        if (painter->device() && painter->device()->devType() == QInternal::Widget) {
+            corner = qBound(0.0, static_cast<const QWidget *>(painter->device())->property("_breeze_ng_join_corner").toReal(), 1.0);
+        }
+        if (corner > 0.0) {
+            const qreal near = radius * corner; // the radius of the joined side's corners
+            const bool bottom = joined == QLatin1String("bottom");
+            const QRectF r = frameRect;
+            const qreal tl = bottom ? radius : near, tr = tl, bl = bottom ? near : radius, br = bl;
+            path.moveTo(r.left() + tl, r.top());
+            path.lineTo(r.right() - tr, r.top());
+            path.arcTo(QRectF(r.right() - 2 * tr, r.top(), 2 * tr, 2 * tr), 90, -90);
+            path.lineTo(r.right(), r.bottom() - br);
+            path.arcTo(QRectF(r.right() - 2 * br, r.bottom() - 2 * br, 2 * br, 2 * br), 0, -90);
+            path.lineTo(r.left() + bl, r.bottom());
+            path.arcTo(QRectF(r.left(), r.bottom() - 2 * bl, 2 * bl, 2 * bl), 270, -90);
+            path.lineTo(r.left(), r.top() + tl);
+            path.arcTo(QRectF(r.left(), r.top(), 2 * tl, 2 * tl), 180, -90);
+            path.closeSubpath();
+        } else if (joined == QLatin1String("bottom")) {
             frameRect.adjust(0, 0, 0, radius + 3);
             path = roundedPath(frameRect, CornersTop, radius);
         } else {
@@ -1420,6 +1632,16 @@ void Helper::renderNgButtonFrame(QPainter *painter,
     } else {
         path.addRoundedRect(frameRect, radius, radius);
     }
+    if ((key || (_aurora && defaultButton && !checked)) && joined.isEmpty() && !down && enabled) {
+        // the soft shadow under a key: its own shape a pixel lower, faint, under the fill
+        painter->save();
+        painter->setPen(Qt::NoPen);
+        painter->setBrush(dark ? QColor(0, 0, 0, 45) : alphaColor(inkColor, defaultButton ? 0.16 : 0.08));
+        // (only the sliver that shows below the key: the key's sheet is see-through, and a whole shadow under it
+        // darkened all of it but its top row, a key pressed in instead of raised)
+        painter->drawPath(path.translated(0, 1).subtracted(path));
+        painter->restore();
+    }
     if (rims && !flat) {
         // a sheet of glass: lighter towards the top
         QLinearGradient sheet(frameRect.topLeft(), frameRect.bottomLeft());
@@ -1430,10 +1652,22 @@ void Helper::renderNgButtonFrame(QPainter *painter,
         painter->setBrush(bg);
     }
     painter->setPen(edge.alpha() > 0 ? QPen(edge, PenWidth::Frame) : QPen(Qt::NoPen));
-    if (_aurora && (joined == QLatin1String("bottom") || joined == QLatin1String("top"))) {
+    // (while the join fades, over the button as it is without it: a plain paint at the fade's opacity. The menu's own
+    // fill starts from nothing, a hole down to the wallpaper under a partial opacity)
+    if (_aurora && !_ngInJoinFade && (joined == QLatin1String("bottom") || joined == QLatin1String("top"))) {
         joinedFill(painter, path, bg, painter->pen()); // the menu's see-through sheet, from nothing
     } else {
         painter->drawPath(path);
+    }
+    // (not on a dark scheme: there the light edge already draws the top, and a second line under it made the top
+    // edge look twice as thick as the others)
+    if ((key || (_aurora && defaultButton && !checked)) && joined.isEmpty() && !down && enabled && !dark) {
+        // the light along the top of a key, inside its edge
+        painter->save();
+        painter->setClipPath(path);
+        painter->setPen(QPen(defaultButton ? QColor(255, 255, 255, 56) : (dark ? QColor(255, 255, 255, 50) : QColor(255, 255, 255, 230)), 1));
+        painter->drawLine(QPointF(frameRect.left() + radius * 0.6, frameRect.top() + 1.0), QPointF(frameRect.right() - radius * 0.6, frameRect.top() + 1.0));
+        painter->restore();
     }
     if (rims && !flat && !down) {
         // the bright hairline on the top edge, as on the panels
@@ -1441,16 +1675,19 @@ void Helper::renderNgButtonFrame(QPainter *painter,
         painter->setPen(QPen(alphaColor(inkColor, dark ? 0.16 : 0.5), 1));
         painter->drawLine(QPointF(frameRect.left() + radius, frameRect.top() + 1.0), QPointF(frameRect.right() - radius, frameRect.top() + 1.0));
     }
-    if (_aurora && hovered && painter->device() && painter->device()->devType() == QInternal::Widget) {
-        // Aurora: a light that follows the pointer inside the button (the style repaints the button as the pointer moves)
+    // Aurora: a light that follows the pointer inside the button (the style repaints the button as the pointer moves),
+    // its size in proportion to the button, faded in and out with the hover (it came and went at once, a jolt)
+    const qreal glow = penAnimation != AnimationData::OpacityInvalid ? penAnimation : (hovered ? 1.0 : 0.0);
+    if (_aurora && glow > 0.0 && !down && painter->device() && painter->device()->devType() == QInternal::Widget) {
         const QWidget *device = static_cast<const QWidget *>(painter->device());
         const QPointF pointer = device->mapFromGlobal(QCursor::pos());
         if (rect.adjusted(-30, -30, 30, 30).contains(pointer)) {
             painter->setClipPath(path);
             painter->setPen(Qt::NoPen);
-            QRadialGradient spot(pointer, qMax<qreal>(56.0, rect.height() * 2.0));
-            spot.setColorAt(0.0, alphaColor(inkColor, dark ? 0.24 : 0.16));
-            spot.setColorAt(0.5, alphaColor(inkColor, dark ? 0.08 : 0.05));
+            const qreal reach = qBound<qreal>(18.0, qMax(rect.height() * 1.1, rect.width() * 0.45), 160.0);
+            QRadialGradient spot(pointer, reach);
+            spot.setColorAt(0.0, alphaColor(inkColor, (dark ? 0.20 : 0.12) * glow));
+            spot.setColorAt(0.55, alphaColor(inkColor, (dark ? 0.06 : 0.035) * glow));
             spot.setColorAt(1.0, alphaColor(inkColor, 0.0));
             painter->fillRect(rect, spot);
         }
@@ -1573,12 +1810,19 @@ void Helper::renderCheckBoxBackground(QPainter *painter,
         QColor off = alphaColor(inkColor, glass ? 0.10 : 0.18); // an empty box must still read as a box
         // (on: the accent in every look. The application's accent, not the option's palette: a Qt Quick control
         // brings a palette whose highlight can be the light sheet of a selection, and its box was barely tinted)
-        const QColor onColor = _aurora ? auroraAccent(QApplication::palette(), 1.0) : palette.color(QPalette::Highlight);
+        QColor onColor = _aurora ? auroraAccent(QApplication::palette(), 1.0) : palette.color(QPalette::Highlight);
+        if (_aurora && isDark(palette)) {
+            onColor = QColor::fromHslF(onColor.hslHueF(), onColor.hslSaturationF(), 0.60); // (the deeper accent under a white mark)
+        }
         QColor edge = glass ? alphaColor(inkColor, 0.22 * (1.0 - on)) : QColor(0, 0, 0, 0);
         if (_aurora && !isDark(palette)) {
             // Aurora on a light scheme: an empty box is frost with a fine edge, not a grey disc of ink
             off = QColor(255, 255, 255, 215);
             edge = alphaColor(inkColor, 0.26 * (1.0 - on));
+        } else if (_aurora) {
+            // and on a dark one a faint slot with a light edge (a grey disc read as switched off and disabled)
+            off = QColor(255, 255, 255, 18);
+            edge = QColor::fromRgbF(1, 1, 1, 0.30 * (1.0 - on));
         }
         QColor fill = KColorUtils::mix(off, onColor, on);
         if (neutalHighlight) {
@@ -1764,12 +2008,19 @@ void Helper::renderRadioButtonBackground(QPainter *painter,
         QColor off = alphaColor(inkColor, glass ? 0.10 : 0.18); // an empty box must still read as a box
         // (on: the accent in every look. The application's accent, not the option's palette: a Qt Quick control
         // brings a palette whose highlight can be the light sheet of a selection, and its box was barely tinted)
-        const QColor onColor = _aurora ? auroraAccent(QApplication::palette(), 1.0) : palette.color(QPalette::Highlight);
+        QColor onColor = _aurora ? auroraAccent(QApplication::palette(), 1.0) : palette.color(QPalette::Highlight);
+        if (_aurora && isDark(palette)) {
+            onColor = QColor::fromHslF(onColor.hslHueF(), onColor.hslSaturationF(), 0.60); // (the deeper accent under a white mark)
+        }
         QColor edge = glass ? alphaColor(inkColor, 0.22 * (1.0 - on)) : QColor(0, 0, 0, 0);
         if (_aurora && !isDark(palette)) {
             // Aurora on a light scheme: an empty box is frost with a fine edge, not a grey disc of ink
             off = QColor(255, 255, 255, 215);
             edge = alphaColor(inkColor, 0.26 * (1.0 - on));
+        } else if (_aurora) {
+            // and on a dark one a faint slot with a light edge (a grey disc read as switched off and disabled)
+            off = QColor(255, 255, 255, 18);
+            edge = QColor::fromRgbF(1, 1, 1, 0.30 * (1.0 - on));
         }
         QColor fill = KColorUtils::mix(off, onColor, on);
         if (neutalHighlight) {
@@ -1868,7 +2119,8 @@ void Helper::renderRadioButton(QPainter *painter,
     // narrower in height than in width and half a pixel below the ring's centre.
     painter->setRenderHint(QPainter::Antialiasing, true);
 
-    const int radius = (std::min(frameRect.width(), frameRect.height()) - 12) / 2;
+    // (Aurora: a larger white centre, a ring of the accent round it, as the mockup of 2026-11-24)
+    const qreal radius = _aurora ? (std::min(frameRect.width(), frameRect.height()) - 10) / 2.0 : (std::min(frameRect.width(), frameRect.height()) - 12) / 2;
     const QPointF center = frameRect.center();
 
     // mark
@@ -1884,6 +2136,36 @@ void Helper::renderRadioButton(QPainter *painter,
     default:
         break;
     }
+    painter->restore();
+}
+
+//______________________________________________________________________________
+void Helper::renderSegmentTrack(QPainter *painter, const QRectF &rect, const QPalette &palette) const
+{
+    // Aurora, the controls of 2026-11-24: the track of a segmented control (the tabs of a page), across \a rect
+    painter->save();
+    painter->setRenderHint(QPainter::Antialiasing, true);
+    painter->setPen(Qt::NoPen);
+    painter->setBrush(isDark(palette) ? QColor(255, 255, 255, 22) : alphaColor(ink(palette), 0.08));
+    painter->drawRoundedRect(rect.adjusted(0, 3, 0, -3), 10, 10);
+    painter->restore();
+}
+
+void Helper::renderSegmentTab(QPainter *painter, const QRectF &rect, const QPalette &palette, bool selected, bool first, bool last) const
+{
+    // the current tab: a raised segment on the track, white on a light scheme, a light veil on a dark one
+    if (!selected) {
+        return;
+    }
+    const bool dark = isDark(palette);
+    painter->save();
+    painter->setRenderHint(QPainter::Antialiasing, true);
+    painter->setPen(Qt::NoPen);
+    const QRectF segment = rect.adjusted(first ? 2 : 1, 5, last ? -2 : -1, -5);
+    painter->setBrush(dark ? QColor(0, 0, 0, 60) : alphaColor(ink(palette), 0.10));
+    painter->drawRoundedRect(segment.translated(0, 1), 8, 8);
+    painter->setBrush(dark ? QColor(255, 255, 255, 52) : QColor(255, 255, 255));
+    painter->drawRoundedRect(segment, 8, 8);
     painter->restore();
 }
 
@@ -1990,13 +2272,19 @@ void Helper::renderSliderHandle(QPainter *painter, const QRectF &rect, const QCo
             disc = darkSurface ? disc.darker(115) : disc.lighter(115);
         }
         painter->setPen(Qt::NoPen);
-        if (_aurora && !darkSurface) {
-            // Aurora on a light scheme: a white knob with a fine edge (a dark disc was a hole in the frost)
-            disc = sunken ? QColor(236, 240, 246) : QColor(255, 255, 255);
-            painter->setPen(QPen(QColor(43, 54, 72, 90), 1));
+        QRectF knob = rect.adjusted(2.5, 2.5, -2.5, -2.5);
+        if (_aurora) {
+            // Aurora, the controls of 2026-11-24: a white knob in both schemes, round (the square of the smaller side,
+            // centred: never stretched to an ellipse), lifted by a soft shadow, with a fine edge
+            const qreal side = qMin(knob.width(), knob.height());
+            knob = QRectF(knob.center().x() - side / 2, knob.center().y() - side / 2, side, side);
+            painter->setBrush(QColor(0, 0, 0, darkSurface ? 70 : 34));
+            painter->drawEllipse(knob.translated(0, 1).adjusted(-0.5, -0.5, 0.5, 0.5));
+            disc = sunken ? QColor(232, 236, 243) : (darkSurface ? QColor(242, 244, 248) : QColor(255, 255, 255));
+            painter->setPen(QPen(QColor(0, 0, 0, darkSurface ? 40 : 26), 0.8));
         }
         painter->setBrush(disc);
-        painter->drawEllipse(rect.adjusted(2.5, 2.5, -2.5, -2.5));
+        painter->drawEllipse(knob);
         painter->restore();
         return;
     }
@@ -2253,6 +2541,16 @@ void Helper::renderTabBarTab(QPainter *painter,
     QRectF frameRect = rect;
     QColor bgBrush;
 
+
+    // Aurora, the controls of 2026-11-24: the current tab of a document bar is the top of the page it opens on, a
+    // tongue in the page's field colour running into it; the others are only their labels (below)
+    if (_aurora && pillBar && !pillsOnly && selected && (north || south)) {
+        QRectF tongue = frameRect.adjusted(1, north ? 3 : -4, -1, north ? 4 : -3);
+        painter->setPen(Qt::NoPen);
+        painter->setBrush(inputBackground(palette));
+        painter->drawPath(roundedPath(tongue, north ? CornersTop : CornersBottom, 9));
+        return;
+    }
     if ((pillBar || pillsOnly) && (!selected || _aurora || pillsOnly)) {
         // Breeze NG: a tab at rest is a faint pill, a little brighter under the pointer
         // (Aurora: the current one too, brighter: no tongue in the opaque colour of the page, the page is glass)

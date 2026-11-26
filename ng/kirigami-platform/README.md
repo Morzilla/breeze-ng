@@ -10,6 +10,10 @@ must come first in the plugin path:
 
     QT_PLUGIN_PATH=<prefix>/lib64/breeze-ng-kirigami:$QT_PLUGIN_PATH
 
+The same source is built a second time as `KirigamiPlasmaStyle.so`, the plugin of Plasma's own Qt Quick style
+(the shell's panels and popups): there it only gives page titles (Heading level 1) the colour of the AccentText
+option, the accent or Aurora's gradient, and passes everything else through.
+
 The package sets that for the whole session with a file in `/etc/xdg/plasma-workspace/env/` (it takes effect at the
 next login). With another look, or another widget style, the plugin only passes everything through.
 `BREEZE_NG_NO_QUICK=1` switches it off for one application.

@@ -782,10 +782,25 @@ QWidget *StyleConfig::pageAurora()
         group->addWidget(m_auroraCorners);
         connect(m_auroraCorners, &QCheckBox::toggled, this, &StyleConfig::updateChanged);
         m_accentTint = new QCheckBox(ngText("Text and light surfaces tinged by the accent", "Testi e superfici chiare con la tinta dell'accento"), m_auroraGroup);
-        m_accentTint->setToolTip(ngText("The text leans to the accent's colour, and fields, buttons and panels of the light looks take a tinge of it (every Breeze NG look). Off: as the colour scheme has them.",
-                                        "Il testo tende al colore d'accento, e campi, pulsanti e pannelli delle varianti chiare ne prendono una tinta (in ogni variante di Breeze NG). Spento: come li dà lo schema di colori."));
+        m_accentTint->setToolTip(ngText("The text leans to the accent's colour, and fields, buttons and panels of the light looks take a tinge of it (every Breeze NG look). On dark schemes the text stays white. Off: as the colour scheme has them.",
+                                        "Il testo tende al colore d'accento, e campi, pulsanti e pannelli delle varianti chiare ne prendono una tinta (in ogni variante di Breeze NG). Sugli schemi scuri il testo resta bianco. Spento: come li dà lo schema di colori."));
         group->addWidget(m_accentTint);
         connect(m_accentTint, &QCheckBox::toggled, this, &StyleConfig::updateChanged);
+        {
+            auto *row = new QHBoxLayout();
+            row->addWidget(new QLabel(ngText("Page titles:", "Titoli delle pagine:"), m_auroraGroup));
+            m_accentText = new QComboBox(m_auroraGroup);
+            m_accentText->addItem(ngText("As the text", "Come il testo"));
+            m_accentText->addItem(ngText("In the accent", "Nel colore d'accento"));
+            m_accentText->addItem(ngText("In an Aurora gradient", "Sfumati Aurora"));
+            m_accentText->addItem(ngText("Aurora gradient, secondary titles too", "Sfumati anche i secondari"));
+            m_accentText->setToolTip(ngText("The titles of pages (the large ones at the top) in the accent, or in a gradient from the accent to Aurora's second light. The last choice gives the gradient to the secondary titles too (sections, list headers, notifications' titles). The rest of the text stays as it is.",
+                                            "I titoli delle pagine (quelli grandi in alto) nel colore d'accento, oppure sfumati dall'accento alla seconda luce di Aurora. L'ultima scelta dà la sfumatura anche ai titoli secondari (sezioni, intestazioni delle liste, titoli delle notifiche). Il resto del testo resta com'è."));
+            row->addWidget(m_accentText);
+            row->addStretch(1);
+            group->addLayout(row);
+            connect(m_accentText, &QComboBox::currentIndexChanged, this, &StyleConfig::updateChanged);
+        }
         auto *aurora = new QFormLayout();
         m_auroraPanel = slider(0, 25, m_auroraGroup);
         m_auroraButton = slider(0, 25, m_auroraGroup);
@@ -799,6 +814,25 @@ QWidget *StyleConfig::pageAurora()
         aurora->addRow(ngText("Buttons and fields", "Pulsanti e campi"), sliderRow(m_auroraButton, m_auroraButtonValue, m_auroraGroup));
         aurora->addRow(ngText("Lights", "Luci"), sliderRow(m_auroraLights, m_auroraLightsValue, m_auroraGroup));
         aurora->addRow(ngText("Grain", "Grana"), sliderRow(m_auroraGrain, m_auroraGrainValue, m_auroraGroup));
+        m_auroraRing = new QComboBox(m_auroraGroup);
+        m_auroraRing->addItem(ngText("Plain", "Tinta unita"));
+        m_auroraRing->addItem(ngText("Aurora gradient", "Sfumati Aurora"));
+        m_auroraRing->addItem(ngText("Gradient with a glow", "Sfumati con alone"));
+        m_auroraRing->addItem(ngText("Ticks", "A tacche"));
+        m_auroraRing->setToolTip(ngText("How rings are drawn: a dial's groove, System Monitor's gauges.", "Come si disegnano gli anelli: la corsa di una manopola, gli indicatori del Monitor di sistema."));
+        aurora->addRow(ngText("Rings", "Anelli"), m_auroraRing);
+        connect(m_auroraRing, &QComboBox::currentIndexChanged, this, &StyleConfig::updateChanged);
+        // (from the Plasma style's own panel sheet, about 41 %: under it the setting had no effect)
+        m_auroraPlasmaPanel = slider(40, 100, m_auroraGroup);
+        m_auroraPlasmaPanelValue = new QLabel(m_auroraGroup);
+        m_auroraPlasmaPanel->setToolTip(ngText("How dense Plasma's panel is: lower, more of the desktop shows through it, blurred. Plasma follows as soon as the settings are applied.",
+                                               "Quanto è denso il pannello di Plasma: più basso, più si vede il desktop attraverso, sfocato. Plasma lo segue appena si applicano le impostazioni."));
+        aurora->addRow(ngText("Plasma panel", "Pannello di Plasma"), sliderRow(m_auroraPlasmaPanel, m_auroraPlasmaPanelValue, m_auroraGroup));
+        m_auroraFloatingPanel = new QCheckBox(ngText("Floating Plasma panel", "Pannello di Plasma flottante"), m_auroraGroup);
+        m_auroraFloatingPanel->setToolTip(ngText("Plasma's panels stand apart from the screen edge, with round corners. Plasma follows as soon as the settings are applied; a panel you then change in Plasma's own settings is left as you set it.",
+                                                 "I pannelli di Plasma stanno staccati dal bordo dello schermo, con gli angoli arrotondati. Plasma lo segue appena si applicano le impostazioni; un pannello che poi cambi dalle impostazioni di Plasma resta come lo hai messo."));
+        aurora->addRow(QString(), m_auroraFloatingPanel);
+        connect(m_auroraFloatingPanel, &QCheckBox::toggled, this, &StyleConfig::updateChanged);
         group->addLayout(aurora);
         auto *auroraNote = new QLabel(ngText("The two veils are equal by default, so that sidebar, cards, buttons and fields have one intensity. The grain hides the bands that faint gradients show on some screens.",
                                              "I due veli sono uguali in partenza, così barra laterale, schede, pulsanti e campi hanno la stessa intensità. La grana nasconde le bande che le sfumature tenui mostrano su certi schermi."),
@@ -815,6 +849,9 @@ QWidget *StyleConfig::pageAurora()
         m_auroraButton->setValue(7);
         m_auroraLights->setValue(100);
         m_auroraGrain->setValue(30);
+        m_auroraPlasmaPanel->setValue(45);
+        m_auroraFloatingPanel->setChecked(true);
+        m_auroraRing->setCurrentIndex(1);
         updateChanged();
     });
     auto *row = new QHBoxLayout();
@@ -822,7 +859,7 @@ QWidget *StyleConfig::pageAurora()
     row->addStretch();
     body->addLayout(row);
     body->addStretch();
-    for (QSlider *s : {m_auroraPanel, m_auroraButton, m_auroraLights, m_auroraGrain}) {
+    for (QSlider *s : {m_auroraPanel, m_auroraButton, m_auroraLights, m_auroraGrain, m_auroraPlasmaPanel}) {
         connect(s, &QSlider::valueChanged, this, &StyleConfig::updateChanged);
     }
     return w;
@@ -1031,6 +1068,9 @@ void StyleConfig::save()
     StyleConfigData::setAuroraButtonVeil(m_auroraButton->value());
     StyleConfigData::setAuroraLights(m_auroraLights->value());
     StyleConfigData::setAuroraGrain(m_auroraGrain->value());
+    StyleConfigData::setAuroraPlasmaPanel(m_auroraPlasmaPanel->value());
+    StyleConfigData::setAuroraFloatingPanel(m_auroraFloatingPanel->isChecked());
+    StyleConfigData::setAuroraRing(m_auroraRing->currentIndex());
     const bool secondChanged = StyleConfigData::auroraSecondAccent() != m_auroraSecond || StyleConfigData::auroraDimInactive() != m_auroraDim->isChecked()
         || StyleConfigData::auroraAccentRight() != m_auroraAccentRight->isChecked();
     StyleConfigData::setAuroraAccentRight(m_auroraAccentRight->isChecked());
@@ -1038,6 +1078,7 @@ void StyleConfig::save()
     StyleConfigData::setAuroraFullSelection(m_auroraFull->isChecked());
     StyleConfigData::setAuroraCornerLights(m_auroraCorners->isChecked());
     StyleConfigData::setAccentTint(m_accentTint->isChecked());
+    StyleConfigData::setAccentText(m_accentText->currentIndex());
     StyleConfigData::setSidebarCompact(m_sidebarCompact->isChecked());
     StyleConfigData::setAuroraSecondAccent(m_auroraSecond);
     const bool blurChanged = m_blurStrength->value() != blurStrength();
@@ -1170,6 +1211,7 @@ void StyleConfig::updateChanged()
     m_auroraButtonValue->setText(QStringLiteral("%1 %").arg(m_auroraButton->value()));
     m_auroraLightsValue->setText(QStringLiteral("%1 %").arg(m_auroraLights->value()));
     m_auroraGrainValue->setText(QStringLiteral("%1 %").arg(m_auroraGrain->value()));
+    m_auroraPlasmaPanelValue->setText(QStringLiteral("%1 %").arg(m_auroraPlasmaPanel->value()));
     m_blurStrengthValue->setText(QString::number(m_blurStrength->value()));
     m_auroraGroup->setEnabled(m_aurora->isChecked());
     static const char *const speeds[][2] = {{"Very fast", "Molto veloce"}, {"Fast", "Veloce"}, {"Normal", "Normale"}, {"Slow", "Lenta"}, {"Very slow", "Molto lenta"}};
@@ -1197,7 +1239,7 @@ void StyleConfig::updateChanged()
         || m_auroraBody->value() != StyleConfigData::auroraBodyOpacity()
         || m_auroraSidebar->value() != (StyleConfigData::auroraSidebarOpacity() < 0 ? StyleConfigData::auroraBodyOpacity() : StyleConfigData::auroraSidebarOpacity()) || m_auroraPanel->value() != StyleConfigData::auroraPanelVeil()
         || m_auroraButton->value() != StyleConfigData::auroraButtonVeil() || m_auroraLights->value() != StyleConfigData::auroraLights()
-        || m_auroraGrain->value() != StyleConfigData::auroraGrain() || m_auroraSecond != StyleConfigData::auroraSecondAccent() || m_auroraDim->isChecked() != StyleConfigData::auroraDimInactive() || m_auroraAccentRight->isChecked() != StyleConfigData::auroraAccentRight() || m_auroraFull->isChecked() != StyleConfigData::auroraFullSelection() || m_auroraCorners->isChecked() != StyleConfigData::auroraCornerLights() || m_accentTint->isChecked() != StyleConfigData::accentTint() || m_sidebarCompact->isChecked() != StyleConfigData::sidebarCompact() || (m_aurora->isChecked() && m_auroraLight->isChecked() != ngCurrentAuroraLight())
+        || m_auroraGrain->value() != StyleConfigData::auroraGrain() || m_auroraPlasmaPanel->value() != StyleConfigData::auroraPlasmaPanel() || m_auroraFloatingPanel->isChecked() != StyleConfigData::auroraFloatingPanel() || m_auroraRing->currentIndex() != StyleConfigData::auroraRing() || m_auroraSecond != StyleConfigData::auroraSecondAccent() || m_auroraDim->isChecked() != StyleConfigData::auroraDimInactive() || m_auroraAccentRight->isChecked() != StyleConfigData::auroraAccentRight() || m_auroraFull->isChecked() != StyleConfigData::auroraFullSelection() || m_auroraCorners->isChecked() != StyleConfigData::auroraCornerLights() || m_accentTint->isChecked() != StyleConfigData::accentTint() || m_accentText->currentIndex() != StyleConfigData::accentText() || m_sidebarCompact->isChecked() != StyleConfigData::sidebarCompact() || (m_aurora->isChecked() && m_auroraLight->isChecked() != ngCurrentAuroraLight())
         || m_blurStrength->value() != blurStrength() || m_textShadow->currentIndex() != StyleConfigData::textShadow()
         || m_animations->isChecked() != StyleConfigData::animationsEnabled() || m_animationSpeed->value() != animationIndex()
         || m_transitions->isChecked() != StyleConfigData::stackedWidgetTransitionsEnabled() || m_mnemonics->currentIndex() != StyleConfigData::mnemonicsMode()
@@ -1233,12 +1275,16 @@ void StyleConfig::load()
     m_auroraButton->setValue(StyleConfigData::auroraButtonVeil());
     m_auroraLights->setValue(StyleConfigData::auroraLights());
     m_auroraGrain->setValue(StyleConfigData::auroraGrain());
+    m_auroraPlasmaPanel->setValue(StyleConfigData::auroraPlasmaPanel());
+    m_auroraFloatingPanel->setChecked(StyleConfigData::auroraFloatingPanel());
+    m_auroraRing->setCurrentIndex(qBound(0, StyleConfigData::auroraRing(), 3));
     m_auroraSecond = StyleConfigData::auroraSecondAccent();
     m_auroraDim->setChecked(StyleConfigData::auroraDimInactive());
     m_auroraAccentRight->setChecked(StyleConfigData::auroraAccentRight());
     m_auroraFull->setChecked(StyleConfigData::auroraFullSelection());
     m_auroraCorners->setChecked(StyleConfigData::auroraCornerLights());
     m_accentTint->setChecked(StyleConfigData::accentTint());
+    m_accentText->setCurrentIndex(qBound(0, StyleConfigData::accentText(), 3));
     m_sidebarCompact->setChecked(StyleConfigData::sidebarCompact());
     for (QAbstractButton *b : std::as_const(m_auroraSecondButtons)) {
         b->setChecked(b->property("colour").toString() == m_auroraSecond);

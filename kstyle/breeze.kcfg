@@ -106,6 +106,15 @@
     <entry name="AccentTint" type="Bool">
       <default>true</default>
     </entry>
+    <!-- Breeze NG: the titles of pages in the accent (only those: the rest of the text stays the ink). 0: as the rest of
+         the text. 1: a deep accent (a luminous one on dark schemes). 2: a gradient from the accent to Aurora's second
+         light. 3: that gradient on the secondary titles too (group boxes' titles; Kirigami and Plasma headings of
+         level 2 to 4) -->
+    <entry name="AccentText" type="Int">
+      <default>0</default>
+      <min>0</min>
+      <max>3</max>
+    </entry>
     <!-- Breeze NG: the rows of every application's sidebar compact, one line with a small icon, as Dolphin NG's
          sidebar (the lists of pages of settings dialogs, views in side panels, Kirigami sidebars) -->
     <entry name="SidebarCompact" type="Bool">
@@ -117,6 +126,25 @@
     </entry>
     <entry name="AuroraGrain" type="Int">
       <default>30</default>
+    </entry>
+    <!-- Breeze NG Aurora: how dense the mask of Plasma's panel is (per cent; the desktop shows through the rest,
+         blurred). Painted by the Kirigami plugin for Plasma over the Plasma style's nearly empty panel -->
+    <!-- Breeze NG Aurora: Plasma's panels float (rounded, apart from the screen edge). Applied by the Kirigami plugin
+         inside plasmashell, once each time this changes: a panel the user then sets otherwise is left alone -->
+    <entry name="AuroraFloatingPanel" type="Bool">
+      <default>true</default>
+    </entry>
+    <!-- Breeze NG Aurora: how rings are drawn (a dial's groove, System Monitor's gauges). 0: a plain arc of the accent.
+         1: a gradient from the accent to the second light. 2: that gradient with a glow. 3: ticks -->
+    <entry name="AuroraRing" type="Int">
+      <default>1</default>
+      <min>0</min>
+      <max>3</max>
+    </entry>
+    <entry name="AuroraPlasmaPanel" type="Int">
+      <default>45</default>
+      <min>0</min>
+      <max>100</max>
     </entry>
     <!-- Breeze NG: a neon glow inside the field or button that has the focus (off: a thin outline) -->
     <entry name="FocusGlow" type="Bool">

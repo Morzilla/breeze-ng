@@ -13,6 +13,7 @@ license=(GPL-2.0-or-later MIT LGPL-2.0-or-later)
 depends=(qt6-base qt6-declarative qt6-svg frameworkintegration kcmutils kcolorscheme kconfig kcoreaddons
          kdecoration kguiaddons ki18n kiconthemes kirigami kwidgetsaddons kwindowsystem)
 makedepends=(git cmake extra-cmake-modules python libplasma)
+optdepends=('qt6-5compat: gradient titles in Kirigami applications and in Plasma')
 provides=($_name)
 conflicts=($_name)
 source=("$_name::git+$url.git#branch=ng")

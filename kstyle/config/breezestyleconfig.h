@@ -105,6 +105,10 @@ private:
     QSlider *m_blurStrength = nullptr;
     QSlider *m_auroraGrain = nullptr;
     QLabel *m_auroraGrainValue = nullptr;
+    QCheckBox *m_auroraFloatingPanel = nullptr;
+    QComboBox *m_auroraRing = nullptr;
+    QSlider *m_auroraPlasmaPanel = nullptr;
+    QLabel *m_auroraPlasmaPanelValue = nullptr;
     int m_savedAuroraGrain = 30;
     QLabel *m_auroraBodyValue = nullptr;
     QLabel *m_auroraPanelValue = nullptr;
@@ -117,6 +121,7 @@ private:
     QCheckBox *m_auroraDim = nullptr;
     QCheckBox *m_auroraFull = nullptr;
     QCheckBox *m_accentTint = nullptr; // Breeze NG: text and Aurora's light surfaces tinged by the accent
+    QComboBox *m_accentText = nullptr; // Breeze NG: titles and labels in the accent (AccentText)
     QCheckBox *m_sidebarCompact = nullptr; // Breeze NG: compact rows in every application's sidebar
     QCheckBox *m_auroraCorners = nullptr; // Breeze NG Aurora: the coloured lights in the window's corners
     QCheckBox *m_auroraAccentRight = nullptr; // the accent's light on the right, the second on the left

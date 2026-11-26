@@ -123,6 +123,10 @@ public:
     }
     //* Breeze NG Aurora: Glass pushed further (more see-through, lights of the accent colour behind the window, a light
     //* that follows the pointer inside buttons). Aurora is a kind of Glass: isGlass() is true as well.
+    // Is the window of this widget the one the user works in? Also while a menu of its own is open: on Wayland the
+    // popup takes the activation, and a window just clicked on its menu bar stayed dimmed under its open menu
+    bool windowActive(const QWidget *widget) const;
+
     bool isAurora() const
     {
         return _aurora;
@@ -145,8 +149,9 @@ public:
     QColor tabPanelColor(const QPalette &palette) const
     {
         if (_aurora) {
-            // Aurora: a veil, not a solid panel: the lights behind the window show through the tab pages too
-            return auroraVeilColor(palette, false);
+            // Aurora: a veil, not a solid panel: the lights behind the window show through the tab pages too (a card
+            // as every other: on a dark scheme darker than the window)
+            return isDark(palette) ? auroraCardColor(palette) : auroraVeilColor(palette, false);
         }
         return KColorUtils::mix(palette.color(QPalette::Window), ink(palette), isDark(palette) ? 0.08 : 0.05);
     }
@@ -163,11 +168,42 @@ public:
     QColor auroraSelection(const QPalette &palette, qreal more = 0.0) const;
     //* the colour of text and marks on auroraSelection()
     QColor auroraSelectionText(const QPalette &palette) const;
+
+    // Breeze NG AccentText: 0 off, 1 the titles of pages in the accent, 2 in a gradient, 3 the gradient on the secondary
+    // titles too (the sections' titles) (0 with a grey accent)
+    int accentText(const QPalette &palette) const;
+    // the colour of a title: a deep accent (AccentText 2: the gradient's first stop)
+    QColor accentTitleColor(const QPalette &palette) const;
+    // a title's brush: the deep accent, or (AccentText 2) a gradient across the text from the accent to the second light
+    QBrush accentTitleBrush(const QPalette &palette) const;
+    //* Breeze NG Aurora: the accent of what is on (a slider's track, a progress bar, the primary action): the application's
+    //* accent, at lightness 0.52 on a light scheme and 0.60 on a dark one
+    QColor auroraFill(const QPalette &palette) const;
+    //* Breeze NG Aurora: a card on the glass (a group box, a sidebar's card): the panels' veil (the setting "Sidebar,
+    //* cards, lists"), a little denser, and its light hairline
+    //* (on a dark scheme a card is darker than the window, set into the glass: a light veil there was a milky grey under
+    //* the light keys; the density follows the same setting, 7 % giving about the 24 % of the 2026-11-24 mockup)
+    QColor auroraCardColor(const QPalette &palette) const
+    {
+        if (isDark(palette)) {
+            return QColor::fromRgbF(6 / 255.0, 8 / 255.0, 18 / 255.0, qBound(0.0, auroraVeil(palette, false) * 3.4, 0.6));
+        }
+        return auroraVeilColor(palette, false, 1.45);
+    }
+    QColor auroraCardEdge(const QPalette &palette) const { return isDark(palette) ? QColor(255, 255, 255, 18) : QColor(255, 255, 255, 90); } // (light: 190 read as a white frame round each card)
+    //* the card at a height \a t (0 top, 1 bottom): variant B of 2026-11-24, a vertical gradient, more light at the top
+    QColor auroraCardColorAt(const QPalette &palette, qreal t) const;
+    //* paint a card of the glass in \a rect (radius \a radius): its gradient and its edge, lighter along the top
+    void renderAuroraCard(QPainter *painter, const QRectF &rect, const QPalette &palette, qreal radius) const;
     bool auroraFullSelection() const;
 
     //* Breeze NG Aurora: the card of a sidebar on the glass, as the sidebar of Dolphin NG (6 px in from \a rect, round
     //* corners of 12 px, the veil, and on light schemes the bright hairline edge of frost)
     void renderAuroraSideCard(QPainter *painter, const QRectF &rect, const QPalette &palette) const;
+
+    //* Breeze NG Aurora: a tab of a page as a segment of a segmented control (\a rect: the tab's own rectangle)
+    void renderSegmentTab(QPainter *painter, const QRectF &rect, const QPalette &palette, bool selected, bool first, bool last) const;
+    void renderSegmentTrack(QPainter *painter, const QRectF &rect, const QPalette &palette) const;
     //* Breeze NG Aurora: the accent as a light (its hue, always luminous), with the given alpha
     QColor auroraAccent(const QPalette &palette, qreal alpha) const;
     //* Breeze NG Aurora: is the sheet of a menu joined to its button see-through (then the button is laid as joinedFill
@@ -519,6 +555,8 @@ private:
     //@}
 
     mutable bool _cachedAutoValid = false;
+    mutable bool _ngInJoinFade = false; // Breeze NG: inside the two paints of a fading join (no third)
+    mutable bool _ngIgnoreJoined = false; // Breeze NG: paint a button as not joined to its menu (the fade of a closing menu)
 
     qreal _contrastBias;
 
