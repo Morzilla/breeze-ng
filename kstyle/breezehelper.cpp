@@ -627,7 +627,7 @@ bool Helper::glassLayers(const QPainter *painter, QColor *base, QList<QColor> *p
         if (parent->inherits("KUrlNavigator")) {
             // the location bar paints a field under its buttons (PE_FrameLineEdit): a button of the path stands on it.
             // Cleared to the bare window, the corners around its hover showed the glass through the field: dark corners
-            panels->prepend(_aurora ? auroraCardColorAt(parent->palette(), 0.5) : inputBackground(parent->palette())); // (Aurora: the panels' card, see PE_FrameLineEdit)
+            panels->prepend(!_aurora ? inputBackground(parent->palette()) : isDark(parent->palette()) ? auroraCardColorAt(parent->palette(), 0.5) : QColor(255, 255, 255, 209)); // (Aurora: the path's own sheet, see PE_FrameLineEdit)
             continue;
         }
         if (_aurora && parent->inherits("QDockWidget") && !static_cast<const QDockWidget *>(parent)->isFloating()) {

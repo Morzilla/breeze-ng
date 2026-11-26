@@ -5734,15 +5734,31 @@ bool Style::drawFrameLineEditPrimitive(const QStyleOption *option, QPainter *pai
         const qreal opacity(_animations->inputWidgetEngine().frameOpacity(widget));
 
         // render: Breeze NG: the field keeps its resting edge; attention is a neon glow inside it, faded in and out
-        // (Aurora: the path is not where one types but a row of buttons: its ground is the card of the panels, the milky
-        // sheet with their gradient and hairline, not the white of a field; the field proper appears when the path is
+        // (Aurora: the path is not where one types but a row of buttons: its ground is a sheet of its own (dark: the card
+        // of the panels; light: see below), not a field's; the field proper appears when the path is
         // edited)
         const bool pathPill = locationBar && _helper->isAurora();
         if (pathPill) {
-            _helper->renderAuroraCard(painter, QRectF(rect), palette, _helper->frameRadius(PenWidth::Frame));
+            if (_helper->isDark(palette)) {
+                _helper->renderAuroraCard(painter, QRectF(rect), palette, _helper->frameRadius(PenWidth::Frame));
+            } else {
+                // (light: white that lets a little of the blurred glass through, lighter than a field's 97 %; the
+                // card of the panels read grey beside the white field of the search)
+                _helper->renderFrame(painter, rect, QColor(255, 255, 255, 209), _helper->alphaColor(_helper->ink(palette), 0.10));
+            }
             return true;
         }
         auto background = _helper->inputBackground(palette);
+        if (_helper->isAurora() && !_helper->isDark(palette) && enabled && !isQtQuickControl(option, widget)) {
+            // a field in a tool bar (a search beside the location bar): the same white sheet as the path, a little of
+            // the glass through it, so that the row is of one kind
+            for (const QWidget *parent = widget ? widget->parentWidget() : nullptr; parent && !parent->isWindow(); parent = parent->parentWidget()) {
+                if (parent->inherits("QToolBar")) {
+                    background = QColor(255, 255, 255, 209);
+                    break;
+                }
+            }
+        }
         const bool neutral = hasHighlightNeutral(widget, option, mouseOver, hasFocus);
         // (only a field of widgets: a Qt Quick one is drawn into an offscreen view cleared to nothing, where a lighter,
         // more see-through ground came out a grey block once laid on the window)
