@@ -453,8 +453,9 @@ safe_pkgs() { # manager (dnf or apt-get), command and packages (without -y)
 # The parts that are built (Dolphin NG, Breeze NG, Dialog NG, the KWin effects) need a recent Qt and KDE Frameworks:
 # on a system with older ones the build cannot succeed, however complete its development files. Said here, before
 # anything is installed or downloaded, and those parts are left out (no failure, no report to send). The numbers are
-# the lowest the sources ask for (their CMakeLists.txt): raise them here when those are raised.
-NEED_QT=6.10 NEED_KF=6.22
+# the highest of the lowest the sources ask for (their CMakeLists.txt; Dolphin NG's 6.23 for KDE Frameworks, Breeze NG
+# would do with 6.22): one threshold for all, raise them here when those are raised.
+NEED_QT=6.10 NEED_KF=6.23
 lib_version() { # library base name -> its version, from the installed library's file name
     basename "$(readlink -f /usr/lib*/"$1".so.6 /usr/lib/*/"$1".so.6 2>/dev/null | head -n1)" 2>/dev/null | sed -n 's/.*\.so\.//p'
 }
