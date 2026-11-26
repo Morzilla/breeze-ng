@@ -5718,7 +5718,10 @@ bool Style::drawFrameLineEditPrimitive(const QStyleOption *option, QPainter *pai
     } else {
         // copy state
         const State &state(option->state);
-        const bool enabled(state & State_Enabled);
+        // the location bar's path (KUrlNavigator) asks for this frame under its buttons. An older KIO (6.24) asks
+        // without State_Enabled: it came out as a field that cannot be used, a dashed outline with no ground
+        const bool locationBar = widget && widget->inherits("KUrlNavigator");
+        const bool enabled((state & State_Enabled) || locationBar);
         const bool mouseOver(enabled && (state & State_MouseOver));
         const bool hasFocus(enabled && (state & State_HasFocus));
 
@@ -5731,6 +5734,14 @@ bool Style::drawFrameLineEditPrimitive(const QStyleOption *option, QPainter *pai
         const qreal opacity(_animations->inputWidgetEngine().frameOpacity(widget));
 
         // render: Breeze NG: the field keeps its resting edge; attention is a neon glow inside it, faded in and out
+        // (Aurora: the path is not where one types but a row of buttons: its ground is the card of the panels, the milky
+        // sheet with their gradient and hairline, not the white of a field; the field proper appears when the path is
+        // edited)
+        const bool pathPill = locationBar && _helper->isAurora();
+        if (pathPill) {
+            _helper->renderAuroraCard(painter, QRectF(rect), palette, _helper->frameRadius(PenWidth::Frame));
+            return true;
+        }
         auto background = _helper->inputBackground(palette);
         const bool neutral = hasHighlightNeutral(widget, option, mouseOver, hasFocus);
         // (only a field of widgets: a Qt Quick one is drawn into an offscreen view cleared to nothing, where a lighter,
