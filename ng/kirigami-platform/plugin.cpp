@@ -1114,6 +1114,11 @@ public:
         if (QObject *range = chart->property("range").value<QObject *>(); range && range->metaObject()->indexOfSignal("rangeChanged()") >= 0) {
             QObject::connect(range, SIGNAL(rangeChanged()), this, SLOT(update()));
         }
+        connect(chart, &QQuickItem::opacityChanged, this, [this] {
+            if (m_hidden && m_chart && m_chart->opacity() != 0.0) {
+                update(); // (paint() takes the new value over)
+            }
+        });
         watch();
         fit();
     }
@@ -1126,7 +1131,11 @@ public:
         // (the chart may be given another source, or the source another model, after the gauge was made)
         watch();
         qreal fraction = 0.0;
-        const bool ours = m_look->ring != BreezeNg::RingPlain && reading(&fraction);
+        const qreal side = qMin(width(), height());
+        const QRectF rect((width() - side) / 2, (height() - side) / 2, side, side);
+        const qreal thickness = qMax(5.0, m_chart->property("thickness").toReal());
+        // (a chart too small for the ring of the settings is left to the chart)
+        const bool ours = m_look->ring != BreezeNg::RingPlain && BreezeNg::auroraRingFits(rect, thickness, m_look->ring) && reading(&fraction);
         if (qEnvironmentVariableIsSet("BREEZE_NG_DEBUG_QUICK") && !m_told) {
             m_told = true;
             QQmlListReference sources(m_chart, "valueSources");
@@ -1143,14 +1152,17 @@ public:
         } else if (!ours && m_hidden) {
             m_hidden = false;
             m_chart->setOpacity(m_opacity);
+        } else if (ours && m_chart->opacity() != 0.0) {
+            // (the application gave the chart another opacity meanwhile: that is the one to keep, and to give back)
+            m_opacity = m_chart->opacity();
+            m_chart->setOpacity(0.0);
+            setOpacity(m_opacity);
         }
         if (!ours) {
             return;
         }
         const qreal fromAngle = m_chart->property("fromAngle").isValid() ? m_chart->property("fromAngle").toReal() : 0.0;
         const qreal toAngle = m_chart->property("toAngle").isValid() ? m_chart->property("toAngle").toReal() : 360.0;
-        const qreal side = qMin(width(), height());
-        const QRectF rect((width() - side) / 2, (height() - side) / 2, side, side);
         const QPalette palette = QGuiApplication::palette();
         const bool dark = palette.color(QPalette::Window).lightnessF() < 0.5;
         const QColor accent = palette.color(QPalette::Active, QPalette::Highlight);
@@ -1164,9 +1176,9 @@ public:
         QColor track = palette.color(QPalette::WindowText);
         track.setAlphaF(dark ? 0.16 : 0.13);
         // (the chart's angles run clockwise from twelve o'clock)
-        BreezeNg::paintAuroraRing(painter, rect, qMax(5.0, m_chart->property("thickness").toReal()), 90.0 - fromAngle, -(toAngle - fromAngle), fraction, m_look->ring,
+        BreezeNg::paintAuroraRing(painter, rect, thickness, 90.0 - fromAngle, -(toAngle - fromAngle), fraction, m_look->ring,
                                   grey ? accent : QColor::fromHslF(hue, dark ? 0.90 : 0.80, dark ? 0.66 : 0.50),
-                                  grey2 ? m_look->second : (grey ? accent : QColor::fromHslF(hue2, dark ? 0.88 : 0.68, dark ? 0.72 : 0.56)), track);
+                                  grey2 ? m_look->second : ((grey && !second) ? accent : QColor::fromHslF(hue2, dark ? 0.88 : 0.68, dark ? 0.72 : 0.56)), track);
     }
 
 private:
@@ -1236,11 +1248,18 @@ private:
         }
         const qreal value = m_model->data(index, role).toReal();
         const bool automatic = range->property("automatic").toBool();
+        if (!automatic && !(range->property("to").toReal() > range->property("from").toReal())) {
+            return false; // (RangeGroup::isValid: the chart draws nothing with such a range)
+        }
         // (an automatic range starts at nought and ends at the value or at the limit its model carries, the sensors'
         // own, whichever is more)
         const QVariant least = m_model->property("minimum"), most = m_model->property("maximum");
         const qreal start = automatic ? 0.0 : range->property("from").toReal();
-        qreal end = automatic ? qMax(value, (most.isValid() && most != least) ? most.toReal() : value) : range->property("to").toReal();
+        // (ModelSource::maximum: a model's maximum that tells its changes is taken as it is, also when equal to the
+        // minimum; one that does not only when the two differ)
+        const int mostIndex = m_model->metaObject()->indexOfProperty("maximum");
+        const bool told = mostIndex >= 0 && m_model->metaObject()->property(mostIndex).hasNotifySignal();
+        qreal end = automatic ? qMax(value, (most.isValid() && (told || most != least)) ? most.toReal() : value) : range->property("to").toReal();
         end = qMax(end, range->property("minimum").toReal());
         if (const qreal step = range->property("increment").toReal(); step > 0.0) {
             end = step * std::ceil(end / step);

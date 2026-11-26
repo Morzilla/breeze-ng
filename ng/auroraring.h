@@ -11,15 +11,27 @@ namespace BreezeNg
 {
 enum RingStyle { RingPlain = 0, RingGradient = 1, RingGlow = 2, RingTicks = 3 };
 
+// How far inside its bounds a ring's arc is drawn (the glow's halo, the ticks' outer ends with their round caps)
+inline qreal auroraRingMargin(qreal width, int style)
+{
+    return style == RingTicks ? width * 0.45 + qMax(1.6, width * 0.42) / 2 : width / 2 + (style == RingGlow ? width * 0.7 : 0.0);
+}
+
+// Whether there is room for the ring at all (paintAuroraRing draws nothing otherwise)
+inline bool auroraRingFits(const QRectF &rect, qreal width, int style)
+{
+    const qreal margin = auroraRingMargin(width, style);
+    return rect.width() - 2 * margin > 2 && rect.height() - 2 * margin > 2;
+}
+
 // rect: the ring's outer bounds; width: its thickness; start, span: the whole track; value: 0..1 of it; first, second:
 // the accent and Aurora's second light (the gradient runs along the filled part: both colours show at any value)
 inline void paintAuroraRing(QPainter *painter, const QRectF &rect, qreal width, qreal start, qreal span, qreal value, int style, const QColor &first,
                             const QColor &second, const QColor &track)
 {
     value = qBound(0.0, value, 1.0);
-    // (inside rect with all that is drawn: the glow's halo, and the ticks' outer ends with their round caps)
     const qreal tickPen = qMax(1.6, width * 0.42);
-    const qreal margin = style == RingTicks ? width * 0.45 + tickPen / 2 : width / 2 + (style == RingGlow ? width * 0.7 : 0.0);
+    const qreal margin = auroraRingMargin(width, style);
     const QRectF arc = rect.adjusted(margin, margin, -margin, -margin);
     if (arc.width() <= 2 || arc.height() <= 2) {
         return;

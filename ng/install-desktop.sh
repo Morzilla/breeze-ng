@@ -474,6 +474,7 @@ if older "$HAVE_QT" "$NEED_QT" || older "$HAVE_KF" "$NEED_KF"; then
         echo "Nothing else was selected: nothing to do. (The NeoLine icons can be installed on their own: --only icons.)"
         exit 0
     fi
+    DEPS=0 # (what is left, the icons, is not built: no development packages to install)
 fi
 
 if [ "$DEPS" = 1 ]; then

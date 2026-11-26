@@ -10356,7 +10356,8 @@ bool Style::drawDialComplexControl(const QStyleOptionComplex *option, QPainter *
             const qreal hue2 = chosen.isValid() && !grey2 ? chosen.hslHueF() : std::fmod(hue + 0.17, 1.0);
             const bool grey = accent.hslSaturationF() < 0.15;
             const QColor a1 = grey ? accent : QColor::fromHslF(hue, dark ? 0.90 : 0.80, dark ? 0.66 : 0.50);
-            const QColor a2 = grey2 ? chosen : (grey ? accent : QColor::fromHslF(hue2, dark ? 0.88 : 0.68, dark ? 0.72 : 0.56));
+            // (a chosen second accent keeps its hue also next to a colourless first one)
+            const QColor a2 = grey2 ? chosen : ((grey && !chosen.isValid()) ? accent : QColor::fromHslF(hue2, dark ? 0.88 : 0.68, dark ? 0.72 : 0.56));
             const qreal span = (last - first) * 180 / M_PI;
             BreezeNg::paintAuroraRing(painter, QRectF(grooveRect), Metrics::Slider_GrooveThickness, first * 180 / M_PI, span,
                                       (enabled && last != first) ? (second - first) / (last - first) : 0.0, qBound(0, StyleConfigData::auroraRing(), 3), a1, a2,
