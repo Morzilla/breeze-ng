@@ -6,7 +6,7 @@ widget style, for what Plasma draws itself (the panel's popups, the launcher, it
     make-plasma-style.py soft|glass|aurora [destination]
         default destination: ~/.local/share/plasma/desktoptheme/breeze-ng-soft (or -glass)
 
-Only the frames below are redrawn, as nine pieces each; hints, shadows of the popups, icons and every other
+Only the frames below are redrawn, as nine pieces each (and the popups' shadows, for their rounder corners); hints, icons and every other
 file come from the default style (copied, and Plasma falls back to it for anything missing). Colours are the
 colour scheme's (ColorScheme-Text as "ink", ColorScheme-Highlight), so both styles follow light and dark schemes.
 
@@ -98,7 +98,69 @@ def pieces(prefix, r, ox, oy, fill=None, edge=None, mask=False, pad=0):
 HINTS = ['hint-top-margin', 'hint-bottom-margin', 'hint-left-margin', 'hint-right-margin']
 
 
-def redraw(rel, frames, drop=()):
+SHADE = [(0, .2), (1 / 3, .1), (.5, .05), (7 / 12, .025), (1, 0)]  # the default style's popup shadow, from the edge outwards
+
+
+def shadows(root, r, m=10):
+    """Redraw the shadow of a popup for corners of radius r. The default style's pieces are cut for its own corners
+    (6 px): round a rounder popup the shadow showed inside the corner, a grey wedge between the two curves. Each piece
+    is the shadow (m px outside the popup) and a clear band under the popup as deep as the corner."""
+    if not any(e.get('id') == 'shadow-topleft' for e in root.iter()):
+        return
+    ids = {'shadow-' + n for n in NAMES}
+    for parent in list(root.iter()):
+        for child in list(parent):
+            if child.get('id') in ids:
+                parent.remove(child)
+    defs = E.SubElement(root, f'{{{NS}}}defs')
+    s, ox, oy = m + r, 2000, 3000
+
+    def stops(gradient, first):
+        if first > 0:
+            E.SubElement(gradient, f'{{{NS}}}stop', {'offset': f'{first:.4f}', 'stop-color': '#000000', 'stop-opacity': '0'})
+        for at, alpha in SHADE:
+            E.SubElement(gradient, f'{{{NS}}}stop', {'offset': f'{first + at * (1 - first):.4f}', 'stop-color': '#000000', 'stop-opacity': str(alpha)})
+
+    def clear(g, x, y, w, h):
+        E.SubElement(g, f'{{{NS}}}rect', {'x': str(x), 'y': str(y), 'width': str(w), 'height': str(h), 'fill': '#000000', 'fill-opacity': '0.001'})
+
+    xs, ys = [ox, ox + s, ox + s + W], [oy, oy + s, oy + s + W]
+    sizes = [s, W, s]
+    for row in range(3):
+        for col in range(3):
+            name = NAMES[row * 3 + col]
+            g = E.SubElement(root, f'{{{NS}}}g', {'id': 'shadow-' + name})
+            x, y, w, h = xs[col], ys[row], sizes[col], sizes[row]
+            clear(g, x, y, w, h)
+            if row == 1 and col == 1:
+                continue
+            gid = f'ng-shadow-{name}'
+            if row != 1 and col != 1:
+                # a corner: a quarter ring round the centre of the popup's own corner
+                cx, cy = (x + s if col == 0 else x), (y + s if row == 0 else y)
+                dx, dy = (-1 if col == 0 else 1), (-1 if row == 0 else 1)
+                gradient = E.SubElement(defs, f'{{{NS}}}radialGradient', {'id': gid, 'gradientUnits': 'userSpaceOnUse', 'cx': str(cx), 'cy': str(cy), 'r': str(s)})
+                stops(gradient, r / s)
+                sweep = 1 if dx * dy > 0 else 0
+                d = (f'M {cx + dx * s},{cy} A {s},{s} 0 0 {sweep} {cx},{cy + dy * s} L {cx},{cy + dy * r} '
+                     f'A {r},{r} 0 0 {1 - sweep} {cx + dx * r},{cy} Z')
+                E.SubElement(g, f'{{{NS}}}path', {'d': d, 'fill': f'url(#{gid})'})
+            else:
+                # an edge: the shadow in the outer m px, from the popup's edge outwards
+                if row != 1:
+                    y1, y2 = (y + m, y) if row == 0 else (y + r, y + s)
+                    box = (x, y if row == 0 else y + r, w, m)
+                    ends = {'x1': '0', 'y1': str(y1), 'x2': '0', 'y2': str(y2)}
+                else:
+                    x1, x2 = (x + m, x) if col == 0 else (x + r, x + s)
+                    box = (x if col == 0 else x + r, y, m, h)
+                    ends = {'x1': str(x1), 'y1': '0', 'x2': str(x2), 'y2': '0'}
+                gradient = E.SubElement(defs, f'{{{NS}}}linearGradient', {'id': gid, 'gradientUnits': 'userSpaceOnUse', **ends})
+                stops(gradient, 0)
+                E.SubElement(g, f'{{{NS}}}rect', {'x': str(box[0]), 'y': str(box[1]), 'width': str(box[2]), 'height': str(box[3]), 'fill': f'url(#{gid})'})
+
+
+def redraw(rel, frames, drop=(), shadow=0):
     """Replace the nine pieces of the given frames in one file of the default style.
     frames: list of (prefix, radius, fill, edge[, mask[, pad, margin]]); drop: prefixes whose pieces are removed
     altogether. A frame with a pad (a transparent band round it) gets its content margins as hints (margin)."""
@@ -123,6 +185,8 @@ def redraw(rel, frames, drop=()):
                 E.SubElement(root, f'{{{NS}}}rect', {'id': prefix + h, 'x': str(ox + 40 * i), 'y': '1900', 'width': str(20 if horizontal else margin),
                                                      'height': str(margin if horizontal else 20), 'fill': '#000000', 'fill-opacity': '0.001'})
         ox += 2 * (r + pad) + W + 10
+    if shadow:
+        shadows(root, shadow)
     os.makedirs(os.path.dirname(f'{DST}/{rel}'), exist_ok=True)
     with gzip.open(f'{DST}/{rel}.svgz', 'wb') as out:
         out.write(E.tostring(root, xml_declaration=True, encoding='utf-8'))
@@ -152,10 +216,10 @@ KEY = [(BG, 0.70), (HLT, 0.22)]
 KEY_EDGE = (INK, 0.12)
 
 # popups (the panel's, the launcher) and tooltips
-redraw('dialogs/background', [('', R_POPUP, (BG, 1 if not GLASS else glass_popup), (INK, popup_rim)), ('mask-', R_POPUP, None, None, True)])
-redraw('translucent/dialogs/background', [('', R_POPUP, (BG, AURORA_POPUP_SVG if AURORA else glass_popup if GLASS else 0.86), (INK, popup_rim)), ('mask-', R_POPUP, None, None, True)])
-redraw('widgets/tooltip', [('', R_TIP, (BG, 1), (INK, popup_rim)), ('mask-', R_TIP, None, None, True)])
-redraw('translucent/widgets/tooltip', [('', R_TIP, (BG, 0.72 if GLASS else 0.9), (INK, popup_rim)), ('mask-', R_TIP, None, None, True)])
+redraw('dialogs/background', [('', R_POPUP, (BG, 1 if not GLASS else glass_popup), (INK, popup_rim)), ('mask-', R_POPUP, None, None, True)], shadow=R_POPUP)
+redraw('translucent/dialogs/background', [('', R_POPUP, (BG, AURORA_POPUP_SVG if AURORA else glass_popup if GLASS else 0.86), (INK, popup_rim)), ('mask-', R_POPUP, None, None, True)], shadow=R_POPUP)
+redraw('widgets/tooltip', [('', R_TIP, (BG, 1), (INK, popup_rim)), ('mask-', R_TIP, None, None, True)], shadow=R_TIP)
+redraw('translucent/widgets/tooltip', [('', R_TIP, (BG, 0.72 if GLASS else 0.9), (INK, popup_rim)), ('mask-', R_TIP, None, None, True)], shadow=R_TIP)
 
 # the panel (Aurora): glass as the popups, the desktop showing through blurred (the default's is nearly solid)
 if AURORA:
