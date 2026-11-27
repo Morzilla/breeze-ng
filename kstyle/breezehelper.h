@@ -142,6 +142,8 @@ public:
     //* every widget that lays its own piece of sheet continues the same lights.
     //* (`active`: the window has the focus; a window in the background dims its lights, as its title bar does)
     void renderAuroraLights(QPainter *painter, const QRectF &windowRect, const QPalette &palette, bool active = true) const;
+    /** the lights themselves, computed (renderAuroraLights keeps the result as a picture) */
+    void renderAuroraLightsNow(QPainter *painter, const QRectF &windowRect, const QPalette &palette, bool active) const;
     //* Breeze NG: white on a dark palette, black on a light one, for translucent sheets and edges
     static QColor ink(const QPalette &palette);
     static bool isDark(const QPalette &palette);

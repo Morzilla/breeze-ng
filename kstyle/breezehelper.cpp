@@ -20,6 +20,7 @@
 #include <KX11Extras>
 #endif
 
+#include <QCache>
 #include <QApplication>
 #include <QGroupBox>
 #include <QCursor>
@@ -503,6 +504,56 @@ static const QPixmap &ngGrainTile(int grain)
 }
 
 void Helper::renderAuroraLights(QPainter *painter, const QRectF &windowRect, const QPalette &palette, bool active) const
+{
+    // The lights are three radial gradients, a wash and a grain over the whole window: computed pixel by pixel, the
+    // slowest thing the raster engine does, and asked for at every repaint of anything that lets the window show
+    // through (a scrolling glass view repaints its whole viewport: two processor cores went into this alone). They
+    // only depend on the window's size, the colours and the settings: drawn once into a picture and kept, a repaint
+    // copies the part it needs.
+    const qreal dpr = painter->device() ? painter->device()->devicePixelRatioF() : qApp->devicePixelRatio();
+    const QSize pixels = (windowRect.size() * dpr).toSize();
+    if (pixels.isEmpty() || pixels.width() > 16384 || pixels.height() > 16384) {
+        if (!pixels.isEmpty()) {
+            renderAuroraLightsNow(painter, windowRect, palette, active);
+        }
+        return;
+    }
+    const bool dimmed = !active && StyleConfigData::auroraDimInactive();
+    const QString key = QStringLiteral("%1x%2@%3 %4 %5 %6 %7 %8 %9 %10 %11")
+                            .arg(pixels.width())
+                            .arg(pixels.height())
+                            .arg(dpr)
+                            .arg(palette.color(QPalette::Active, QPalette::Highlight).rgba(), 0, 16)
+                            .arg(isDark(palette) ? 1 : 0)
+                            .arg(dimmed ? 1 : 0)
+                            .arg(StyleConfigData::auroraLights())
+                            .arg(StyleConfigData::auroraSecondAccent())
+                            .arg(StyleConfigData::auroraAccentRight() ? 1 : 0)
+                            .arg(StyleConfigData::auroraCornerLights() ? 1 : 0)
+                            .arg(StyleConfigData::auroraGrain());
+    // (a few windows' worth: the cost is in KiB, 96 MiB at most; a window being resized fills it with sizes that are
+    // dropped again, the oldest first)
+    static QCache<QString, QPixmap> cache(96 * 1024);
+    QPixmap *kept = cache.object(key);
+    if (!kept) {
+        auto *picture = new QPixmap(pixels);
+        picture->setDevicePixelRatio(dpr);
+        picture->fill(Qt::transparent);
+        {
+            QPainter own(picture);
+            renderAuroraLightsNow(&own, QRectF(QPointF(0, 0), windowRect.size()), palette, active);
+        }
+        const int cost = qMax(1, int(qint64(pixels.width()) * pixels.height() * 4 / 1024));
+        if (!cache.insert(key, picture, cost)) { // (larger than the whole cache: it was deleted; drawn the slow way)
+            renderAuroraLightsNow(painter, windowRect, palette, active);
+            return;
+        }
+        kept = picture;
+    }
+    painter->drawPixmap(windowRect.topLeft(), *kept);
+}
+
+void Helper::renderAuroraLightsNow(QPainter *painter, const QRectF &windowRect, const QPalette &palette, bool active) const
 {
     // three soft lights: the accent from the top left corner, a neighbouring hue from the top right, the accent again
     // from the bottom right. The window decoration draws the same two top ones in the title bar, from the same
