@@ -5,6 +5,8 @@
  */
 
 #include "breezehelper.h"
+#include <QTimer>
+#include <QSet>
 #include "breezestyleconfigdata.h"
 
 #include "breeze.h"
@@ -503,6 +505,14 @@ static const QPixmap &ngGrainTile(int grain)
     return tile;
 }
 
+// the helpers that asked for a picture of the lights to be made later, and are still there (see ~Helper)
+static QSet<const Helper *> s_auroraHelpers;
+
+void Helper::auroraHelperGone(const Helper *helper)
+{
+    s_auroraHelpers.remove(helper);
+}
+
 void Helper::renderAuroraLights(QPainter *painter, const QRectF &windowRect, const QPalette &palette, bool active) const
 {
     // The lights are three radial gradients, a wash and a grain over the whole window: computed pixel by pixel, the
@@ -534,23 +544,55 @@ void Helper::renderAuroraLights(QPainter *painter, const QRectF &windowRect, con
     // (a few windows' worth: the cost is in KiB, 96 MiB at most; a window being resized fills it with sizes that are
     // dropped again, the oldest first)
     static QCache<QString, QPixmap> cache(96 * 1024);
-    QPixmap *kept = cache.object(key);
-    if (!kept) {
-        auto *picture = new QPixmap(pixels);
-        picture->setDevicePixelRatio(dpr);
-        picture->fill(Qt::transparent);
-        {
-            QPainter own(picture);
-            renderAuroraLightsNow(&own, QRectF(QPointF(0, 0), windowRect.size()), palette, active);
-        }
-        const int cost = qMax(1, int(qint64(pixels.width()) * pixels.height() * 4 / 1024));
-        if (!cache.insert(key, picture, cost)) { // (larger than the whole cache: it was deleted; drawn the slow way)
-            renderAuroraLightsNow(painter, windowRect, palette, active);
-            return;
-        }
-        kept = picture;
+    if (StyleConfigData::auroraLights() <= 0) {
+        return; // (no lights: nothing to draw, nothing to keep)
     }
-    painter->drawPixmap(windowRect.topLeft(), *kept);
+    if (QPixmap *kept = cache.object(key)) {
+        painter->drawPixmap(windowRect.topLeft(), *kept);
+        return;
+    }
+    // Not kept yet: drawn straight to the painter now, and the picture is made a moment later, outside the paint
+    // event (a window-sized picture is not to be allocated in a drawing callback), once the size has settled: a
+    // window being resized asks for a new size at every step, and only the last one is worth keeping. A picture
+    // larger than the whole cache is never made
+    renderAuroraLightsNow(painter, windowRect, palette, active);
+    const int cost = qMax(1, int(qint64(pixels.width()) * pixels.height() * 4 / 1024));
+    if (cost > cache.maxCost()) {
+        return;
+    }
+    struct Wanted {
+        const Helper *helper = nullptr;
+        QString key;
+        QSize pixels;
+        QSizeF size;
+        qreal dpr = 1;
+        QPalette palette;
+        bool active = false;
+        int cost = 0;
+    };
+    static Wanted wanted;
+    static QTimer *settle = nullptr;
+    if (!settle) {
+        settle = new QTimer(qApp);
+        settle->setSingleShot(true);
+        settle->setInterval(120);
+        QObject::connect(settle, &QTimer::timeout, qApp, [] {
+            if (!wanted.helper || !s_auroraHelpers.contains(wanted.helper) || cache.contains(wanted.key)) {
+                return; // (the style was replaced meanwhile, or the picture is there)
+            }
+            auto *picture = new QPixmap(wanted.pixels);
+            picture->setDevicePixelRatio(wanted.dpr);
+            picture->fill(Qt::transparent);
+            {
+                QPainter own(picture);
+                wanted.helper->renderAuroraLightsNow(&own, QRectF(QPointF(0, 0), wanted.size), wanted.palette, wanted.active);
+            }
+            cache.insert(wanted.key, picture, wanted.cost);
+        });
+    }
+    s_auroraHelpers.insert(this);
+    wanted = Wanted{this, key, pixels, windowRect.size(), dpr, palette, active, cost};
+    settle->start();
 }
 
 void Helper::renderAuroraLightsNow(QPainter *painter, const QRectF &windowRect, const QPalette &palette, bool active) const

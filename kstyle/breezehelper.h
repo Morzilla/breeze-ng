@@ -44,7 +44,11 @@ public:
     //* destructor
     virtual ~Helper()
     {
+        auroraHelperGone(this);
     }
+
+    //* a helper is going: the picture of the Aurora lights it asked for is not made any more
+    static void auroraHelperGone(const Helper *helper);
 
     //* load configuration
     virtual void loadConfig();
